@@ -16,12 +16,31 @@ created by forking our class repository.
 2. Navigate to your report: `results` > a`<assignment-number>` > `report.html`
 3. Press the `y` key on your keyboard. Note that the URL now has the form:
 ```https://github.coecis.cornell.edu/<your-netid>/nori-26sp/blob/<commit-id>/results/<assignment-name>/report.html```
-Copy this URL and submit it on Canvas.
+4. Copy this URL and submit it on CMSX.
+
+Alternatively, you can do the following:
+1. Select the relevant commit.
+2. Browse the files for that commit and navigate to report.html.
+3. Submit the URL from the browser’s address bar.
+When doing so, make sure that the widget on the left side of the page points to the correct commit:
+
+<table align="center">
+  <tr>
+    <td style="text-align: center;">
+      <figcaption>Correct</figcaption>
+      <img src="ReadmeImages/HowTo.png" alt="Correct" width="300px">
+    </td>
+    <td style="text-align: center;">
+      <figcaption>Incorrect</figcaption>
+      <img src="ReadmeImages/HowNotTo.png" alt="Incorrect" width="300px">
+    </td>
+  </tr>
+</table>
 
 Note that the following kinds of URLs do not uniquely identify a specific state, and are not good submissions for CS5630:
 
 1. A link to a branch or tag: `https://github.coecis.cornell.edu/<your-netid>/nori-26sp/blob/master/results/a0/report.html`
-2. A link to the base repository: `https://github.coecis.cornell.edu/cs6630/nori-26sp/blob/17f31bff65f3476ec3f94685b68ddafeca92b431/results/a0/report.html`
+2. A link to the base repository: `https://github.coecis.cornell.edu/cs5630/nori-26sp/blob/17f31bff65f3476ec3f94685b68ddafeca92b431/results/a0/report.html`
 3. A link to a specific state that you later overwrote so that it results in a 404. You need to be extra-careful to never rewrite the repository's history after a submission, at the risk of losing your ability to demonstrate what code you had before the deadline. (This is a fairly advanced Git move that you are not likely to do without knowing you are doing it!)
 
 
