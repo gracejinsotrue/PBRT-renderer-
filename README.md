@@ -28,10 +28,12 @@ When doing so, make sure that the widget on the left side of the page points to 
   <tr>
     <td style="text-align: center;">
       <figcaption>Correct</figcaption>
+      <br>
       <img src="ReadmeImages/HowTo.png" alt="Correct" width="300px">
     </td>
     <td style="text-align: center;">
       <figcaption>Incorrect</figcaption>
+      <br>
       <img src="ReadmeImages/HowNotTo.png" alt="Incorrect" width="300px">
     </td>
   </tr>
