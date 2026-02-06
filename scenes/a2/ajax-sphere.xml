@@ -1,13 +1,14 @@
 <scene>
 	<!-- Independent sample generator, 32 samples per pixel -->
 	<sampler type="independent">
-		<integer name="sampleCount" value="32"/>
+		<integer name="sampleCount" value="256"/>
 	</sampler>
 
 	<!-- Use the simple point light integrator -->
     <integrator type="simple">
         <point name="position" value="-20, 40, 20"/>
-        <color name="energy" value="3.76e4, 3.76e4, 3.76e4"/>
+        <color name="power" value="3.76e4, 3.76e4, 3.76e4"/>
+        <float name="radius" value="20"/>
     </integrator>
 
 	<!-- Load the Ajax bust (a freely available scan from the Jotero forum) -->
