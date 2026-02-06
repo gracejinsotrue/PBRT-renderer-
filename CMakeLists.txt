@@ -104,6 +104,7 @@ add_executable(warptest
   src/object.cpp
   src/proplist.cpp
   src/common.cpp
+  src/normals.cpp
 )
 
 if (WIN32)
