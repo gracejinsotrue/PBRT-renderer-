@@ -28,7 +28,7 @@ Please expain your design choices and report the following information:
 A: Each BVH node stores axis-aligned bonding box. This is a field that just serves as double duty as either an index
 into the triangle index array for leaves, or the left child index for interior nodes, or a right child index.
 - How many bytes of memory does one of your BVH nodes occupy?
-<img src="report_images/bvh.png">
+<img src="report_images/bvh.png" alt="BVH node memory layout diagram">
 Note that it sums up to 36 bytes, this is because I implemented TBB.
 - How do you choose a good split?
 A: I use SAH with binned approach as suggested. Along the longest axis of the node's bounding box, I divide the centroid
@@ -86,7 +86,7 @@ ajax 544,566 2.2s 586.8
 - Provide plots showing the rendering time as a function of the number of triangles.
 - Provide plots comparing different BVH splitting strategies.
 
-<img src="report_images/graph.png">
+<img src="report_images/graph.png" alt="Performance plot showing rendering and build times versus triangle count">
 - Discuss your observations.
 
 (Without TBB parallelization) build time scales roughly linearly with the number of triangles, consistent with the
