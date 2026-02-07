@@ -105,6 +105,8 @@ add_executable(warptest
   src/proplist.cpp
   src/common.cpp
   src/normals.cpp
+  src/accel.cpp
+  src/mesh.cpp
 )
 
 if (WIN32)
