@@ -14,12 +14,16 @@ A: I spent about 4 hours. I mainly did coding, although the time it takes to tes
 resolution in total takes about the same amount of time as implementation time.
 - What advice should we have given you before you started?
 A: Not necessarily advice from you guys, BUT I WISH I benchmarked the base accel.cpp implementation (that is, the code
-with no optimizations) before doing work. I did not realize it would take that long. That is just sloppy on my part to
+with no optimizations) before doing work. I did not realize it would take that long to render something. That is just
+sloppy on my part to
 not benchmark it immediately, but rather during implementation. So, I had to swap out my work-in-progress code halfway
 - What was hard or surprising about the assignment?
 a: Nothing in particular
 - What did you like or dislike? What else would you change?
 A: cool assingment!
+
+Note that I did the parallelization for building a BVH tree, which is in src/accel.cpp. the baseline version of BVH and
+SAH construction is in src/accel_no_parallel.cpp*
 
 Part 1: BVH Construction
 =====================
@@ -29,12 +33,12 @@ A: Each BVH node stores axis-aligned bonding box. This is a field that just serv
 into the triangle index array for leaves, or the left child index for interior nodes, or a right child index.
 - How many bytes of memory does one of your BVH nodes occupy?
 <img src="report_images/bvh.png" alt="BVH node memory layout diagram">
-Note that it sums up to 36 bytes, this is because I implemented TBB.
+Note that it sums up to 36 bytes, this is because I implemented with TBB. Without tbb it's 32.
 - How do you choose a good split?
 A: I use SAH with binned approach as suggested. Along the longest axis of the node's bounding box, I divide the centroid
 range into 12 equally spaced bins. This number was just as per the assignment suggestion. And then each triangle is
 assigned to a bin based on its centroid position.
-We then evaluate the SAH cost C = S(A)·NA + S(B)·NB for each of the 11 candidate split positions and select the one with
+We then evaluate the SAH cost C = S(A)·NA + S(B)·NB for each candidate split positions and select the one with
 the lowest cost.
 - What do you do if there is no good split?
 A: MY code checks if the best SAH split is >= cost of making the current set a leaf (this is the surface area of parent
@@ -43,8 +47,7 @@ times triangle count), then the code just creates a leaf node.
 - Number of interior nodes
 - Number of leaf nodes
 - Average number of triangles per leaf node
-A: interor nodes : 77k, leaf nodes: 77k, average triangles/leaf: 7.02, 36 bytes per node. Note that this is 36 and not
-32 because I implemented TBB parallelization.
+A: interor nodes : 77k, leaf nodes: 77k, average triangles/leaf: 7.02
 
 
 Part 2: Ray Traversal
@@ -58,7 +61,8 @@ bbox.rayIntersect). If the ray misses the box, the node and its corresponding su
 At the leaf node, we test the ray against each trianglke in the leaf. If a closer intersection is found, ray.maxt is
 updated, which automatically prunes future bounding boxes tests against more distant geometry.
 
-At interior nodes, both children are pushed onto the stack. The stack depth is 64 and more than sufficient any practical
+At interior nodes, both children are pushed onto the stack. The stack depth is 64 and more than sufficient for any
+practical
 BVH (a balanced tree over 544k triangles has depth -17)
 
 
@@ -71,6 +75,7 @@ acceleration.
 The brute-force implementation was tested on the full Ajax scene. After 30+
 minutes, the render had not completed. By contrast, the BVH implementation renders the same scene in 2.2 seconds, giving
 a speedup of at least 800×.
+
 
 Full stats for the BVH implementation rendering time is in a1/stats.html
 model/triangle time/rendering time/build time respectively.
@@ -114,10 +119,28 @@ Make sure to mention the hardware specifications of the machine you used for tes
 
 Component/Specification:
 CPU: Intel(R) Core(TM) i7-12800H (12th Gen)
-Logic Processors: 20 threads (14 Cores: 6 Performance, 8 Efficient)"
+Logic Processors: 20 threads (14 Cores: 6 Performance, 8 Efficient)
 RAM: 16 GB DDR5
 OS: Ubuntu 24.04.3 LTS (Noble Numbat)
 Virtualization: WSL2 (Microsoft Hypervisor)
+
+
+Parallel BVH construction with TBB
+=======================
+This code is in src/accel.cpp.
+I parallelized BVH construction by having each subtree build into an isolated BVHBuildResult containing its own node and
+index arrays, so this eliminates shared mutable state between threads. At each interior node with more than 1024
+triangles (I chose this number after testing a few values only oops, the intention was to balance parallelism and
+overhead), the
+left and right subtrees are dispatched concurrently via tbb::task_group; smaller subtrees build serially to avoid
+scheduling overhead. After both children complete, their arrays are merged with adjusted node pointers. The ray
+traversal code requires no changes since the final BVH layout is identical.
+On the full Ajax scene (544K triangles), build time dropped from 658ms to 168ms, which is a ~3.9× speedup while
+producing an identical BVH (same node counts, same average triangles per leaf). I think the speedup is below the
+machine's core
+count because
+the top levels of the tree are inherently serial and merging introduces some copy overhead. It may also be a skill issue
+and I should have done better.
 
 *This report template was borrowed from the CS440 course at EPFL.*
 
