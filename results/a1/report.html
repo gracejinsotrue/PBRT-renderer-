@@ -87,6 +87,8 @@ ajax 544,566 2.2s 586.8
 - Provide plots comparing different BVH splitting strategies.
 
 <img src="report_images/graph.png" alt="Performance plot showing rendering and build times versus triangle count">
+
+<img src="report_images/three_axes.png" alt="axes splitting strategy performance plot">
 - Discuss your observations.
 
 (Without TBB parallelization) build time scales roughly linearly with the number of triangles, consistent with the
@@ -98,7 +100,17 @@ each ray traverses O(log n) nodes, and since the total ray count is fixed, the p
 changes as the tree grows deeper. The render time is dominated by the sheer number of rays and per-ray overhead rather
 than by the scene complexity.
 
+SAH with longest axis is the clear winner in both build time and render time. Evaluating all three axes (SAH all 3 axes)
+nearly doubles the build time with no meaningful improvement in tree quality; the longest axis heuristic already
+selects a good split direction for the vast majority of nodes.
+
+Median split is the slowest to build (2.7s) because it uses std::sort (O(n log n)) at each level rather than
+std::partition (O(n)). Its render time is also slightly worse because it doesn't optimize for surface area, leading to
+more bounding box overlap between siblings. Notably, it produces exactly 216 = 65,536 leaf nodes, reflecting the
+perfectly balanced binary tree that always splits at the midpoint.
+
 Make sure to mention the hardware specifications of the machine you used for testing.
+
 
 Component/Specification:
 CPU: Intel(R) Core(TM) i7-12800H (12th Gen)
