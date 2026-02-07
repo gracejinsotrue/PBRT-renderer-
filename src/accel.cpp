@@ -12,6 +12,8 @@
 
 #include <chrono>
 #include <iostream>
+
+#include <tbb/tbb.h>
 NORI_NAMESPACE_BEGIN
 
 void Accel::addMesh(Mesh *mesh)
@@ -29,12 +31,24 @@ void Accel::build()
 
     uint32_t nTris = m_mesh->getTriangleCount();
     m_indices.resize(nTris);
-    for (uint32_t i = 0; i < nTris; ++i)
-        m_indices[i] = i;
+    tbb::parallel_for(tbb::blocked_range<uint32_t>(0, nTris),
+                      [this](const tbb::blocked_range<uint32_t> &range)
+                      {
+                          for (uint32_t i = range.begin(); i < range.end(); ++i)
+                              m_indices[i] = i;
+                      });
+    // m_indices.resize(nTris);
+    // for (uint32_t i = 0; i < nTris; ++i)
+    //     m_indices[i] = i;
     // i add code for timing
     auto start = std::chrono::high_resolution_clock::now();
 
-    buildRecursive(0, nTris, m_bbox);
+    // buildRecursive(0, nTris, m_bbox); // this line here would call build recursive, i want to now call build():
+
+    std::vector<uint32_t> allIndices(m_indices.begin(), m_indices.end());
+    BVHBuildResult bvhResult = buildParallel(std::move(allIndices), m_bbox);
+    m_nodes = std::move(bvhResult.nodes);
+    m_indices = std::move(bvhResult.indices);
 
     auto end = std::chrono::high_resolution_clock::now();
     double buildTime = std::chrono::duration<double, std::milli>(end - start).count();
@@ -64,198 +78,177 @@ void Accel::build()
     std::cout << "  Total nodes:               " << m_nodes.size() << std::endl;
 }
 
-// // median split
-// uint32_t Accel::buildRecursive(uint32_t start, uint32_t end, const BoundingBox3f &bbox)
-// {
-//     uint32_t nodeIdx = m_nodes.size();
-//     m_nodes.push_back(BVHNode());
-//     BVHNode &node = m_nodes[nodeIdx];
-//     node.bbox = bbox;
+Accel::BVHBuildResult Accel::buildParallel(std::vector<uint32_t> indices, const BoundingBox3f &bbox)
+{
+    BVHBuildResult result;
+    uint32_t count = indices.size();
 
-//     uint32_t count = end - start;
+    // create a root node
+    BVHNode node;
+    node.bbox = bbox;
 
-//     /* Base case: few enough triangles to make a leaf */
-//     if (count <= MAX_TRI_PER_LEAF)
-//     {
-//         node.nTriangles = count;
-//         node.start = start;
-//         return nodeIdx;
-//     }
+    if (count <= MAX_TRI_PER_LEAF)
+    {
+        node.start = 0;
+        node.nTriangles = (uint16_t)count;
+        node.axis = 0;
+        result.nodes.push_back(node);
+        result.indices = std::move(indices);
+        return result;
+    }
 
-//     /* Find the longest axis of the bounding box */
-//     int axis = bbox.getLargestAxis();
+    // compute the centroid bound
+    int axis = bbox.getLargestAxis();
+    BoundingBox3f centroidBBox;
+    for (uint32_t idx : indices)
+        centroidBBox.expandBy(m_mesh->getCentroid(idx));
 
-//     /* Sort triangles by centroid along the longest axis */
-//     std::sort(m_indices.begin() + start, m_indices.begin() + end,
-//               [this, axis](uint32_t a, uint32_t b)
-//               {
-//                   return m_mesh->getCentroid(a)[axis] < m_mesh->getCentroid(b)[axis];
-//               });
+    float cMin = centroidBBox.min[axis];
+    float cMax = centroidBBox.max[axis];
 
-//     /* Split at the median */
-//     uint32_t mid = start + count / 2;
+    // all centroids coincide on this axis
+    if (cMin == cMax)
+    {
+        node.start = 0;
+        node.nTriangles = (uint16_t)count;
+        node.axis = 0;
+        result.nodes.push_back(node);
+        result.indices = std::move(indices);
+        return result;
+    }
 
-//     /* Compute child bounding boxes */
-//     BoundingBox3f leftBox, rightBox;
-//     for (uint32_t i = start; i < mid; ++i)
-//         leftBox.expandBy(m_mesh->getBoundingBox(m_indices[i]));
-//     for (uint32_t i = mid; i < end; ++i)
-//         rightBox.expandBy(m_mesh->getBoundingBox(m_indices[i]));
+    // this is just SAH binned split, same as in accel_no_parallel.cpp (my original implementation)
+    struct Bin
+    {
+        BoundingBox3f bbox;
+        uint32_t count = 0;
+    };
+    Bin bins[N_BINS];
 
-//     m_nodes[nodeIdx].axis = (uint16_t)axis;
+    float invBinWidth = N_BINS / (cMax - cMin);
+    for (uint32_t idx : indices)
+    {
+        float c = m_mesh->getCentroid(idx)[axis];
+        uint32_t bin = std::min((uint32_t)((c - cMin) * invBinWidth), N_BINS - 1);
+        bins[bin].count++;
+        bins[bin].bbox.expandBy(m_mesh->getBoundingBox(idx));
+    }
 
-//     // Build children (left child is at nodeIdx + 1)
-//     buildRecursive(start, mid, leftBox);
-//     // NOTE: m_nodes may have reallocated during recursion, so
-//     // the 'node' reference is now dangling. Use nodeIdx instead.
-//     uint32_t rightChild = buildRecursive(mid, end, rightBox);
-//     m_nodes[nodeIdx].start = rightChild;
-//     m_nodes[nodeIdx].nTriangles = 0; // Mark as interior node
+    float bestCost = std::numeric_limits<float>::infinity();
+    uint32_t bestSplit = 0;
+    for (uint32_t s = 1; s < N_BINS; ++s)
+    {
+        BoundingBox3f leftBox, rightBox;
+        uint32_t leftCount = 0, rightCount = 0;
+        for (uint32_t i = 0; i < s; ++i)
+        {
+            leftBox.expandBy(bins[i].bbox);
+            leftCount += bins[i].count;
+        }
+        for (uint32_t i = s; i < N_BINS; ++i)
+        {
+            rightBox.expandBy(bins[i].bbox);
+            rightCount += bins[i].count;
+        }
+        if (leftCount == 0 || rightCount == 0)
+            continue;
+        float cost = leftBox.getSurfaceArea() * leftCount + rightBox.getSurfaceArea() * rightCount;
+        if (cost < bestCost)
+        {
+            bestCost = cost;
+            bestSplit = s;
+        }
+    }
 
-//     return nodeIdx;
-// }
+    float leafCost = bbox.getSurfaceArea() * count;
+    if (bestCost >= leafCost) // is splitting worth? or do we just make leaf instead
+    {
+        node.start = 0;
+        node.nTriangles = (uint16_t)count;
+        node.axis = 0;
+        result.nodes.push_back(node);
+        result.indices = std::move(indices);
+        return result;
+    }
 
-// sah all 3 axes
-// uint32_t Accel::buildRecursive(uint32_t start, uint32_t end, const BoundingBox3f &bbox)
-// {
-//     uint32_t nodeIdx = m_nodes.size();
-//     m_nodes.push_back(BVHNode());
-//     BVHNode &node = m_nodes[nodeIdx];
-//     node.bbox = bbox;
+    // we partition
+    float splitPos = cMin + bestSplit * (cMax - cMin) / N_BINS;
+    auto midIter = std::partition(indices.begin(), indices.end(),
+                                  [this, axis, splitPos](uint32_t idx)
+                                  {
+                                      return m_mesh->getCentroid(idx)[axis] < splitPos;
+                                  });
+    uint32_t mid = (uint32_t)(midIter - indices.begin());
+    if (mid == 0 || mid == count)
+        mid = count / 2;
 
-//     uint32_t count = end - start;
+    // split the index, compute child bboxes
+    std::vector<uint32_t> leftIndices(indices.begin(), indices.begin() + mid);
+    std::vector<uint32_t> rightIndices(indices.begin() + mid, indices.end());
 
-//     /* Base case: few enough triangles to make a leaf */
-//     if (count <= MAX_TRI_PER_LEAF)
-//     {
-//         node.nTriangles = count;
-//         node.start = start;
-//         return nodeIdx;
-//     }
+    BoundingBox3f leftBox, rightBox;
+    for (uint32_t idx : leftIndices)
+        leftBox.expandBy(m_mesh->getBoundingBox(idx));
+    for (uint32_t idx : rightIndices)
+        rightBox.expandBy(m_mesh->getBoundingBox(idx));
 
-//     /* Compute the centroid bounds */
-//     BoundingBox3f centroidBBox;
-//     for (uint32_t i = start; i < end; ++i)
-//         centroidBBox.expandBy(m_mesh->getCentroid(m_indices[i]));
+    // if the subtrees are large enough we recurse in parallel
+    BVHBuildResult leftResult, rightResult;
 
-//     /* === SAH binned split — try ALL 3 axes, pick the best === */
+    if (count >= PARALLEL_THRESHOLD)
+    {
+        tbb::task_group tg;
+        tg.run([&]()
+               { leftResult = buildParallel(std::move(leftIndices), leftBox); });
+        tg.run([&]()
+               { rightResult = buildParallel(std::move(rightIndices), rightBox); });
+        tg.wait();
+    }
+    else
+    {
+        leftResult = buildParallel(std::move(leftIndices), leftBox);
+        rightResult = buildParallel(std::move(rightIndices), rightBox);
+    }
 
-//     float globalBestCost = std::numeric_limits<float>::infinity();
-//     uint32_t globalBestSplit = 0;
-//     int globalBestAxis = -1;
+    // now we merge, the layout being [thisNode, leftSubtree..., rightSubtree...]
+    uint32_t leftSize = leftResult.nodes.size();
+    uint32_t leftIdxSize = leftResult.indices.size();
 
-//     for (int axis = 0; axis < 3; ++axis)
-//     {
-//         float cMin = centroidBBox.min[axis];
-//         float cMax = centroidBBox.max[axis];
+    // interior node
+    node.nTriangles = 0;
+    node.axis = (uint16_t)axis;
+    node.start = 1 + leftSize;
+    result.nodes.reserve(1 + leftSize + rightResult.nodes.size());
+    result.nodes.push_back(node);
 
-//         /* Skip this axis if all centroids are at the same position */
-//         if (cMin == cMax)
-//             continue;
+    // append left subtree nodes, also adjust for index offset
+    for (auto &n : leftResult.nodes)
+    {
+        if (n.isLeaf())
+            n.start += 0; // left indices start at offset 0 in merged index array
+        else
+            n.start += 1; // offset by this node (parent)
+        result.nodes.push_back(n);
+    }
 
-//         /* Each bin tracks a bounding box and triangle count */
-//         struct Bin
-//         {
-//             BoundingBox3f bbox;
-//             uint32_t count = 0;
-//         };
-//         Bin bins[N_BINS];
+    // append right subtree nodes, also adjust for index offset
+    for (auto &n : rightResult.nodes)
+    {
+        if (n.isLeaf())
+            n.start += leftIdxSize; // right indices start after left indices
+        else
+            n.start += 1 + leftSize; // offset by this node + entire left subtree
+        result.nodes.push_back(n);
+    }
 
-//         /* Step 1: Assign each triangle to a bin based on its centroid */
-//         float invBinWidth = N_BINS / (cMax - cMin);
-//         for (uint32_t i = start; i < end; ++i)
-//         {
-//             float c = m_mesh->getCentroid(m_indices[i])[axis];
-//             uint32_t bin = std::min((uint32_t)((c - cMin) * invBinWidth), N_BINS - 1);
-//             bins[bin].count++;
-//             bins[bin].bbox.expandBy(m_mesh->getBoundingBox(m_indices[i]));
-//         }
+    // marge the index arrays [leftIndices, rightIndices]
+    result.indices.reserve(leftIdxSize + rightResult.indices.size());
+    result.indices = std::move(leftResult.indices);
+    result.indices.insert(result.indices.end(),
+                          rightResult.indices.begin(), rightResult.indices.end());
 
-//         /* Step 2: Evaluate SAH cost for each of the N_BINS-1 candidate splits */
-//         for (uint32_t s = 1; s < N_BINS; ++s)
-//         {
-//             BoundingBox3f leftBox, rightBox;
-//             uint32_t leftCount = 0, rightCount = 0;
-
-//             for (uint32_t i = 0; i < s; ++i)
-//             {
-//                 leftBox.expandBy(bins[i].bbox);
-//                 leftCount += bins[i].count;
-//             }
-//             for (uint32_t i = s; i < N_BINS; ++i)
-//             {
-//                 rightBox.expandBy(bins[i].bbox);
-//                 rightCount += bins[i].count;
-//             }
-
-//             if (leftCount == 0 || rightCount == 0)
-//                 continue;
-
-//             /* SAH cost: C = S(A)*N_A + S(B)*N_B */
-//             float cost = leftBox.getSurfaceArea() * leftCount + rightBox.getSurfaceArea() * rightCount;
-
-//             if (cost < globalBestCost)
-//             {
-//                 globalBestCost = cost;
-//                 globalBestSplit = s;
-//                 globalBestAxis = axis;
-//             }
-//         }
-//     }
-
-//     /* If no valid split was found on any axis, fall back to a leaf */
-//     if (globalBestAxis == -1)
-//     {
-//         m_nodes[nodeIdx].nTriangles = (uint16_t)count;
-//         m_nodes[nodeIdx].start = start;
-//         return nodeIdx;
-//     }
-
-//     /* Check if splitting is worthwhile compared to making a leaf */
-//     float leafCost = bbox.getSurfaceArea() * count;
-//     if (globalBestCost >= leafCost)
-//     {
-//         m_nodes[nodeIdx].nTriangles = (uint16_t)count;
-//         m_nodes[nodeIdx].start = start;
-//         return nodeIdx;
-//     }
-
-//     /* Partition the triangle indices around the best split */
-//     int bestAxis = globalBestAxis;
-//     float cMin = centroidBBox.min[bestAxis];
-//     float cMax = centroidBBox.max[bestAxis];
-//     float splitPos = cMin + globalBestSplit * (cMax - cMin) / N_BINS;
-//     auto midIter = std::partition(
-//         m_indices.begin() + start, m_indices.begin() + end,
-//         [this, bestAxis, splitPos](uint32_t idx)
-//         {
-//             return m_mesh->getCentroid(idx)[bestAxis] < splitPos;
-//         });
-//     uint32_t mid = (uint32_t)(midIter - m_indices.begin());
-
-//     /* Safety: if partition didn't actually split, force midpoint */
-//     if (mid == start || mid == end)
-//         mid = start + count / 2;
-
-//     /* Compute child bounding boxes from the actual partitioned triangles */
-//     BoundingBox3f leftBox, rightBox;
-//     for (uint32_t i = start; i < mid; ++i)
-//         leftBox.expandBy(m_mesh->getBoundingBox(m_indices[i]));
-//     for (uint32_t i = mid; i < end; ++i)
-//         rightBox.expandBy(m_mesh->getBoundingBox(m_indices[i]));
-
-//     m_nodes[nodeIdx].axis = (uint16_t)bestAxis;
-
-//     // Build children (left child is at nodeIdx + 1)
-//     buildRecursive(start, mid, leftBox);
-//     // NOTE: m_nodes may have reallocated during recursion, so
-//     // the 'node' reference is now dangling. Use nodeIdx instead.
-//     uint32_t rightChild = buildRecursive(mid, end, rightBox);
-//     m_nodes[nodeIdx].start = rightChild;
-//     m_nodes[nodeIdx].nTriangles = 0; // Mark as interior node
-
-//     return nodeIdx;
-// }
+    return result;
+}
 
 // sah longest axis only
 uint32_t Accel::buildRecursive(uint32_t start, uint32_t end, const BoundingBox3f &bbox)
@@ -313,7 +306,7 @@ uint32_t Accel::buildRecursive(uint32_t start, uint32_t end, const BoundingBox3f
         bins[bin].bbox.expandBy(m_mesh->getBoundingBox(m_indices[i]));
     }
 
-    // 2)  Evaluate SAH cost for each of the N_BINS-1 candidate splits
+    // 2)  here we evaluate SAH cost for each of the N_BINS-1 candidate splits
     float bestCost = std::numeric_limits<float>::infinity();
     uint32_t bestSplit = 0;
 
@@ -383,7 +376,7 @@ uint32_t Accel::buildRecursive(uint32_t start, uint32_t end, const BoundingBox3f
 
     uint32_t rightChild = buildRecursive(mid, end, rightBox);
     m_nodes[nodeIdx].start = rightChild;
-    m_nodes[nodeIdx].nTriangles = 0; // Mark as interior node
+    m_nodes[nodeIdx].nTriangles = 0;
 
     return nodeIdx;
 }
@@ -393,7 +386,7 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
     bool foundIntersection = false;
     uint32_t f = (uint32_t)-1;
 
-    Ray3f ray(ray_); /// Make a copy of the ray (we will need to update its '.maxt' value)
+    Ray3f ray(ray_);
 
     // ray traversal with explict stack
     /* we avoid std::stack/std::vector here to prevent per-ray heap allocation */
@@ -406,13 +399,12 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
         uint32_t nodeIdx = stack[--stackPtr];
         const BVHNode &node = m_nodes[nodeIdx];
 
-        /* Skip this node if the ray doesn't hit its bounding box */
+        // if the ray doesn't intersect the node's bounding box, skip it
         if (!node.bbox.rayIntersect(ray))
             continue;
 
         if (node.isLeaf())
         {
-            /* this is a leaf node so we just test all triangles */
             for (uint32_t i = node.start; i < node.start + node.nTriangles; ++i)
             {
                 uint32_t triIdx = m_indices[i];
@@ -431,10 +423,10 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
         }
         else
         {
-            /* for interior node: push both children onto the stack */
-            /* left child is always at nodeIdx + 1 */
+            // for interior node: push both children onto the stack
+            // left child is always at nodeIdx + 1
             stack[stackPtr++] = nodeIdx + 1;
-            stack[stackPtr++] = node.start; // right child
+            stack[stackPtr++] = node.start;
         }
     }
 
