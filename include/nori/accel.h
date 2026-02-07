@@ -7,6 +7,7 @@
 #pragma once
 
 #include <nori/mesh.h>
+#include <vector>
 
 NORI_NAMESPACE_BEGIN
 
@@ -16,7 +17,8 @@ NORI_NAMESPACE_BEGIN
  * The current implementation falls back to a brute force loop
  * through the geometry.
  */
-class Accel {
+class Accel
+{
 public:
     /**
      * \brief Register a triangle mesh for inclusion in the acceleration
@@ -54,8 +56,42 @@ public:
     bool rayIntersect(const Ray3f &ray, Intersection &its, bool shadowRay) const;
 
 private:
-    Mesh         *m_mesh = nullptr; ///< Mesh (only a single one for now)
-    BoundingBox3f m_bbox;           ///< Bounding box of the entire scene
+    /* === BVH constants === */
+    static constexpr uint32_t N_BINS = 12;           ///< Number of SAH bins for split evaluation
+    static constexpr uint32_t MAX_TRI_PER_LEAF = 10; ///< Max triangles before we stop splitting
+
+    /**
+     * \brief Compact BVH node (32 bytes)
+     *
+     * For leaf nodes: nTriangles > 0, start = first index into m_indices
+     * For interior nodes: nTriangles == 0, start = index of right child in m_nodes
+     *   (left child is always stored at current index + 1)
+     */
+    struct BVHNode
+    {
+        BoundingBox3f bbox;  ///< Axis-aligned bounding box (24 bytes)
+        uint32_t start;      ///< Leaf: offset into m_indices. Interior: right child index.
+        uint16_t nTriangles; ///< 0 = interior node, >0 = leaf node
+        uint16_t axis;       ///< Split axis for interior nodes
+
+        bool isLeaf() const { return nTriangles > 0; }
+    };
+
+    /**
+     * \brief Recursively build the BVH
+     * \param start Start index in m_indices (inclusive)
+     * \param end End index in m_indices (exclusive)
+     * \param bbox Bounding box enclosing all triangles in [start, end)
+     * \return Index of the created node in m_nodes
+     */
+    uint32_t buildRecursive(uint32_t start, uint32_t end, const BoundingBox3f &bbox);
+
+    Mesh *m_mesh = nullptr; ///< Mesh (only a single one for now)
+    BoundingBox3f m_bbox;   ///< Bounding box of the entire scene
+
+    /* === BVH storage === */
+    std::vector<BVHNode> m_nodes;    ///< Flat array of BVH nodes
+    std::vector<uint32_t> m_indices; ///< Triangle index array (permuted during build)
 };
 
 NORI_NAMESPACE_END

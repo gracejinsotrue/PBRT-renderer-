@@ -1,9 +1,8 @@
 **Assignment 1**
 
-Student name:
+Student name: Grace Jin
 
-NetID:
-
+NetID: gsj33
 
 Feedback
 ========
@@ -11,34 +10,82 @@ Feedback
 Use this section to provide feedback about the assignment:
 
 - How much time did you spend on the assignment? How was it divided between designing, coding, and testing?
+A: I spent about 4 hours. I mainly did coding, although the time it takes to test each model at higher and higher
+resolution in total takes about the same amount of time as implementation time.
 - What advice should we have given you before you started?
+A: Not necessarily advice from you guys, BUT I WISH I benchmarked the base accel.cpp implementation (that is, the code
+with no optimizations) before doing work. I did not realize it would take that long. That is just sloppy on my part to
+not benchmark it immediately, but rather during implementation. So, I had to swap out my work-in-progress code halfway
 - What was hard or surprising about the assignment?
+a: Nothing in particular
 - What did you like or dislike? What else would you change?
+A: cool assingment! It
 
 Part 1: BVH Construction
 =====================
 Please expain your design choices and report the following information:
 - What information do you store per BVH node?
+A: Each BVH node stores axis-aligned bonding box. This is a field that just serves as double duty as either an index
+into the triangle index array for leaves, or the left child index for interior nodes, or a right child index.
 - How many bytes of memory does one of your BVH nodes occupy?
+<img src="report_images/bvh.png">
+Note that it sums up to 36 bytes, this is because I implemented TBB.
 - How do you choose a good split?
+A: I use SAH with binned approach as suggested. Along the longest axis of the node's bounding box, I divide the centroid
+range into 12 equally spaced bins. This number was just as per the assignment suggestion. And then each triangle is
+assigned to a bin based on its centroid position.
+We then evaluate the SAH cost C = S(A)·NA + S(B)·NB for each of the 11 candidate split positions and select the one with
+the lowest cost.
 - What do you do if there is no good split?
+A: MY code checks if the best SAH split is >= cost of making the current set a leaf (this is the surface area of parent
+times triangle count), then the code just creates a leaf node.
 - Statistics for the Ajax scene:
-        - Number of interior nodes
-        - Number of leaf nodes
-        - Average number of triangles per leaf node
+- Number of interior nodes
+- Number of leaf nodes
+- Average number of triangles per leaf node
+A: interor nodes : 77k, leaf nodes: 77k, average triangles/leaf: 7.02, 36 bytes per node. Note that this is 36 and not
+32 because I implemented TBB parallelization.
+
 
 Part 2: Ray Traversal
 =====================
-Use this section to report your design choices.
+I mean for the ray traversal it is iterative with fix-sized stack of 64 entries on the call stack. This avoids per-ray
+dynamic memory allocation as the assignment spec warns of.
+
+For each node visited, the code tests the ray against the node's bounding box using slab method (this was provided by
+bbox.rayIntersect). If the ray misses the box, the node and its corresponding substree is pruned.
+
+At the leaf node we test ray
 
 Part 3: Performance Evaluation
 =========================
 In this section:
-- Report the rendering times for the original scene and compare them to those of the naïve implementation without BVH acceleration.
+- Report the rendering times for the original scene and compare them to those of the naïve implementation without BVH
+acceleration.
+
+Full stats for the BVH implementation rendering time is in a1/stats.html
+model/triangle time/rendering time/build time respectively.
+
+ajax32 16,336 2.3s 10.5
+ajax16 32,672 2.1s 39.2
+ajax8 68,070 2.0s 55.6
+ajax4 136,140 2.3s 132.0
+ajax2 272,282 2.0s 235.5
+ajax 544,566 2.2s 586.8
+
+
+
 - Provide plots showing the rendering time as a function of the number of triangles.
 - Provide plots comparing different BVH splitting strategies.
 - Discuss your observations.
 Make sure to mention the hardware specifications of the machine you used for testing.
+
+Component/Specification:
+CPU: Intel(R) Core(TM) i7-12800H (12th Gen)
+Logic Processors: 20 threads (14 Cores: 6 Performance, 8 Efficient)"
+RAM: 16 GB DDR5
+OS: Ubuntu 24.04.3 LTS (Noble Numbat)
+Virtualization: WSL2 (Microsoft Hypervisor)
 
 *This report template was borrowed from the CS440 course at EPFL.*
 
@@ -48,7 +95,7 @@ Make sure to mention the hardware specifications of the machine you used for tes
 <script src="../resources/jquery.twentytwenty.js"></script>
 <link href="../resources/offcanvas.css" rel="stylesheet">
 <link href="../resources/twentytwenty.css" rel="stylesheet" type="text/css" />
-<script>var markdeepOptions = {onLoad: function() {$(".twentytwenty-container").twentytwenty({default_offset_pct: 0.5, move_slider_on_hover: true});} };</script>
+<script>var markdeepOptions = { onLoad: function () { $(".twentytwenty-container").twentytwenty({ default_offset_pct: 0.5, move_slider_on_hover: true }); } };</script>
 <!-- Markdeep: -->
 <script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script>
-<script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+<script>window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")</script>
