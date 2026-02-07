@@ -19,7 +19,7 @@ not benchmark it immediately, but rather during implementation. So, I had to swa
 - What was hard or surprising about the assignment?
 a: Nothing in particular
 - What did you like or dislike? What else would you change?
-A: cool assingment! It
+A: cool assingment!
 
 Part 1: BVH Construction
 =====================
@@ -55,13 +55,22 @@ dynamic memory allocation as the assignment spec warns of.
 For each node visited, the code tests the ray against the node's bounding box using slab method (this was provided by
 bbox.rayIntersect). If the ray misses the box, the node and its corresponding substree is pruned.
 
-At the leaf node we test ray
+At the leaf node, we test the ray against each trianglke in the leaf. If a closer intersection is found, ray.maxt is
+updated, which automatically prunes future bounding boxes tests against more distant geometry.
+
+At interior nodes, both children are pushed onto the stack. The stack depth is 64 and more than sufficient any practical
+BVH (a balanced tree over 544k triangles has depth -17)
+
 
 Part 3: Performance Evaluation
 =========================
 In this section:
 - Report the rendering times for the original scene and compare them to those of the naïve implementation without BVH
 acceleration.
+
+The brute-force implementation was tested on the full Ajax scene. After 30+
+minutes, the render had not completed. By contrast, the BVH implementation renders the same scene in 2.2 seconds, giving
+a speedup of at least 800×.
 
 Full stats for the BVH implementation rendering time is in a1/stats.html
 model/triangle time/rendering time/build time respectively.
@@ -74,10 +83,21 @@ ajax2 272,282 2.0s 235.5
 ajax 544,566 2.2s 586.8
 
 
-
 - Provide plots showing the rendering time as a function of the number of triangles.
 - Provide plots comparing different BVH splitting strategies.
+
+<img src="report_images/graph.png">
 - Discuss your observations.
+
+(Without TBB parallelization) build time scales roughly linearly with the number of triangles, consistent with the
+expected O(n log n) complexity of the top-down SAH construction. Doubling the triangle count roughly doubles the build
+time.
+
+Render time is essentially constant at ~2.0–2.3s regardless of triangle count. This is the expected behavior with a BVH:
+each ray traverses O(log n) nodes, and since the total ray count is fixed, the per-ray cost barely
+changes as the tree grows deeper. The render time is dominated by the sheer number of rays and per-ray overhead rather
+than by the scene complexity.
+
 Make sure to mention the hardware specifications of the machine you used for testing.
 
 Component/Specification:

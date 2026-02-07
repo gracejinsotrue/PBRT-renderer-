@@ -5,6 +5,7 @@
 */
 
 // this file is just the unoptimized render code
+
 #include <nori/accel.h>
 #include <Eigen/Geometry>
 
