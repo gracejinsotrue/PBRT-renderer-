@@ -23,5 +23,6 @@ rules.ninja
 *.sln
 *.dir
 *.opendb
+*.obj
 Debug
 x64
