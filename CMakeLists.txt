@@ -94,6 +94,8 @@ add_executable(nori
 
   # simple.cpp
   src/simple.cpp
+
+  src/ao.cpp
 )
 
 add_definitions(${NANOGUI_EXTRA_DEFS})
@@ -108,6 +110,7 @@ add_executable(warptest
   src/proplist.cpp
   src/common.cpp
   src/normals.cpp
+  src/ao.cpp
 
   src/simple.cpp
   src/accel.cpp
