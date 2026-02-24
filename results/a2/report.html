@@ -1,30 +1,174 @@
-**Assignment 1**
+**Assignment 2**
 
-Student name:
+Student name: Grace Jin
 
-NetID:
-
+NetId: gsj33
 
 Feedback
 ========
 
-Use this section to provide feedback about the assignment:
-
 - How much time did you spend on the assignment? How was it divided between designing, coding, and testing?
-- What advice should we have given you before you started?
-- What was hard or surprising about the assignment?
-- What did you like or dislike? What else would you change?
 
+It was a good split between deriving the math and referencing the previous lecture about sampling on a sphere, and
+coding. Testing I honestly just looked at the GUI for part 1 and the reference images for each rendering method for part
+2. Honestly I spent quite some time formatting this report.
+
+- What advice should we have given you before you started?
+None, it was fine.
+
+
+- What was hard or surprising about the assignment?
+math
+
+- What did you like or dislike? What else would you change?
+I liked the assignment! I did not feel like doing either extension (honestly I just ran out of enough time to implement
+them well) this time around but they look extremely cool.
+
+
+
+- The command line commands to test the code is
+1. mkdir build, cd build
+2. cmake ..
+3. make - j
+4. ./warptest or ./nori ../scenes/a2/whateverthisis.xml --no-gui, for testing or rendering respectively
+- I developed on WSl, and for Part 1 sometimes when you want to execute ./warptest to test the $X^2$ tests, make sure to
+export DISPLAY=:0.
+
+The new code files I implemented is in ../src/warp.cpp, ../src/simple.cpp and ../src/ao.cpp. There were to implement the
+various warp methods, to simulate a point or spherical light, and to simulate ambient occlusion, respectively.
 Part 1: Monte Carlo Sampling
 ============================
-Use this section to present your derivations for `Warp::squareToTent` and `Warp::squareToBeckmann` sampling.
 
-For each sampling method, include screenshots of the warptest GUI demonstrating that the $\chi^2$ test passes for each distribution.
+## Warp::squareToTent Derivation
+
+The 2D tent distribution is separable: $p(x,y) = p_1(x) \cdot p_1(y)$, where the 1D tent is:
+
+$$p_1(t) = \begin{cases} 1 - |t|, & -1 \le t \le 1 \\ 0, & \text{otherwise} \end{cases}$$
+
+**Step 1 Compute the CDF $P_1(t)$:**
+
+For $t \in [-1, 0]$: integrate $p_1(t) = 1 + t$ from $-1$:
+
+$$P_1(t) = \int_{-1}^{t} (1+u)\,du = \frac{(1+t)^2}{2}$$
+
+For $t \in [0, 1]$: accumulate the $\frac{1}{2}$ from the left half, then integrate $1 - t$:
+
+$$P_1(t) = \frac{1}{2} + \int_{0}^{t} (1-u)\,du = 1 - \frac{(1-t)^2}{2}$$
+
+**Step 2 Derive the inverse $P_1^{-1}(\xi)$:**
+
+Set $\xi = P_1(t)$ and solve for $t$:
+
+- If $\xi \ge \frac{1}{2}$: $\xi=1 - \frac{(1-t)^2}{2} \implies t=1 - \sqrt{2(1-\xi)}$
+
+
+
+**Step 3** Given uniform variates $(\xi_1, \xi_2) \in [0,1)^2$,
+the warped sample is:
+
+$$(x, y) = \left(P_1^{-1}(\xi_1),\; P_1^{-1}(\xi_2)\right)$$
+
+The 2D distribution is the product of two independent 1D distributions so this is fine.
+
+
+## Warp::squareToBeckmann Derivation
+
+The Beckmann distribution is:
+
+$$D(\theta, \phi) = \frac{1}{2\pi} \cdot \frac{2\,e^{-\tan^2\theta/\alpha^2}}{\alpha^2 \cos^3\theta}$$
+
+as iti s given, it is separable into an azimuthal part ($1/2\pi$) and a longitudinal part (the rest).
+
+**Azimuthal sampling:**
+
+$\phi = 2\pi\xi_1$ (uniform).
+
+**Longitudinal sampling:**
+
+After integrating out $\phi$, the marginal density for $\theta$ (with respect to $\sin\theta\,d\theta$) is:
+
+$$p(\theta) = \frac{2\,e^{-\tan^2\theta/\alpha^2} \sin\theta}{\alpha^2 \cos^3\theta}$$
+
+Substitute $x = \cos\theta$, so $\sin\theta\,d\theta = -dx$. Using $\tan^2\theta = (1 - x^2)/x^2$:
+
+$$p(x) = \frac{2}{\alpha^2 x^3} \cdot e^{-(1-x^2)/(\alpha^2 x^2)}$$
+
+Define $f(x) = -\frac{1}{\alpha^2 x^2} + \frac{1}{\alpha^2}$. Then $f'(x) = \frac{2}{\alpha^2 x^3}$, so:
+
+$$p(x) = f'(x) \cdot e^{f(x)}$$
+
+Using the hint identity $\int f'(x)\,e^{f(x)}\,dx = e^{f(x)} + C$, the CDF is:
+
+$$P(x) = e^{f(x)} = e^{-1/(\alpha^2 x^2) + 1/\alpha^2}$$
+
+**Invert:**
+
+Set $\xi_2 = P(x)$:
+
+$$\ln(\xi_2) = -\frac{1}{\alpha^2 x^2} + \frac{1}{\alpha^2}$$
+
+$$\frac{1}{\alpha^2 x^2} = \frac{1}{\alpha^2} - \ln(\xi_2)$$
+
+$$x^2 = \frac{1}{1 - \alpha^2 \ln(\xi_2)}$$
+
+Since $\tan^2\theta = 1/x^2 - 1$:
+
+$$\boxed{\tan^2\theta = -\alpha^2 \ln(\xi_2)}$$
+
+Then $\cos\theta = 1/\sqrt{1 + \tan^2\theta}$ and $\sin\theta = \sqrt{1 - \cos^2\theta}$.
+
+
+## $\chi^2$ Test Screenshots
+The input point set is in images/input_point_set.png. The output is images/test_for_uniformity.png, which passes the
+test. The input grid visualization of the mapping is images/grid.png, the output is images/grid_pass.png.
+
+
+
 
 Part 2: Three Simple Rendering Algorithms
 =========================================
 
-Show your rendered images for the three algorithms and compare them against the reference images.
+## Part 2.1: Point Light
+
+The point light integrator computes:
+
+$$L(\mathbf{x}) = \frac{\Phi}{4\pi^2} \cdot \frac{\max(0, \cos\theta)}{\|\mathbf{x} - \mathbf{p}\|^2} \cdot V(\mathbf{x}
+\leftrightarrow \mathbf{p})$$
+
+where $\theta$ is the angle between the light direction and the surface normal, and $V$ is the visibility function
+implemented via a shadow ray.
+
+The rendered image is images/ajax-point-ref.png.
+
+
+## Part 2.2: Ambient Occlusion
+
+The ambient occlusion integrator estimates:
+
+$$L(\mathbf{x}) = \int_{H^2(\mathbf{x})} V(\mathbf{x}, \mathbf{x} + \alpha\omega_i) \frac{\cos\theta}{\pi}\,d\omega_i$$
+
+Using `squareToCosineHemisphere` for importance sampling, the $\cos\theta/\pi$ term in the integrand cancels
+with the sampling PDF and now we can just return 1 if unoccluded, 0 if occluded.
+
+The rendered image is images/ajax-ao-ref.png.
+
+
+## Part 2.3: Spherical Light Source
+
+The spherical light is just a glorified point light because it has an actual radius. It samples the solid angle
+subtended by a sphere of radius $r$ at distance
+$d$ from the shading point.
+
+The cone half-angle is $\theta_{\max} = \arcsin(r/d)$, and directions are sampled uniformly within this cone using:
+
+$$\cos\alpha = 1 - \xi \cdot (1 - \cos\theta_{\max})$$
+
+Samples landing below the surface hemisphere are rejected.
+
+The surface radiance of the Lambertian sphere is $L_e = \Phi / (4\pi^2 r^2)$.
+
+The rendered image is images/ajax-sphere-ref.png.
+
 
 *This report template was borrowed from the CS440 course at EPFL.*
 
@@ -34,7 +178,7 @@ Show your rendered images for the three algorithms and compare them against the 
 <script src="../resources/jquery.twentytwenty.js"></script>
 <link href="../resources/offcanvas.css" rel="stylesheet">
 <link href="../resources/twentytwenty.css" rel="stylesheet" type="text/css" />
-<script>var markdeepOptions = {onLoad: function() {$(".twentytwenty-container").twentytwenty({default_offset_pct: 0.5, move_slider_on_hover: true});} };</script>
+<script>var markdeepOptions = { onLoad: function () { $(".twentytwenty-container").twentytwenty({ default_offset_pct: 0.5, move_slider_on_hover: true }); } };</script>
 <!-- Markdeep: -->
 <script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script>
-<script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+<script>window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")</script>
