@@ -74,6 +74,7 @@ add_executable(nori
   src/diffuse.cpp
   src/gui.cpp
   src/independent.cpp
+  src/lighttest.cpp
   src/main.cpp
   src/mesh.cpp
   src/obj.cpp

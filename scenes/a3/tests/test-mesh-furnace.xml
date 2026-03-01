@@ -16,7 +16,9 @@
 	<string name="references" value="1.5, 1.8"/>
 
 	<scene>
-		<integrator type="whitted"/>
+		<integrator type="direct">
+			<string name="strategy" value="emitter"/>
+		</integrator>
 
 		<camera type="perspective">
 			<float name="fov" value="10"/>
@@ -36,7 +38,9 @@
 	</scene>
 
 	<scene>
-		<integrator type="whitted"/>
+		<integrator type="direct">
+			<string name="strategy" value="emitter"/>
+		</integrator>
 
 		<camera type="perspective">
 			<float name="fov" value="10"/>
