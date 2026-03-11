@@ -1,36 +1,141 @@
 **Assignment 3**
 
-Student name:
+Student name: Grace Jin
 
-NetID:
+NetID: gsj33
 
 
 Feedback
 ========
 
-Use this section to provide feedback about the assignment:
-
 - How much time did you spend on the assignment? How was it divided between designing, coding, and testing?
+Spent about 10 hours in total. Most of the time went towards figuring out the math, the code was trival in my opinion
 - What advice should we have given you before you started?
+"start early", but that is also my fault because I was really busy this week...
+It is also my fault that I did not yet do the extension for making an interesting scene, and Nori fundamentally does not
+have texture mapping yet, so that would have been more extra time spent that I ended up not having, if anything cs4620
+taught me, is that making an intersting scene takes a while.
+I will have to do
+this in my own time though!
+
+
 - What was hard or surprising about the assignment?
+Math
+
+
 - What did you like or dislike? What else would you change?
+I like this assignment!
 
 Part 1: Area Light
 ============================
-Discuss your design choices for emitter sampling. Use the `emitter-sample.xml` to test your implementation. Additionally, you may want to modify the $\chi^2$ test to verify that your sampling is correct. Discuss your design choices.
+
+The assignment makes us choose between sampling lights by surface or sampling directions from the reciever. I
+chose area sampling because it just requires a simpler interface, the emitter needs only to know about its own mesh
+geometry. The tradeoff I awknowledge is that converting area PDF to solid angle PDF for MIS but it is not hard.
+I also used c++ std::abs cosine on the light because some scenes need double/multiple emossions.
+
+**Mesh Sampling**
+
+I add a `samplePosition()` method to the `Mesh` class that uniformly samples a point on the mesh surface. The approach
+uses two steps:
+
+1. A `DiscretePDF` is built during `Mesh::activate()` by appending each triangle's surface area. After I normalize,
+this allows selecting a triangle with probability proportional to its area.
+2. Within the selected triangle, a point is sampled using the barycentric coordinate mapping: $\alpha = 1 - \sqrt{1 -
+\xi_1}$, $\beta = \xi_2 \sqrt{1 - \xi_1}$. Also we need to get 3 random values out of a 2d sample, so I use
+`DiscretePDF::sampleReuse()`, which remaps the first component after triangle selection.
+
+The method returns the sampled position, geometric normal from the cross product of triangle edges and a PDF of $1 /
+A_{\text{total}}$ where $A_{\text{total}}$ is the total mesh surface area.
+
+
+Mpte I just used output reference parameters instead of custom struct because it seems to match Nori convention more.
+
+
+**Emitter**
+
+I extended the empty `Emitter` base class with three virtual methods:
+
+- `getRadiance()` returns the constant emitted radiance
+- `sample(sample2D, &p, &n, &pdf)` samples a point on the emitter by delegating to `Mesh::samplePosition()` and
+returns the radiance.
+
+- `pdf()` returns $1 / A_{\text{total}}$, the uniform area sampling density.
+
+The emitter stores a back-pointer to its parent mesh set via `setMesh()` which is called from `Mesh::addChild()`. The
+`AreaLight` class (`src/area.cpp`) implements this interface and reads the `radiance` parameter from the XML scene
+description.
+
+**Test the Emitter Sampling **
+
+I used the scenes/a3/tsets/square-sampling.ipynb notebook to check it is distrbuted as expected. I also ran
+emitter-sample.xml and it outputs a 200x200 image with a lot of dots evenly distributed!
+
+
+Distribution Ray Tracing Stuff:
+=========================================
 
 Part 2.1: BRDF Sampling
 =========================================
 
-Show your rendered images for the bunny and Cornell box scenes. Compare them against the reference images. Show that you pass the `test-mesh.xml` and `test-mesh-furnace.xml` tests.
+The BSDF sampling strategy estimates the reflection equation by importance sampling the product $f_r(\omega_i, \omega_r)
+\cos\theta_i$. For each shading point, the BSDF `sample()` method generates a random direction and returns the weight
+$f_r \cos\theta / p(\omega)$. Then we trace a ray in that direction and if it hits an emitter the weight is multipled by
+emitted radiance $L_e$.
+For diffuse surfaces, this is just cosine-weighted hemisphere sampling. This strategy works well near the light
+source but produces significant noise far away, since most sampled directions miss the (small) light. That is why the
+brdf are the most grainy out of the 3!
+
+All tests pass for `test-mesh.xml` and `test-mesh-furnace.xml` with strategy `bsdf`.
+
+Images are in the results folder in this a3/ directory.
 
 Part 2.2: Emitter Sampling
 =========================================
-Show your rendered images for the bunny and Cornell box scenes. Compare them against the reference images. Show that you pass the `test-mesh.xml` and `test-mesh-furnace.xml` tests.
+
+The emitter sampling strategy directly samples points on light sources instead of sampling directions from the BSDF. For
+each shading point $\mathbf{x}$, a point $\mathbf{y}$ is sampled uniformly on a randomly chosen emitter. The estimator
+evaluates:
+
+$$\frac{f_r(\mathbf{x}, \mathbf{x} \to \mathbf{y}, \omega_r) \, G(\mathbf{x} \leftrightarrow \mathbf{y}) \,
+L_e(\mathbf{y}, \mathbf{y} \to \mathbf{x})}{p_{\text{area}}(\mathbf{y})}$$
+
+where the geometric term $G$ is comprised of visibility, cosine factor at both endpoint and inverse square distance
+falloff.
+The absolute value of the cosine at the light is used to support double-sided emission (used in the Cornell box scene).
+When multiple emitters exist, one is chosen uniformly at random and the selection probability is folded into
+$p_{\text{area}}$.
+
+Oberall this strategy looks better relative to BSDF, it produces much less noise than BSDF sampling for small distant
+lights, but can be noisy close to the light
+source where the geometric term has high variance.
+
+All tests pass for `test-mesh.xml` and `test-mesh-furnace.xml` with strategy `emitter`.
+
+Images are in the results folder in this a3/ directory.
 
 Part 2.3: MIS Sampling
 =========================================
-Show your rendered images for the bunny and Cornell box scenes. Compare them against the reference images. Show that you pass the `test-mesh.xml` and `test-mesh-furnace.xml` tests.
+
+The MIS strategy combines BSDF and emitter sampling using the balance heuristic. Each pixel takes two samples, one from
+BSDF strat and one from emitter and combines them with weights.
+$$w_b = \frac{p_b}{p_b + p_l}, \quad w_l = \frac{p_l}{p_b + p_l}$$
+
+where $p_b$ and $p_l$ are both solid angle PDFs. The key conversion is that the emitter's area PDF maps to
+solid angle via $p_{\text{solid angle}} = p_{\text{area}} \cdot d^2 / |\cos\theta_y|$.
+
+For the BSDF sample, the MIS weight is computed only when the traced ray hits an emitter. For the emitter sample, the
+weight is computed only when the sampled point passes the visibility test. This strategy as discussed in class (or I
+forget what sampling technique exactly we were referring to) avoids problems with undefined
+weights for zero-contribution samples.
+
+MIS achieves lower noise than either strategy alone across the full image. It combines BSDF sampling being good near the
+lgith and emitter sampling far from the light.
+
+All tests pass for `test-mesh.xml` and `test-mesh-furnace.xml` with strategy `mis`.
+
+
+Images are in the results folder in this a3/ directory.
 
 *This report template was borrowed from the CS440 course at EPFL.*
 
@@ -40,7 +145,7 @@ Show your rendered images for the bunny and Cornell box scenes. Compare them aga
 <script src="../resources/jquery.twentytwenty.js"></script>
 <link href="../resources/offcanvas.css" rel="stylesheet">
 <link href="../resources/twentytwenty.css" rel="stylesheet" type="text/css" />
-<script>var markdeepOptions = {onLoad: function() {$(".twentytwenty-container").twentytwenty({default_offset_pct: 0.5, move_slider_on_hover: true});} };</script>
+<script>var markdeepOptions = { onLoad: function () { $(".twentytwenty-container").twentytwenty({ default_offset_pct: 0.5, move_slider_on_hover: true }); } };</script>
 <!-- Markdeep: -->
 <script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script>
-<script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+<script>window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")</script>

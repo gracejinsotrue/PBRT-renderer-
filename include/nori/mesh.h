@@ -9,6 +9,7 @@
 #include <nori/object.h>
 #include <nori/frame.h>
 #include <nori/bbox.h>
+#include <nori/dpdf.h>
 
 NORI_NAMESPACE_BEGIN
 
@@ -20,7 +21,8 @@ NORI_NAMESPACE_BEGIN
  * as well as two local coordinate frames (one that corresponds to the true
  * geometry, and one that is used for shading computations).
  */
-struct Intersection {
+struct Intersection
+{
     /// Position of the surface intersection
     Point3f p;
     /// Unoccluded distance along the ray
@@ -35,15 +37,17 @@ struct Intersection {
     const Mesh *mesh;
 
     /// Create an uninitialized intersection record
-    Intersection() : mesh(nullptr) { }
+    Intersection() : mesh(nullptr) {}
 
     /// Transform a direction vector into the local shading frame
-    Vector3f toLocal(const Vector3f &d) const {
+    Vector3f toLocal(const Vector3f &d) const
+    {
         return shFrame.toLocal(d);
     }
 
     /// Transform a direction vector from local to world coordinates
-    Vector3f toWorld(const Vector3f &d) const {
+    Vector3f toWorld(const Vector3f &d) const
+    {
         return shFrame.toWorld(d);
     }
 
@@ -59,7 +63,8 @@ struct Intersection {
  * the specifics of how to create its contents (e.g. by loading from an
  * external file)
  */
-class Mesh : public NoriObject {
+class Mesh : public NoriObject
+{
 public:
     /// Release all memory
     virtual ~Mesh();
@@ -68,13 +73,16 @@ public:
     virtual void activate();
 
     /// Return the total number of triangles in this shape
-    uint32_t getTriangleCount() const { return (uint32_t) m_F.cols(); }
+    uint32_t getTriangleCount() const { return (uint32_t)m_F.cols(); }
 
     /// Return the total number of vertices in this shape
-    uint32_t getVertexCount() const { return (uint32_t) m_V.cols(); }
+    uint32_t getVertexCount() const { return (uint32_t)m_V.cols(); }
 
     /// Return the surface area of the given triangle
     float surfaceArea(uint32_t index) const;
+
+    /// Sample a position uniformly on the mesh surface
+    void samplePosition(const Point2f &sample, Point3f &p, Normal3f &n, float &pdf) const;
 
     //// Return an axis-aligned bounding box of the entire mesh
     const BoundingBox3f &getBoundingBox() const { return m_bbox; }
@@ -136,6 +144,9 @@ public:
     /// Return a pointer to the BSDF associated with this mesh
     const BSDF *getBSDF() const { return m_bsdf; }
 
+    /// Return the discrete PDF for triangle area sampling
+    const DiscretePDF &getDiscretePDF() const { return m_dpdf; }
+
     /// Register a child object (e.g. a BSDF) with the mesh
     virtual void addChild(NoriObject *child);
 
@@ -156,14 +167,15 @@ protected:
     Mesh();
 
 protected:
-    std::string m_name;                  ///< Identifying name
-    MatrixXf      m_V;                   ///< Vertex positions
-    MatrixXf      m_N;                   ///< Vertex normals
-    MatrixXf      m_UV;                  ///< Vertex texture coordinates
-    MatrixXu      m_F;                   ///< Faces
-    BSDF         *m_bsdf = nullptr;      ///< BSDF of the surface
-    Emitter    *m_emitter = nullptr;     ///< Associated emitter, if any
-    BoundingBox3f m_bbox;                ///< Bounding box of the mesh
+    std::string m_name;           ///< Identifying name
+    MatrixXf m_V;                 ///< Vertex positions
+    MatrixXf m_N;                 ///< Vertex normals
+    MatrixXf m_UV;                ///< Vertex texture coordinates
+    MatrixXu m_F;                 ///< Faces
+    BSDF *m_bsdf = nullptr;       ///< BSDF of the surface
+    Emitter *m_emitter = nullptr; ///< Associated emitter, if any
+    BoundingBox3f m_bbox;         ///< Bounding box of the mesh
+    DiscretePDF m_dpdf;
 };
 
 NORI_NAMESPACE_END
