@@ -13,22 +13,34 @@
 
 NORI_NAMESPACE_BEGIN
 
-Mesh::Mesh() { }
+Mesh::Mesh() {}
 
-Mesh::~Mesh() {
+Mesh::~Mesh()
+{
     delete m_bsdf;
     delete m_emitter;
 }
 
-void Mesh::activate() {
-    if (!m_bsdf) {
+void Mesh::activate()
+{
+    if (!m_bsdf)
+    {
         /* If no material was assigned, instantiate a diffuse BRDF */
         m_bsdf = static_cast<BSDF *>(
             NoriObjectFactory::createInstance("diffuse", PropertyList()));
     }
+    // build the discrete PDF, for sampling triangles by area
+    m_dpdf.clear();
+    m_dpdf.reserve(getTriangleCount());
+    for (uint32_t i = 0; i < getTriangleCount(); ++i)
+    {
+        m_dpdf.append(surfaceArea(i));
+    }
+    m_dpdf.normalize();
 }
 
-float Mesh::surfaceArea(uint32_t index) const {
+float Mesh::surfaceArea(uint32_t index) const
+{
     uint32_t i0 = m_F(0, index), i1 = m_F(1, index), i2 = m_F(2, index);
 
     const Point3f p0 = m_V.col(i0), p1 = m_V.col(i1), p2 = m_V.col(i2);
@@ -36,7 +48,8 @@ float Mesh::surfaceArea(uint32_t index) const {
     return 0.5f * Vector3f((p1 - p0).cross(p2 - p0)).norm();
 }
 
-bool Mesh::rayIntersect(uint32_t index, const Ray3f &ray, float &u, float &v, float &t) const {
+bool Mesh::rayIntersect(uint32_t index, const Ray3f &ray, float &u, float &v, float &t) const
+{
     uint32_t i0 = m_F(0, index), i1 = m_F(1, index), i2 = m_F(2, index);
     const Point3f p0 = m_V.col(i0), p1 = m_V.col(i1), p2 = m_V.col(i2);
 
@@ -75,45 +88,80 @@ bool Mesh::rayIntersect(uint32_t index, const Ray3f &ray, float &u, float &v, fl
     return t >= ray.mint && t <= ray.maxt;
 }
 
-BoundingBox3f Mesh::getBoundingBox(uint32_t index) const {
+BoundingBox3f Mesh::getBoundingBox(uint32_t index) const
+{
     BoundingBox3f result(m_V.col(m_F(0, index)));
     result.expandBy(m_V.col(m_F(1, index)));
     result.expandBy(m_V.col(m_F(2, index)));
     return result;
 }
 
-Point3f Mesh::getCentroid(uint32_t index) const {
+Point3f Mesh::getCentroid(uint32_t index) const
+{
     return (1.0f / 3.0f) *
-        (m_V.col(m_F(0, index)) +
-         m_V.col(m_F(1, index)) +
-         m_V.col(m_F(2, index)));
+           (m_V.col(m_F(0, index)) +
+            m_V.col(m_F(1, index)) +
+            m_V.col(m_F(2, index)));
 }
 
-void Mesh::addChild(NoriObject *obj) {
-    switch (obj->getClassType()) {
-        case EBSDF:
-            if (m_bsdf)
-                throw NoriException(
-                    "Mesh: tried to register multiple BSDF instances!");
-            m_bsdf = static_cast<BSDF *>(obj);
-            break;
+void Mesh::addChild(NoriObject *obj)
+{
+    switch (obj->getClassType())
+    {
+    case EBSDF:
+        if (m_bsdf)
+            throw NoriException(
+                "Mesh: tried to register multiple BSDF instances!");
+        m_bsdf = static_cast<BSDF *>(obj);
+        break;
 
-        case EEmitter: {
-                Emitter *emitter = static_cast<Emitter *>(obj);
-                if (m_emitter)
-                    throw NoriException(
-                        "Mesh: tried to register multiple Emitter instances!");
-                m_emitter = emitter;
-            }
-            break;
+    case EEmitter:
+    {
+        Emitter *emitter = static_cast<Emitter *>(obj);
+        if (m_emitter)
+            throw NoriException(
+                "Mesh: tried to register multiple Emitter instances!");
+        m_emitter = emitter;
+        m_emitter->setMesh(this);
+    }
+    break;
 
-        default:
-            throw NoriException("Mesh::addChild(<%s>) is not supported!",
-                                classTypeName(obj->getClassType()));
+    default:
+        throw NoriException("Mesh::addChild(<%s>) is not supported!",
+                            classTypeName(obj->getClassType()));
     }
 }
+// https://www.cs.cornell.edu/courses/cs5630/2026sp/nori/
+void Mesh::samplePosition(const Point2f &sample, Point3f &p, Normal3f &n, float &pdf) const
+{
+    // use the first component to pick a triangle proportional to area
+    float reused = sample.x();
+    size_t triIdx = m_dpdf.sampleReuse(reused);
 
-std::string Mesh::toString() const {
+    // Get the three vertex positions of the chosen triangle
+    uint32_t i0 = m_F(0, triIdx), i1 = m_F(1, triIdx), i2 = m_F(2, triIdx);
+    const Point3f p0 = m_V.col(i0), p1 = m_V.col(i1), p2 = m_V.col(i2);
+
+    // Sample barycentric coordinates using the PBR book mapping
+    float xi1 = reused;     // reused first component (now re-mapped to [0,1])
+    float xi2 = sample.y(); // second component
+    float alpha = 1.0f - std::sqrt(1.0f - xi1);
+    float beta = xi2 * std::sqrt(1.0f - xi1);
+
+    // Compute the sampled position
+    p = alpha * p0 + beta * p1 + (1.0f - alpha - beta) * p2;
+
+    // Compute the geometric normal from the cross product
+    Vector3f edge1 = p1 - p0;
+    Vector3f edge2 = p2 - p0;
+    n = edge1.cross(edge2).normalized();
+
+    // PDF is 1 / total surface area
+    pdf = 1.0f / m_dpdf.getSum();
+}
+
+std::string Mesh::toString() const
+{
     return tfm::format(
         "Mesh[\n"
         "  name = \"%s\",\n"
@@ -126,11 +174,11 @@ std::string Mesh::toString() const {
         m_V.cols(),
         m_F.cols(),
         m_bsdf ? indent(m_bsdf->toString()) : std::string("null"),
-        m_emitter ? indent(m_emitter->toString()) : std::string("null")
-    );
+        m_emitter ? indent(m_emitter->toString()) : std::string("null"));
 }
 
-std::string Intersection::toString() const {
+std::string Intersection::toString() const
+{
     if (!mesh)
         return "Intersection[invalid]";
 
@@ -148,8 +196,7 @@ std::string Intersection::toString() const {
         uv.toString(),
         indent(shFrame.toString()),
         indent(geoFrame.toString()),
-        mesh ? mesh->toString() : std::string("null")
-    );
+        mesh ? mesh->toString() : std::string("null"));
 }
 
 NORI_NAMESPACE_END

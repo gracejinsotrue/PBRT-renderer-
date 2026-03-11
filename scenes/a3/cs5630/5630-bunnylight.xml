@@ -1,7 +1,9 @@
 <?xml version="1.0" ?>
 <scene>
 	<integrator type="direct">
-        <string name="strategy" value="bsdf"/>
+        <!-- <string name="strategy" value="bsdf"/> -->
+		<!-- <string name="strategy" value="emitter"/> -->
+		<string name="strategy" value="mis"/>
 	</integrator>
 	<sampler type="independent">
 		<integer name="sampleCount" value="32"/>
