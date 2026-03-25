@@ -1,8 +1,8 @@
 **Assignment 4**
 
-Student name:
+Student name: Grace Jin
 
-NetID:
+NetID: gsj33
 
 
 Feedback
@@ -11,9 +11,21 @@ Feedback
 Use this section to provide feedback about the assignment:
 
 - How much time did you spend on the assignment? How was it divided between designing, coding, and testing?
+
+I spent about 15 hours on this assignment. I spent the bulk of my time designing and coding. I wasn't able to pass all 6 or 15 tests off the test benches initially, so some time went to that as well.
+
 - What advice should we have given you before you started?
+
+N/A
+
 - What was hard or surprising about the assignment?
+
+I think this assignment was more straightforward than the previous assignment, most of the instructions were easy to just one-to-one implement in my codebase. 
+I think the microfacet BRDF was most difficult for me.
+
 - What did you like or dislike? What else would you change?
+
+Good assignment!
 
 Part 1: Dielectrics
 ===================
@@ -21,8 +33,26 @@ Part 1: Dielectrics
 Render the following scenes in `scenes/a4`:
     - `cs5630/5630-grid.xml`
     - `cbox/cbox-direct.xml`
+The resultant image files are in the results/a4/images/ folder of this directory.    
 
 Please discuss the design choices and relevant technical information about your implementation in the report and include comparisons against our reference renderings.
+
+
+The implementation is in dielectric.cpp.
+
+The dieletrics implementation was pretty straightforward. The dielectric `sample()` method uses the uniform random sample to choose between reflection and refraction
+with probability equal to the Fresnel reflectance `Fr`. Both branches return weight 1.0 because the
+sampling probability exactly matches the Fresnel weight and therefore cancel out. Refraction uses the vector form
+of Snell's law, and when the ray comes from inside the surface I swap IORs and flip the local normal.
+
+I reference the assignment doc now: "This recursion continues for as long as the reflected or refracted rays hit specular surfaces, stopping either when it finds a diffuse surface or when it decides to stop due to Russian Roulette. If it ends at a diffuse surface, the radiance is calculated using the existing direct illumination implementation. "
+
+For the Whitted-style extension, I added a specular branch to `Li()` method, (where Li() takes a ray and returns total radiance arriving along the ray), that checks if an object is diffuse (`isDiffuse()`) before
+the existing direct illumination logic. Specular surfaces are traced recursively with Russian Roulette
+(p=0.95) instead of light sampling, since delta BSDFs make emitter sampling impossible. Diffuse-only
+scenes are unaffected.
+Visually, the output renders are similar to the reference image on the course webpage. 
+
 
 Part 2: Microfacet BRDF
 =======================
@@ -33,12 +63,33 @@ Pass the following statistical tests in `scenes/a4/tests`:
 
 The `warptest` GUI also contains a $\chi^2$ test for the BRDF model, but this is just to facilitate debugging and visualization; the XML files are the real validation benchmark. Mention in your report if running these tests produces any errors.
 
+The code passes the statistical tests. 
+
 Use your `direct` integrator from the previous assignment to render a microfacet Ajax bust and ensure that you can match our references for the following scenes in `scenes/a4`:
     - `ajax/ajax-smooth.xml`
     - `ajax/ajax-rough.xml`
 
 Make sure to discuss the design choices and relevant technical information about your implementation in the report and include comparisons against our reference renderings.
 
+
+For Part 2.1:
+
+The code is implemented in src/microfacet.cpp.
+
+We are told that the microfacet BRDF is a linear blend of diffuse ($k_d / \pi$) and specular ($k_s$) terms.
+The specular term uses the Beckmann distribution for D, for F it uses a pre provided fresnel() method, and the rational function approximation provided by Walter et. al (primarily the formulas on the course webpage: G(ωi,ωo,ωh)=G1(ωi,ωh) G1(ωo,ωh) )
+This part is very straightforward. 
+The only subtlety is that `squareToBeckmannPdf()` returns $D(m) \cos\theta_m$, so I must divide by $\cos\theta_h$ to recover D alone.
+
+For Part 2.2:
+
+The sampling density is a mixture of weight $k_s$ plus cosine-weighted hemisphere (weight
+$1 - k_s$). In `sample()` method, I use the first component of the random sample to choose which lobe, then
+rescale it back to [0,1] so I can reuse it, which is the same idea as `DiscretePDF::sampleReuse`. The specular branch
+samples a Beckmann normal and reflects outgoing direction`wi` about i and the diffuse branch does typical cosine-weighted hemisphere
+sampling. Samples that reflect below the surface are rejected.
+
+Visually, the output renders are similar to the reference image on the course webpage and the statistical tests pass all cases.
 Part 3: path_mats Brute force path tracer
 =========================================
 Render the following scenes in `scenes/a4`:
@@ -51,6 +102,23 @@ Pass the following statistical tests in `scenes/a4/tests`:
     - `test-furnace.xml` (Tests 3-4)
 
 Make sure to discuss the design choices and relevant technical information about your implementation in the report and include comparisons against our reference renderings.
+
+The code is implemented in a new class src/path_mats.cpp and added accordingly to the CmakeLists.txt.
+
+The point is to build a path tracing integrator that generalizes BSDF sampling, this is done by extending a Whitted-style direct illumination algorithm into a full path tracer that fully accounts for indirect illumination.
+This is an iterative BSDSF sampling path tracer and includes both reflected radiance and emitted radiance integrators. The choice for iterative approach does not align as well with the more intuitive recursive estimator, but
+the iterative estimator was just easiest to implement and debug, which indeed came in handy.
+
+We use the Russian Roulette strategy where "continuation probability = min(maximum component of the throughput * eta^2, 0.99)" to match the class reference renders exactly. This is applied after three bounces to better avoid killing paths that are high energy but short.
+
+The real main differenced from the Whitted integrator is that EVERY surface rather than just specular surfaces continues the path with BSDF sampling.
+The benefit is that we can capture indirect illumination that a pure whitted technique would miss entirely.
+For example in the Cornell box, there are some nice blue and red hues in the shadow of the spheres because some rays can bring those respective colors in as indirect illumination!
+
+Visually, the output renders are similar to the reference image on the course webpage and the statistical tests pass all cases.
+
+
+
 
 Part 4: path_ems Path tracer with next event estimation
 =======================================================
@@ -67,6 +135,22 @@ Pass the following statistical tests in `scenes/a4/tests`:
 
 Make sure to discuss the design choices and relevant technical information about your implementation in the report and include comparisons against our reference renderings.
 
+The code is implemented in src/path_ems.cpp.
+
+
+This version extends path_mats by adding explicit light sampling with Next Event Estimation at each diffuse bounce. One design choice I made ewas just to reuse the sampling logic from my direct integrator from direct.cpp.
+The other key design choice is to avoid double counting, where we have a flag to track whether the previous surface we hit was specular. Emitter hits are only counted on the camera ray or after specular counces where Near Event estimation was not possible.
+After diffuse bouces, Next Event Estimation already accounts for direct light so BSDF sampled emitter hits are skipped. Next Event is also skipped for specular surfaces because delta BSDFS make light sampling impossible. The reason for this is because the probability of sampling a specific, infinitesimal direction of a light source required to view a reflection is zero! 
+
+
+The assignment suggests "Note: Different (correct) implementations of emitter sampling will lead to potentially very different noise patterns in the test scenes. If you want to match the reference renders exactly, you will need to (in each iteration) 1. Pick one light source uniformly at random, and 2. Sample one point on the associated mesh uniformly over its surface area."
+
+I think it was the best way to make sure my implementation is correct. I decided to indeed 1. pick a light uniformly at random (with int emitterIdx = std::min((int)(sampler->next1D() * emitterMeshes.size()), ...) with emitterSelectionPdf = 1.0 / emitterMeshes.size()) and 2. sample one point uniformly over its surface area ( emitterMesh->getEmitter()->sample(sampler->next2D(), y, ny, pdfArea))
+
+Visually, the output renders are similar to the reference image on the course webpage and the statistical tests pass all cases.
+
+
+
 Part 5: path_mis Path tracer with Multiple Importance Sampling
 ==============================================================
 
@@ -80,6 +164,23 @@ Pass the following statistical tests in `scenes/a4/tests`:
     - `test-furnace.xml` (Tests 5-6)
 
 Make sure to discuss the design choices and relevant technical information about your implementation in the report and include comparisons against our reference renderings.
+
+The implementation is in src/path_mis.cpp.
+
+This path tracing method just combines both sampling strategies from our now-implemented path_ems.cpp and path_mats.cpp with our now well-known balance herusitic from MIS. The balance heuristic I took directly from my direct integrator MIS.
+
+At each diffuse bounce, the emitter sample is weighted by
+$w_l = p_l / (p_l + p_b)$ and the BSDF sample (when it hits an emitter) is weighted by
+$w_b = p_b / (p_l + p_b)$, where both pdfs are in solid angle measure. The emitter's area pdf is
+converted via $p_{\text{solid angle}} = p_{\text{area}} \cdot d^2 / |\cos\theta_y|$.
+
+The only difference is for the BSDF sample to continue the path in another iteration of the loop to add contributions from later bounces.
+How it is accomplished in my codebase is that: In direct.cpp's MIS mode, the BSDF sample 1. traces a ray, 2. checks if it hits an emitter 3. applies MIS weight, that is all.
+For path_mis.cpp, the same BSDF sample does all these steps BUT the loop still continues with throughput*= bsdfWeight and builds the next ray. 
+
+
+Visually, the output renders are similar to the reference image on the course webpage and the statistical tests pass all cases.
+
 
 *This report template was borrowed from the CS440 course at EPFL.*
 

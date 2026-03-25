@@ -14,8 +14,12 @@ public:
         m_strategy = props.getString("strategy", "mis");
     }
 
+    // This method simply answers the qusetion of how much light arrives along the ray, where the scene casts a ray, calls Li() to see what the ray hit and figure out radiance at this point.
+    // Li() used to only handle diffuse surfaces but for pa4, I add a specular extension.
+    //  specular works by following the reflected or refracted ray recursively until it lands on something diffuse.
     Color3f Li(const Scene *scene, Sampler *sampler, const Ray3f &ray) const
     {
+
         Intersection its;
         if (!scene->rayIntersect(ray, its))
             return Color3f(0.0f);
@@ -24,18 +28,37 @@ public:
         if (its.mesh->isEmitter())
             result += its.mesh->getEmitter()->getRadiance();
 
+        const BSDF *bsdf = its.mesh->getBSDF();
+
+        // pa4 speculars
+        if (!bsdf->isDiffuse())
+        {
+
+            BSDFQueryRecord bRec(its.toLocal(-ray.d));
+            Color3f weight = bsdf->sample(bRec, sampler->next2D());
+
+            if (weight.isZero())
+                return result;
+
+            float xi = sampler->next1D();
+            if (xi < 0.95f)
+            {
+                // Build the next ray from the hit point in the sampled direction
+                Vector3f wo = its.toWorld(bRec.wo);
+                Ray3f nextRay(its.p, wo, Epsilon, std::numeric_limits<float>::infinity());
+
+                result += (1.0f / 0.95f) * weight * Li(scene, sampler, nextRay);
+            }
+
+            return result;
+        }
+
         if (m_strategy == "bsdf")
-        {
             result += bsdfSample(scene, sampler, ray, its);
-        }
         else if (m_strategy == "emitter")
-        {
             result += emitterSample(scene, sampler, ray, its);
-        }
         else if (m_strategy == "mis")
-        {
             result += misSample(scene, sampler, ray, its);
-        }
 
         return result;
     }
