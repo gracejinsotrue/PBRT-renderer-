@@ -27,6 +27,7 @@ rules.ninja
 Debug
 x64
 
+dxr/build/
 
 scenes/
 chi_tests/
