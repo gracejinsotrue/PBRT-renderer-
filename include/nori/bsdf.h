@@ -14,7 +14,8 @@ NORI_NAMESPACE_BEGIN
  * \brief Convenience data structure used to pass multiple
  * parameters to the evaluation and sampling routines in \ref BSDF
  */
-struct BSDFQueryRecord {
+struct BSDFQueryRecord
+{
     /// Incident direction (in the local frame)
     Vector3f wi;
 
@@ -29,18 +30,36 @@ struct BSDFQueryRecord {
 
     /// Create a new record for sampling the BSDF
     BSDFQueryRecord(const Vector3f &wi)
-        : wi(wi), eta(1.f), measure(EUnknownMeasure) { }
+        : wi(wi), eta(1.f), measure(EUnknownMeasure) {}
 
     /// Create a new record for querying the BSDF
     BSDFQueryRecord(const Vector3f &wi,
-            const Vector3f &wo, EMeasure measure)
-        : wi(wi), wo(wo), eta(1.f), measure(measure) { }
+                    const Vector3f &wo, EMeasure measure)
+        : wi(wi), wo(wo), eta(1.f), measure(measure) {}
+};
+
+/// GPU-side material data extracted from a BSDF for the DXR port.
+struct BSDFGPUData
+{
+    enum Type
+    {
+        DIFFUSE = 0,
+        MIRROR = 1,
+        DIELECTRIC = 2,
+        MICROFACET = 3
+    };
+    int type = DIFFUSE;
+    float albedo[3] = {0.5f, 0.5f, 0.5f};
+    float intIOR = 1.5046f;
+    float extIOR = 1.000277f;
+    float alpha = 0.1f;
 };
 
 /**
  * \brief Superclass of all bidirectional scattering distribution functions
  */
-class BSDF : public NoriObject {
+class BSDF : public NoriObject
+{
 public:
     /**
      * \brief Sample the BSDF and return the importance weight (i.e. the
@@ -98,6 +117,11 @@ public:
      * or not to store photons on a surface
      */
     virtual bool isDiffuse() const { return false; }
+
+    /**
+     * \brief Return material parameters for GPU upload
+     */
+    virtual BSDFGPUData getGPUData() const { return BSDFGPUData{}; }
 };
 
 NORI_NAMESPACE_END

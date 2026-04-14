@@ -8,9 +8,11 @@
 
 NORI_NAMESPACE_BEGIN
 
-class Microfacet : public BSDF {
+class Microfacet : public BSDF
+{
 public:
-    Microfacet(const PropertyList &propList) {
+    Microfacet(const PropertyList &propList)
+    {
         /* RMS surface roughness */
         m_alpha = propList.getFloat("alpha", 0.1f);
 
@@ -23,21 +25,21 @@ public:
         /* Albedo of the diffuse base material (a.k.a "kd") */
         m_kd = propList.getColor("kd", Color3f(0.5f));
 
-        /* To ensure energy conservation, we must scale the 
-           specular component by 1-kd. 
+        /* To ensure energy conservation, we must scale the
+           specular component by 1-kd.
 
-           While that is not a particularly realistic model of what 
-           happens in reality, this will greatly simplify the 
-           implementation. Please see the course staff if you're 
-           interested in implementing a more realistic version 
+           While that is not a particularly realistic model of what
+           happens in reality, this will greatly simplify the
+           implementation. Please see the course staff if you're
+           interested in implementing a more realistic version
            of this BRDF. */
         m_ks = 1 - m_kd.maxCoeff();
     }
 
     /// Evaluate the BRDF for the given pair of directions
-    Color3f eval(const BSDFQueryRecord &bRec) const {
-        if (Frame::cosTheta(bRec.wi) <= 0.0f
-         || Frame::cosTheta(bRec.wo) <= 0.0f)
+    Color3f eval(const BSDFQueryRecord &bRec) const
+    {
+        if (Frame::cosTheta(bRec.wi) <= 0.0f || Frame::cosTheta(bRec.wo) <= 0.0f)
             return Color3f(0.0f);
 
         // Diffuse term: kd / pi
@@ -47,8 +49,7 @@ public:
 
         // D represents the Beckmann distribution. squareToBeckmannPdf returns D(m)*cos(theta_m),
         // so divide by cos(theta_h) to recover D alone.
-        float D = Warp::squareToBeckmannPdf(wh, m_alpha)
-                / Frame::cosTheta(wh);
+        float D = Warp::squareToBeckmannPdf(wh, m_alpha) / Frame::cosTheta(wh);
 
         // fresnel reflectance at angle between wi and wh
         float F = fresnel(wh.dot(bRec.wi), m_extIOR, m_intIOR);
@@ -65,26 +66,26 @@ public:
     }
 
     /// Evaluate the sampling density of \ref sample() wrt. solid angles
-    float pdf(const BSDFQueryRecord &bRec) const {
-    if (Frame::cosTheta(bRec.wi) <= 0.0f
-     || Frame::cosTheta(bRec.wo) <= 0.0f)
-        return 0.0f;
+    float pdf(const BSDFQueryRecord &bRec) const
+    {
+        if (Frame::cosTheta(bRec.wi) <= 0.0f || Frame::cosTheta(bRec.wo) <= 0.0f)
+            return 0.0f;
 
-    Vector3f wh = (bRec.wi + bRec.wo).normalized();
-    // ks D(ωh) Jh+(1−ks)cosθo/π
+        Vector3f wh = (bRec.wi + bRec.wo).normalized();
+        // ks D(ωh) Jh+(1−ks)cosθo/π
 
-    // for a specular pdf, D(wh)*cos(θ) is what squareToBeckmannPdf returns.
-    // multiplied by Jacobian Jh=(4(ωh⋅ωo))^-1
-    // from half-vector density to outgoing-direction density.
-    float Dwh_cosTheta = Warp::squareToBeckmannPdf(wh, m_alpha);
-    float Jh = 1.0f / (4.0f * wh.dot(bRec.wo));
-    float specPdf = m_ks * Dwh_cosTheta * Jh;
+        // for a specular pdf, D(wh)*cos(θ) is what squareToBeckmannPdf returns.
+        // multiplied by Jacobian Jh=(4(ωh⋅ωo))^-1
+        // from half-vector density to outgoing-direction density.
+        float Dwh_cosTheta = Warp::squareToBeckmannPdf(wh, m_alpha);
+        float Jh = 1.0f / (4.0f * wh.dot(bRec.wo));
+        float specPdf = m_ks * Dwh_cosTheta * Jh;
 
-    // diffuse pdf= cos(theta_o) / pi
-    float diffPdf = (1.0f - m_ks) * Frame::cosTheta(bRec.wo) * INV_PI;
+        // diffuse pdf= cos(theta_o) / pi
+        float diffPdf = (1.0f - m_ks) * Frame::cosTheta(bRec.wo) * INV_PI;
 
-    return specPdf + diffPdf;
-}
+        return specPdf + diffPdf;
+    }
 
     // /// Sample the BRDF
     // Color3f sample(BSDFQueryRecord &bRec, const Point2f &_sample) const {
@@ -96,23 +97,24 @@ public:
     //     // cosine factor from the reflection equation, i.e.
     //     // return eval(bRec) * Frame::cosTheta(bRec.wo) / pdf(bRec);
     // }
-    Color3f sample(BSDFQueryRecord &bRec, const Point2f &_sample) const {
+    Color3f sample(BSDFQueryRecord &bRec, const Point2f &_sample) const
+    {
         if (Frame::cosTheta(bRec.wi) <= 0.0f)
             return Color3f(0.0f);
 
         bRec.measure = ESolidAngle;
         bRec.eta = 1.0f;
 
-//         Decide between a diffuse or a specular reflection by comparing a uniform variate ξ1 against ks
-// Scale and potentially offset the uniform variate ξ1 so that it can be reused for a later sampling step (similar to DiscretePDF::sampleReuse)
-// In the diffuse case, generate a cosine-weighted direction on the sphere following the approach in src/diffuse.cpp
-// In the specular case:
+        //         Decide between a diffuse or a specular reflection by comparing a uniform variate ξ1 against ks
+        // Scale and potentially offset the uniform variate ξ1 so that it can be reused for a later sampling step (similar to DiscretePDF::sampleReuse)
+        // In the diffuse case, generate a cosine-weighted direction on the sphere following the approach in src/diffuse.cpp
+        // In the specular case:
 
-
-//   " 1. Sample a normal from the Beckmann distribution using Warp::squareToBeckmann
-//    2. Reflect the incident direction using this normal to generate an outgoing direction"
+        //   " 1. Sample a normal from the Beckmann distribution using Warp::squareToBeckmann
+        //    2. Reflect the incident direction using this normal to generate an outgoing direction"
         Point2f sample(_sample);
-        if (sample.x() < m_ks) {
+        if (sample.x() < m_ks)
+        {
             // if this is specular, then first we must rescale x into [0,1]
             sample.x() /= m_ks;
 
@@ -121,7 +123,9 @@ public:
 
             // Reflect the incident direction wi about wh to get outgoing direction wo
             bRec.wo = 2.0f * wh.dot(bRec.wi) * wh - bRec.wi;
-        } else {
+        }
+        else
+        {
             // this is diffuse, also must rescale x into [0,1]
             sample.x() = (sample.x() - m_ks) / (1.0f - m_ks);
             bRec.wo = Warp::squareToCosineHemisphere(sample);
@@ -130,7 +134,7 @@ public:
         // reject samples below the surface
         if (Frame::cosTheta(bRec.wo) <= 0.0f)
             return Color3f(0.0f);
-        
+
         float pdfVal = pdf(bRec);
         if (pdfVal <= 0.0f)
             return Color3f(0.0f);
@@ -138,14 +142,29 @@ public:
         return eval(bRec) * Frame::cosTheta(bRec.wo) / pdfVal;
     }
 
-    bool isDiffuse() const {
+    bool isDiffuse() const
+    {
         /* While microfacet BRDFs are not perfectly diffuse, they can be
            handled by sampling techniques for diffuse/non-specular materials,
            hence we return true here */
         return true;
     }
 
-    std::string toString() const {
+    BSDFGPUData getGPUData() const
+    {
+        BSDFGPUData d;
+        d.type = BSDFGPUData::MICROFACET;
+        d.albedo[0] = m_kd.r();
+        d.albedo[1] = m_kd.g();
+        d.albedo[2] = m_kd.b();
+        d.intIOR = m_intIOR;
+        d.extIOR = m_extIOR;
+        d.alpha = m_alpha;
+        return d;
+    }
+
+    std::string toString() const
+    {
         return tfm::format(
             "Microfacet[\n"
             "  alpha = %f,\n"
@@ -158,16 +177,17 @@ public:
             m_intIOR,
             m_extIOR,
             m_kd.toString(),
-            m_ks
-        );
+            m_ks);
     }
+
 private:
     float m_alpha;
     float m_intIOR, m_extIOR;
     float m_ks;
     Color3f m_kd;
 
-    float smithG1(const Vector3f &v, const Vector3f &wh) const {
+    float smithG1(const Vector3f &v, const Vector3f &wh) const
+    {
         float dotVWh = v.dot(wh);
         float dotVN = Frame::cosTheta(v);
 
@@ -181,8 +201,7 @@ private:
             return 1.0f;
 
         float b2 = b * b;
-        return (3.535f * b + 2.181f * b2)
-             / (1.0f + 2.276f * b + 2.577f * b2);
+        return (3.535f * b + 2.181f * b2) / (1.0f + 2.276f * b + 2.577f * b2);
     }
 };
 

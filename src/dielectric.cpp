@@ -109,6 +109,16 @@ public:
             m_intIOR, m_extIOR);
     }
 
+    BSDFGPUData getGPUData() const
+    {
+        BSDFGPUData d;
+        d.type = BSDFGPUData::DIELECTRIC;
+        d.albedo[0] = d.albedo[1] = d.albedo[2] = 1.0f;
+        d.intIOR = m_intIOR;
+        d.extIOR = m_extIOR;
+        return d;
+    }
+
 private:
     float m_intIOR, m_extIOR;
 };

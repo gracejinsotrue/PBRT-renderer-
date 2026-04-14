@@ -198,6 +198,9 @@ public:
         return result + "}]";
     }
 
+    /// Access the raw CDF
+    const std::vector<float> &getCDF() const { return m_cdf; }
+
 private:
     std::vector<float> m_cdf;
     float m_sum, m_normalization;
