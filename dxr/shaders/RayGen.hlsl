@@ -8,7 +8,7 @@
     uint2 pixel = DispatchRaysIndex().xy;
     uint2 dims = DispatchRaysDimensions().xy;
 
-    // Map pixel to [0,1] UV coordinates.
+    // map pixel to [0,1] UV coordinates.
     float2 uv = (float2(pixel) + 0.5f) / float2(dims);
 
     // Compute ray direction from camera image plane.
@@ -41,4 +41,6 @@
         payload);
 
     g_output[pixel] = float4(payload.color, 1.0f);
+
+    g_output[pixel] = float4(accum.w / 100.0, 0, 0, 1);
 }

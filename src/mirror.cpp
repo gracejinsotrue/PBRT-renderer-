@@ -10,30 +10,33 @@
 NORI_NAMESPACE_BEGIN
 
 /// Ideal mirror BRDF
-class Mirror : public BSDF {
+class Mirror : public BSDF
+{
 public:
-    Mirror(const PropertyList &) { }
+    Mirror(const PropertyList &) {}
 
-    Color3f eval(const BSDFQueryRecord &) const {
+    Color3f eval(const BSDFQueryRecord &) const
+    {
         /* Discrete BRDFs always evaluate to zero in Nori */
         return Color3f(0.0f);
     }
 
-    float pdf(const BSDFQueryRecord &) const {
+    float pdf(const BSDFQueryRecord &) const
+    {
         /* Discrete BRDFs always evaluate to zero in Nori */
         return 0.0f;
     }
 
-    Color3f sample(BSDFQueryRecord &bRec, const Point2f &) const {
-        if (Frame::cosTheta(bRec.wi) <= 0) 
+    Color3f sample(BSDFQueryRecord &bRec, const Point2f &) const
+    {
+        if (Frame::cosTheta(bRec.wi) <= 0)
             return Color3f(0.0f);
 
         // Reflection in local coordinates
         bRec.wo = Vector3f(
             -bRec.wi.x(),
             -bRec.wi.y(),
-             bRec.wi.z()
-        );
+            bRec.wi.z());
         bRec.measure = EDiscrete;
 
         /* Relative index of refraction: no change */
@@ -42,8 +45,17 @@ public:
         return Color3f(1.0f);
     }
 
-    std::string toString() const {
+    std::string toString() const
+    {
         return "Mirror[]";
+    }
+
+    BSDFGPUData getGPUData() const
+    {
+        BSDFGPUData d;
+        d.type = BSDFGPUData::MIRROR;
+        d.albedo[0] = d.albedo[1] = d.albedo[2] = 1.0f;
+        return d;
     }
 };
 

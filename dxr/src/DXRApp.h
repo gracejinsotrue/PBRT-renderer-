@@ -25,9 +25,27 @@ struct CameraConstants
     float camLowerLeftCorner[3];
     float pad1;
     float camHorizontal[3];
-    float pad2;
+    uint32_t meshCount;
     float camVertical[3];
-    float pad3;
+    uint32_t frameCount;
+};
+
+// Must match the HLSL GPUMaterial struct exactly, which is a scalar 4-byte packing
+struct GPUMaterial
+{
+    uint32_t type; // 0=diffuse, 1=mirror, 2=dielectric, 3=microfacet
+    float albedo[3];
+    float intIOR;
+    float extIOR;
+    float alpha;
+    uint32_t isEmitter;
+    float radiance[3];
+    uint32_t indexOffset;      // first index (in elements) in global index buffer
+    uint32_t vertexOffset;     // first vertex (in elements) in global normal/pos buffer
+    uint32_t indexCount;       // number of indices for this mesh
+    uint32_t vertexCount;      // number of vertices for this mesh
+    float surfaceArea;         // total mesh surface area (for emitter pdf)
+    uint32_t emitterCdfOffset; // first entry index in emitter CDF buffer
 };
 
 struct MeshGPUData
@@ -61,7 +79,7 @@ private:
     UINT m_height;
     std::wstring m_title;
 
-    // Nori scene (owned)
+    // Nori scene
     std::string m_scenePath;
     nori::Scene *m_noriScene = nullptr;
 
@@ -86,6 +104,15 @@ private:
     std::vector<MeshGPUData> m_meshGPU;
     ComPtr<ID3D12Resource> m_tlas;
 
+    // Scene data buffers (for shader access)
+    ComPtr<ID3D12Resource> m_materialBuffer;     // StructuredBuffer<GPUMaterial>
+    ComPtr<ID3D12Resource> m_globalNormalBuffer; // ByteAddressBuffer — all normals
+    ComPtr<ID3D12Resource> m_globalIndexBuffer;  // ByteAddressBuffer — all indices
+    ComPtr<ID3D12Resource> m_globalVertexBuffer; // ByteAddressBuffer — all positions
+    ComPtr<ID3D12Resource> m_emitterCdfBuffer;   // ByteAddressBuffer — emitter triangle area CDFs
+    uint32_t m_meshCount = 0;
+    uint32_t m_frameCount = 0;
+
     // Ray tracing pipeline
     ComPtr<ID3D12StateObject> m_rtStateObject;
     ComPtr<ID3D12StateObjectProperties> m_rtStateObjectProps;
@@ -93,6 +120,7 @@ private:
 
     // Output + descriptors
     ComPtr<ID3D12Resource> m_outputResource;
+    ComPtr<ID3D12Resource> m_accumResource; // R32G32B32A32_FLOAT accumulation buffer
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
     UINT m_srvUavDescriptorSize = 0;
 
@@ -108,6 +136,7 @@ private:
     void CreateCommandAllocatorsAndList();
     void CreateFence();
     void CreateAccelerationStructure();
+    void CreateSceneBuffers();
     void CreateRaytracingPipeline();
     void CreateOutputResource();
     void CreateShaderTable();
