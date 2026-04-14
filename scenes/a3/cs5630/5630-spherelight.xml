@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<scene>
+	<integrator type="direct">
+        <string name="strategy" value="emitter"/>
+	</integrator>
+	<sampler type="independent">
+		<integer name="sampleCount" value="128"/>
+	</sampler>
+	<camera type="perspective">
+		<float name="fov" value="39.59775192067671"/>
+		<float name="nearClip" value="0.10000000149011612"/>
+		<float name="farClip" value="100.0"/>
+		<integer name="width" value="480"/>
+		<integer name="height" value="270"/>
+		<transform name="toWorld">
+			<matrix value="-0.6859206557273865,-0.32401347160339355,-0.6515582203865051,7.358891487121582,0.0,0.8953956365585327,-0.44527140259742737,5.238315582275391,0.7276763319969177,-0.305420845746994,-0.6141703724861145,6.925790786743164,0.0,0.0,0.0,1.0"/>
+		</transform>
+	</camera>
+	<mesh type="obj">
+		<string name="filename" value="meshes/Text.obj"/>
+		<bsdf type="diffuse">
+			<color name="albedo" value="0.75,0.75,0.75"/>
+		</bsdf>
+	</mesh>
+	<mesh type="obj">
+		<string name="filename" value="meshes/Cube.obj"/>
+		<bsdf type="diffuse">
+			<color name="albedo" value="0.2,0.2,0.2"/>
+		</bsdf>
+	</mesh>
+	<mesh type="obj">
+		<string name="filename" value="meshes/unitsphere.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="6,6,6"/>
+		</emitter>
+		<transform name="toWorld">
+			<scale value="20,20,20"/>
+			<translate value="20,40,20"/>
+		</transform>
+	</mesh>
+</scene>
