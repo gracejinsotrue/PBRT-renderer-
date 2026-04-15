@@ -50,7 +50,7 @@ struct HitPayload
 {
     float hitT;
     float normalX, normalY, normalZ;
-    float geoNormalX, geoNormalY, geoNormalZ; // geometric normal
+    float geoNormalX, geoNormalY, geoNormalZ;
     uint materialID;
     uint hit;
 };
@@ -409,9 +409,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
     return es.radiance * f * cosTheta / max(pdfEms, 1e-20) * w;
 }
 
-// ============================================================
 // Ray Generation
-// ============================================================
 
 [shader("raygeneration")] void RayGen()
 {
@@ -448,15 +446,8 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
         float3 Ng = normalize(float3(payload.geoNormalX, payload.geoNormalY, payload.geoNormalZ));
         GPUMaterial mat = g_materials[payload.materialID];
 
-        // Ensure geometric normal faces the incoming ray
         if (dot(Ng, ray.Direction) > 0.0)
             Ng = -Ng;
-
-        // if (mat.type == 1)
-        // { // mirror only
-        //     Lo = N * 0.5 + 0.5;
-        //     break;
-        // }
 
         if (mat.isEmitter)
         {
@@ -464,7 +455,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
                 Lo += throughput * MatRadiance(mat);
             else
             {
-                // float pdfEms = EmitterPdfSolidAngle(mat, hitPos, ray.Origin, N);
+
                 float pdfEms = EmitterPdfSolidAngle(mat, hitPos, ray.Origin, N);
                 Lo += throughput * MatRadiance(mat) * BalanceHeuristic(lastBsdfPdf, pdfEms);
             }
@@ -497,7 +488,6 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
 
             float3 reflDir = reflect(ray.Direction, N);
             ray.Origin = hitPos + Ng * 0.001;
-            // ray.Origin = hitPos + N * 0.001;
             ray.Direction = reflDir;
             ray.TMin = 0.0;
             ray.TMax = 1e20;
@@ -546,7 +536,6 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
             ray.TMax = 1e20;
             lastBsdfPdf = 0.0;
 
-            // Track cumulative eta for Russian roulette (matching CPU)
             if (refracted)
                 eta *= etaI / etaT;
         }
@@ -586,7 +575,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
     if (any(isnan(Lo)) || any(isinf(Lo)))
         Lo = float3(0, 0, 0);
 
-    float4 prev = g_accum[pixel];
+    float4 prev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
     float4 accum = prev + float4(Lo, 1.0);
     g_accum[pixel] = accum;
 
@@ -596,17 +585,13 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
     g_output[pixel] = float4(averaged, 1.0);
 }
 
-    // ============================================================
-    // Closest Hit — passes both shading and geometric normals
-    // ============================================================
-
     [shader("closesthit")] void ClosestHit(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     payload.hit = 1;
     payload.hitT = RayTCurrent();
     payload.materialID = InstanceID();
 
-    // Shading normal (interpolated)
+    // Shading normal, interpolated
     float3 N = GetInterpolatedNormal(InstanceID(), PrimitiveIndex(), attr.barycentrics);
     payload.normalX = N.x;
     payload.normalY = N.y;
