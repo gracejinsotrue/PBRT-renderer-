@@ -1,7 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 
 <scene>
-	<integrator type="whitted"/>
+	<!-- <integrator type="whitted"/> -->
+	<integrator type="direct"/>
 
 	<camera type="perspective">
 		<float name="fov" value="27.7856"/>

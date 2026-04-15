@@ -1,7 +1,6 @@
 #include "DXRApp.h"
 #include "Win32Application.h"
 
-// Nori headers
 #include <nori/parser.h>
 #include <nori/scene.h>
 #include <nori/camera.h>
@@ -89,7 +88,181 @@ void DXRApp::OnInit()
     printf("[init] DX12 + DXR initialization complete\n");
 }
 
-void DXRApp::OnUpdate() {}
+void DXRApp::OnUpdate()
+{
+    // delta time
+    auto now = std::chrono::high_resolution_clock::now();
+    float dt = std::chrono::duration<float>(now - m_lastFrameTime).count();
+    m_lastFrameTime = now;
+    dt = (dt > 0.1f) ? 0.1f : dt;
+
+    // camera vectors
+    float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
+    float cp = cosf(m_camPitch), sp = sinf(m_camPitch);
+    float fwd[3] = {sy * cp, sp, cy * cp};
+    float right[3] = {cy, 0.0f, -sy};
+    float up[3] = {0.0f, 1.0f, 0.0f};
+
+    float move = m_camSpeed * dt;
+    bool moved = false;
+
+    if (m_keys['W'])
+    {
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] += fwd[i] * move;
+        moved = true;
+    }
+    if (m_keys['S'])
+    {
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] -= fwd[i] * move;
+        moved = true;
+    }
+    if (m_keys['A'])
+    {
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] -= right[i] * move;
+        moved = true;
+    }
+    if (m_keys['D'])
+    {
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] += right[i] * move;
+        moved = true;
+    }
+    if (m_keys['Q'] || m_keys[VK_SPACE])
+    {
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] += up[i] * move;
+        moved = true;
+    }
+    if (m_keys['E'] || m_keys[VK_SHIFT])
+    {
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] -= up[i] * move;
+        moved = true;
+    }
+
+    if (moved || m_cameraDirty)
+    {
+        RecomputeCameraPlane();
+        m_frameCount = 0;
+        m_cameraDirty = false;
+    }
+}
+
+// input handling
+
+void DXRApp::OnKeyDown(UINT8 key)
+{
+    m_keys[key] = true;
+    if (key == 'P')
+        SaveSnapshot();
+}
+
+void DXRApp::OnKeyUp(UINT8 key)
+{
+    m_keys[key] = false;
+}
+
+void DXRApp::OnMouseDown(UINT button, int x, int y)
+{
+    if (button == 1) // right
+    {
+        m_mouseRightDown = true;
+        m_lastMouse = {x, y};
+    }
+}
+
+void DXRApp::OnMouseUp(UINT button, int x, int y)
+{
+    if (button == 1)
+        m_mouseRightDown = false;
+}
+
+// for mouse movements for dxr camera
+void DXRApp::OnMouseMove(int x, int y)
+{
+    if (m_mouseRightDown)
+    {
+        int dx = x - m_lastMouse.x;
+        int dy = y - m_lastMouse.y;
+        m_lastMouse = {x, y};
+
+        m_camYaw += dx * m_mouseSensitivity;
+        m_camPitch -= dy * m_mouseSensitivity;
+        const float maxPitch = 1.5f;
+        if (m_camPitch > maxPitch)
+            m_camPitch = maxPitch;
+        if (m_camPitch < -maxPitch)
+            m_camPitch = -maxPitch;
+
+        m_cameraDirty = true;
+    }
+}
+
+void DXRApp::SaveSnapshot()
+{
+    WaitForGpu(m_frameIndex);
+
+    D3D12_RESOURCE_DESC desc = m_outputResource->GetDesc();
+    UINT64 rowPitch = ((desc.Width * 4 + 255) & ~255);
+    UINT64 totalSize = rowPitch * desc.Height;
+
+    auto readback = CreateBuffer(totalSize, D3D12_RESOURCE_FLAG_NONE,
+                                 D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
+
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    // transition output to copy source
+    D3D12_RESOURCE_BARRIER b{};
+    b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    b.Transition.pResource = m_outputResource.Get();
+    b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = readback.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    dst.PlacedFootprint.Footprint.Width = (UINT)desc.Width;
+    dst.PlacedFootprint.Footprint.Height = desc.Height;
+    dst.PlacedFootprint.Footprint.Depth = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+
+    src.pResource = m_outputResource.Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    FlushCommandQueue();
+
+    // Map and write BMP
+    uint8_t *data;
+    readback->Map(0, nullptr, (void **)&data);
+
+    char filename[256];
+    snprintf(filename, sizeof(filename), "snapshot_%u.ppm", m_frameCount);
+
+    FILE *f = fopen(filename, "wb");
+    if (f)
+    {
+        fprintf(f, "P6\n%u %u\n255\n", (UINT)desc.Width, desc.Height);
+        for (UINT y = 0; y < desc.Height; y++)
+        {
+            const uint8_t *row = data + y * rowPitch;
+            for (UINT x = 0; x < (UINT)desc.Width; x++)
+            {
+                fwrite(row + x * 4, 1, 3, f); // RGB from RGBA
+            }
+        }
+        fclose(f);
+        printf("[snapshot] Saved %s (%u samples)\n", filename, m_frameCount);
+    }
+
+    readback->Unmap(0, nullptr);
+}
 
 void DXRApp::OnRender()
 {
@@ -219,9 +392,7 @@ void DXRApp::CreateFence()
         throw std::runtime_error("CreateEvent");
 }
 
-// ---------------------------------------------------------------------------
 // Resource helpers
-// ---------------------------------------------------------------------------
 ComPtr<ID3D12Resource> DXRApp::CreateBuffer(UINT64 size, D3D12_RESOURCE_FLAGS flags,
                                             D3D12_RESOURCE_STATES state, D3D12_HEAP_TYPE heap)
 {
@@ -493,10 +664,6 @@ void DXRApp::CreateSceneBuffers()
     }
 
     // Concatenate vertex normals into one buffer
-    // Nori stores normals as 3×N column-major MatrixXf = interleaved [x0,y0,z0, x1,y1,z1,...]
-    // OBJ files may lack vertex normals (m_N empty). Zero-fill first so the
-    // shader's GetInterpolatedNormal falls back to geometric normals (matching
-    // CPU Nori behaviour where shFrame = geoFrame when no vertex normals exist).
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
         m_globalNormalBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
@@ -519,8 +686,7 @@ void DXRApp::CreateSceneBuffers()
         m_globalNormalBuffer->Unmap(0, nullptr);
     }
 
-    // Concatenate triangle indices into one buffer
-    // Indices are LOCAL per mesh (0-based), looked up with vertexOffset in the shader
+    // Concatenate triangle indices into one buffer. Indices are LOCAL per mesh, looked up with vertexOffset in the shader
     {
         UINT64 sz = totalIndices * sizeof(uint32_t);
         m_globalIndexBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
@@ -574,16 +740,13 @@ void DXRApp::CreateSceneBuffers()
            m_meshCount, totalVertices, totalIndices, allCdfData.size());
 }
 
-// Camera: derive image plane from Nori's sampleRay at corners
+// camera
 void DXRApp::SetupCamera()
 {
     const Camera *cam = m_noriScene->getCamera();
     float w = (float)m_width, h = (float)m_height;
 
-    // Sample corner rays. Nori pixel coords: (0,0)=top-left, (w,h)=bottom-right
-    // my shader: (u=0,v=0)=bottom-left, (u=1,v=1)=top-right
-    // So: Nori(0, h) → this bottom-left,  Nori(w, h) → this bottom-right,
-    //     Nori(0, 0) → this top-left
+    // sample corner rays to extract position and orientation
     Ray3f ray_bl, ray_br, ray_tl, ray_ctr;
     Point2f ap(0, 0);
     cam->sampleRay(ray_bl, Point2f(0, h), ap);
@@ -591,41 +754,76 @@ void DXRApp::SetupCamera()
     cam->sampleRay(ray_tl, Point2f(0, 0), ap);
     cam->sampleRay(ray_ctr, Point2f(w / 2, h / 2), ap);
 
-    // camera position is same for all rays
     Point3f pos = ray_bl.o;
     Vector3f fwd = ray_ctr.d.normalized();
 
+    // to extract yaw and pitch
+    m_camPos[0] = pos.x();
+    m_camPos[1] = pos.y();
+    m_camPos[2] = pos.z();
+    m_camYaw = atan2f(fwd.x(), fwd.z());
+    m_camPitch = asinf(fwd.y());
     auto project = [&](const Ray3f &r) -> Point3f
     {
         float t = 1.0f / r.d.dot(fwd);
         return pos + r.d * t;
     };
-
     Point3f P_bl = project(ray_bl);
-    Point3f P_br = project(ray_br);
     Point3f P_tl = project(ray_tl);
+    float halfHeight = (P_tl - P_bl).norm() * 0.5f;
+    m_camFovY = 2.0f * atanf(halfHeight);
 
-    Vector3f LLC = P_bl - Point3f(0, 0, 0);
-    Vector3f H = P_br - P_bl;
-    Vector3f V = P_tl - P_bl;
-
-    m_camera.camPos[0] = pos.x();
-    m_camera.camPos[1] = pos.y();
-    m_camera.camPos[2] = pos.z();
-    m_camera.camLowerLeftCorner[0] = P_bl.x();
-    m_camera.camLowerLeftCorner[1] = P_bl.y();
-    m_camera.camLowerLeftCorner[2] = P_bl.z();
-    m_camera.camHorizontal[0] = H.x();
-    m_camera.camHorizontal[1] = H.y();
-    m_camera.camHorizontal[2] = H.z();
-    m_camera.camVertical[0] = V.x();
-    m_camera.camVertical[1] = V.y();
-    m_camera.camVertical[2] = V.z();
     m_camera.meshCount = m_meshCount;
     m_camera.frameCount = 0;
+    m_cameraDirty = true;
 
-    printf("[camera] pos=(%.3f,%.3f,%.3f) fwd=(%.3f,%.3f,%.3f)\n",
-           pos.x(), pos.y(), pos.z(), fwd.x(), fwd.y(), fwd.z());
+    m_lastFrameTime = std::chrono::high_resolution_clock::now();
+
+    RecomputeCameraPlane();
+
+    printf("[camera] pos=(%.3f,%.3f,%.3f) yaw=%.1f pitch=%.1f fov=%.1f\n",
+           m_camPos[0], m_camPos[1], m_camPos[2],
+           m_camYaw * 180.0f / 3.14159f, m_camPitch * 180.0f / 3.14159f,
+           m_camFovY * 180.0f / 3.14159f);
+    printf("[camera] Controls: WASD=move, QE=up/down, RightClick+drag=look, P=snapshot\n");
+}
+
+// recompute the camera image plane from yaw/pitch/position/fov
+void DXRApp::RecomputeCameraPlane()
+{
+    float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
+    float cp = cosf(m_camPitch), sp = sinf(m_camPitch);
+
+    // Forward = (sin(yaw)*cos(pitch), sin(pitch), cos(yaw)*cos(pitch))
+    float fwd[3] = {sy * cp, sp, cy * cp};
+
+    // World up = (0,1,0)
+    // Right = normalize(fwd x up)
+    float right[3] = {cy, 0.0f, -sy};
+
+    // Camera up = fwd x right
+    // NOT right x fwd, which would point down
+    float up[3] = {
+        fwd[1] * right[2] - fwd[2] * right[1],
+        fwd[2] * right[0] - fwd[0] * right[2],
+        fwd[0] * right[1] - fwd[1] * right[0]};
+
+    float aspect = (float)m_width / (float)m_height;
+    float halfH = tanf(m_camFovY * 0.5f);
+    float halfW = halfH * aspect;
+
+    float llc[3], horiz[3], vert[3];
+    for (int i = 0; i < 3; i++)
+    {
+        llc[i] = m_camPos[i] + fwd[i] - halfW * right[i] - halfH * up[i];
+        horiz[i] = 2.0f * halfW * right[i];
+        vert[i] = 2.0f * halfH * up[i];
+    }
+
+    memcpy(m_camera.camPos, m_camPos, sizeof(float) * 3);
+    memcpy(m_camera.camLowerLeftCorner, llc, sizeof(float) * 3);
+    memcpy(m_camera.camHorizontal, horiz, sizeof(float) * 3);
+    memcpy(m_camera.camVertical, vert, sizeof(float) * 3);
 }
 
 // Pipeline, output, shader table, render
@@ -720,7 +918,7 @@ void DXRApp::CreateOutputResource()
                       "Output tex");
     }
 
-    // Accumulation UAV texture (R32G32B32A32_FLOAT for HDR accumulation)
+    // Accumulation UAV texture
     {
         D3D12_RESOURCE_DESC td{};
         td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -852,8 +1050,8 @@ void DXRApp::CreateShaderTable()
     m_shaderTable->Map(0, nullptr, (void **)&m);
     memset(m, 0, al * 4);
     memcpy(m, rg, id);          // [0] RayGen
-    memcpy(m + al, ms, id);     // [1] Miss (primary, index 0)
-    memcpy(m + al * 2, sm, id); // [2] ShadowMiss (index 1)
+    memcpy(m + al, ms, id);     // [1] Miss
+    memcpy(m + al * 2, sm, id); // [2] ShadowMiss
     memcpy(m + al * 3, hg, id); // [3] HitGroup
     m_shaderTable->Unmap(0, nullptr);
     printf("[shader table] Created (4 entries)\n");

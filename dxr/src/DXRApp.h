@@ -10,6 +10,8 @@
 #include <vector>
 #include <stdexcept>
 #include <cstdio>
+#include <cmath>
+#include <chrono>
 
 namespace nori
 {
@@ -30,21 +32,20 @@ struct CameraConstants
     uint32_t frameCount;
 };
 
-// Must match the HLSL GPUMaterial struct exactly, which is a scalar 4-byte packing
 struct GPUMaterial
 {
-    uint32_t type; // 0=diffuse, 1=mirror, 2=dielectric, 3=microfacet
+    uint32_t type; // 0=diffuse, 1=mirror, 2=dielectric, 3=microfacet ...
     float albedo[3];
     float intIOR;
     float extIOR;
     float alpha;
     uint32_t isEmitter;
     float radiance[3];
-    uint32_t indexOffset;      // first index (in elements) in global index buffer
-    uint32_t vertexOffset;     // first vertex (in elements) in global normal/pos buffer
+    uint32_t indexOffset;      // first index,in elements, in global index buffer
+    uint32_t vertexOffset;     // first vertex, in elements, in global normal/pos buffer
     uint32_t indexCount;       // number of indices for this mesh
     uint32_t vertexCount;      // number of vertices for this mesh
-    float surfaceArea;         // total mesh surface area (for emitter pdf)
+    float surfaceArea;         // total mesh surface area
     uint32_t emitterCdfOffset; // first entry index in emitter CDF buffer
 };
 
@@ -66,6 +67,14 @@ public:
     void OnUpdate();
     void OnRender();
     void OnDestroy();
+
+    void OnKeyDown(UINT8 key);
+    void OnKeyUp(UINT8 key);
+    void OnMouseDown(UINT button, int x, int y);
+    void OnMouseUp(UINT button, int x, int y);
+    void OnMouseMove(int x, int y);
+
+    void SaveSnapshot();
 
     UINT GetWidth() const { return m_width; }
     UINT GetHeight() const { return m_height; }
@@ -128,6 +137,22 @@ private:
 
     CameraConstants m_camera = {};
 
+    // Interactive camera state
+    float m_camYaw = 0.0f;
+    float m_camPitch = 0.0f;
+    float m_camPos[3] = {};
+    float m_camFovY = 0.0f;  // vertical FOV in radians
+    float m_camSpeed = 5.0f; // units/sec
+    float m_mouseSensitivity = 0.003f;
+    bool m_cameraDirty = true; // set when camera moved; resets accumulation
+
+    // Input state
+    bool m_keys[256] = {};
+    bool m_mouseRightDown = false;
+    POINT m_lastMouse = {};
+
+    std::chrono::high_resolution_clock::time_point m_lastFrameTime;
+
     void LoadNoriScene();
     void CreateDevice();
     void CreateCommandQueue();
@@ -141,6 +166,9 @@ private:
     void CreateOutputResource();
     void CreateShaderTable();
     void SetupCamera();
+
+    // Recompute image plane from interactive camera state
+    void RecomputeCameraPlane();
 
     // Render helpers
     void PopulateCommandList();

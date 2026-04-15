@@ -20,21 +20,36 @@ LRESULT CALLBACK Win32Application::WindowProc(HWND hWnd, UINT message, WPARAM wP
         {
             DestroyWindow(hWnd);
         }
+        else if (pApp)
+        {
+            pApp->OnKeyDown(static_cast<UINT8>(wParam));
+        }
         return 0;
-    case WM_PAINT:
+    case WM_KEYUP:
+        if (pApp)
+            pApp->OnKeyUp(static_cast<UINT8>(wParam));
+        return 0;
+    case WM_RBUTTONDOWN:
         if (pApp)
         {
-            try
-            {
-                pApp->OnUpdate();
-                pApp->OnRender();
-            }
-            catch (const std::exception &e)
-            {
-                fprintf(stderr, "[RENDER ERROR] %s\n", e.what());
-                DestroyWindow(hWnd);
-            }
+            SetCapture(hWnd);
+            pApp->OnMouseDown(1, (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
         }
+        return 0;
+    case WM_RBUTTONUP:
+        if (pApp)
+        {
+            ReleaseCapture();
+            pApp->OnMouseUp(1, (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
+        }
+        return 0;
+    case WM_MOUSEMOVE:
+        if (pApp)
+            pApp->OnMouseMove((int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
+        return 0;
+    case WM_PAINT:
+        // Handled in idle loop; just validate
+        ValidateRect(hWnd, nullptr);
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -78,7 +93,20 @@ int Win32Application::Run(DXRApp *pApp, HINSTANCE hInstance, int nCmdShow)
         }
         else
         {
-            Sleep(1);
+            // do continous render loop
+            if (pApp)
+            {
+                try
+                {
+                    pApp->OnUpdate();
+                    pApp->OnRender();
+                }
+                catch (const std::exception &e)
+                {
+                    fprintf(stderr, "[RENDER ERROR] %s\n", e.what());
+                    DestroyWindow(s_hwnd);
+                }
+            }
         }
     }
     pApp->OnDestroy();
