@@ -433,6 +433,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
     float3 Lo = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
     float lastBsdfPdf = 0.0;
+    float eta = 1.0; // cumulative refractive index ratio for RR
 
     for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
     {
@@ -525,13 +526,17 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
             float Fr = FresnelDielectric(cosThetaI, etaI, etaT);
 
             float3 newDir;
-            if (NextFloat(rng) < Fr)
+            bool refracted = false;
+            float rngVal = NextFloat(rng);
+            if (rngVal < Fr)
                 newDir = reflect(I, Nf);
             else
             {
                 newDir = refract(I, Nf, etaI / etaT);
                 if (dot(newDir, newDir) < 0.001)
                     newDir = reflect(I, Nf);
+                else
+                    refracted = true;
             }
 
             float3 offsetN = (dot(newDir, Ng) > 0.0) ? Ng : -Ng;
@@ -540,6 +545,10 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
             ray.TMin = 0.0;
             ray.TMax = 1e20;
             lastBsdfPdf = 0.0;
+
+            // Track cumulative eta for Russian roulette (matching CPU)
+            if (refracted)
+                eta *= etaI / etaT;
         }
         // --- Microfacet (type 3) ---
         else if (mat.type == 3)
@@ -567,7 +576,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
 
         if (bounce >= 3)
         {
-            float q = min(max(throughput.x, max(throughput.y, throughput.z)), 0.95);
+            float q = min(max(throughput.x, max(throughput.y, throughput.z)) * eta * eta, 0.95);
             if (NextFloat(rng) >= q)
                 break;
             throughput /= q;

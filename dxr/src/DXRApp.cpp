@@ -494,6 +494,9 @@ void DXRApp::CreateSceneBuffers()
 
     // Concatenate vertex normals into one buffer
     // Nori stores normals as 3×N column-major MatrixXf = interleaved [x0,y0,z0, x1,y1,z1,...]
+    // OBJ files may lack vertex normals (m_N empty). Zero-fill first so the
+    // shader's GetInterpolatedNormal falls back to geometric normals (matching
+    // CPU Nori behaviour where shFrame = geoFrame when no vertex normals exist).
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
         m_globalNormalBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
@@ -501,12 +504,17 @@ void DXRApp::CreateSceneBuffers()
                                             D3D12_HEAP_TYPE_UPLOAD);
         uint8_t *dst;
         m_globalNormalBuffer->Map(0, nullptr, (void **)&dst);
+        memset(dst, 0, sz); // zero-fill: meshes without normals get zeros
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
             const auto &N = meshes[i]->getVertexNormals();
-            UINT64 bytes = N.size() * sizeof(float);
-            memcpy(dst, N.data(), bytes);
-            dst += bytes;
+            uint32_t vc = materials[i].vertexCount;
+            if (N.size() > 0)
+            {
+                UINT64 bytes = N.size() * sizeof(float);
+                memcpy(dst, N.data(), bytes);
+            }
+            dst += vc * 3 * sizeof(float); // always advance by vertex count
         }
         m_globalNormalBuffer->Unmap(0, nullptr);
     }
