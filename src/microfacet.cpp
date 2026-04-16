@@ -34,6 +34,12 @@ public:
            interested in implementing a more realistic version
            of this BRDF. */
         m_ks = 1 - m_kd.maxCoeff();
+
+        /* texture paths*/
+        m_albedoTexture = propList.getString("albedoTexture", "");
+        m_normalTexture = propList.getString("normalTexture", "");
+        m_roughnessTexture = propList.getString("roughnessTexture", "");
+        m_metallicTexture = propList.getString("metallicTexture", "");
     }
 
     /// Evaluate the BRDF for the given pair of directions
@@ -160,6 +166,10 @@ public:
         d.intIOR = m_intIOR;
         d.extIOR = m_extIOR;
         d.alpha = m_alpha;
+        d.albedoTexture = m_albedoTexture;
+        d.normalTexture = m_normalTexture;
+        d.roughnessTexture = m_roughnessTexture;
+        d.metallicTexture = m_metallicTexture;
         return d;
     }
 
@@ -185,6 +195,10 @@ private:
     float m_intIOR, m_extIOR;
     float m_ks;
     Color3f m_kd;
+    std::string m_albedoTexture;
+    std::string m_normalTexture;
+    std::string m_roughnessTexture;
+    std::string m_metallicTexture;
 
     float smithG1(const Vector3f &v, const Vector3f &wh) const
     {

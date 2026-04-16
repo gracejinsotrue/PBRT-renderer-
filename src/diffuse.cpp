@@ -19,6 +19,10 @@ public:
     Diffuse(const PropertyList &propList)
     {
         m_albedo = propList.getColor("albedo", Color3f(0.5f));
+        m_albedoTexture = propList.getString("albedoTexture", "");
+        m_normalTexture = propList.getString("normalTexture", "");
+        m_roughnessTexture = propList.getString("roughnessTexture", "");
+        m_metallicTexture = propList.getString("metallicTexture", "");
     }
 
     /// Evaluate the BRDF model
@@ -82,6 +86,10 @@ public:
         d.albedo[0] = m_albedo.r();
         d.albedo[1] = m_albedo.g();
         d.albedo[2] = m_albedo.b();
+        d.albedoTexture = m_albedoTexture;
+        d.normalTexture = m_normalTexture;
+        d.roughnessTexture = m_roughnessTexture;
+        d.metallicTexture = m_metallicTexture;
         return d;
     }
 
@@ -99,6 +107,10 @@ public:
 
 private:
     Color3f m_albedo;
+    std::string m_albedoTexture;
+    std::string m_normalTexture;
+    std::string m_roughnessTexture;
+    std::string m_metallicTexture;
 };
 
 NORI_REGISTER_CLASS(Diffuse, "diffuse");
