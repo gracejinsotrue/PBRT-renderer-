@@ -10,11 +10,11 @@ set(NORI_EXT  ${NORI_ROOT}/ext)
 
 #build dependencies 
 
-# PugiXML (single source file)
+# PugiXML 
 add_library(pugixml STATIC ${NORI_EXT}/pugixml/src/pugixml.cpp)
 target_include_directories(pugixml PUBLIC ${NORI_EXT}/pugixml/src)
 
-# TBB (static)
+# TBB 
 set(TBB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(TBB_BUILD_STATIC ON  CACHE BOOL "" FORCE)
 set(TBB_BUILD_TBBMALLOC OFF CACHE BOOL "" FORCE)
@@ -33,12 +33,12 @@ set(NORI_INCLUDE_DIRS
     ${NORI_EXT}/filesystem
     ${NORI_EXT}/hypothesis
     ${NORI_EXT}/nanogui/ext/nanovg/example
+    ${NORI_EXT}/nanogui/ext/nanovg/src
     ${NORI_EXT}/openexr/IlmBase/Imath
     ${NORI_EXT}/openexr/IlmBase/Iex
     ${NORI_EXT}/openexr/IlmBase/Half
 )
-# Nori source files (scene parsing + all registered classes) 
-# Excluded: main.cpp, gui.cpp, bitmap.cpp, block.cpp, warptest.cpp, tests
+
 set(NORI_SOURCES
     ${NORI_ROOT}/src/common.cpp
     ${NORI_ROOT}/src/object.cpp
@@ -52,7 +52,7 @@ set(NORI_SOURCES
     ${NORI_ROOT}/src/independent.cpp
     ${NORI_ROOT}/src/rfilter.cpp
     ${NORI_ROOT}/src/warp.cpp
-    # BSDFs (registered classes referenced in scene XMLs)
+    # BSDFs
     ${NORI_ROOT}/src/diffuse.cpp
     ${NORI_ROOT}/src/mirror.cpp
     ${NORI_ROOT}/src/dielectric.cpp

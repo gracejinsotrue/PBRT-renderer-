@@ -13,6 +13,10 @@
 #include <fstream>
 #include <cmath>
 #include <cstring>
+#include <unordered_map>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 using namespace nori;
 
@@ -81,6 +85,7 @@ void DXRApp::OnInit()
     CreateFence();
     CreateAccelerationStructure();
     CreateSceneBuffers();
+    CreateTextures();
     CreateRaytracingPipeline();
     CreateOutputResource();
     CreateShaderTable();
@@ -306,6 +311,7 @@ void DXRApp::CreateDevice()
 #endif
     ThrowIfFailed(CreateDXGIFactory2(flags, IID_PPV_ARGS(&m_factory)), "Factory");
     ComPtr<IDXGIAdapter1> adapter;
+    std::string dxrProbeLog;
     for (UINT i = 0; m_factory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
                                                            IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND;
          ++i)
@@ -314,19 +320,37 @@ void DXRApp::CreateDevice()
         adapter->GetDesc1(&d);
         if (d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
             continue;
-        if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&m_device))))
+
+        ComPtr<ID3D12Device5> candidateDevice;
+        if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&candidateDevice))))
+            continue;
+
+        D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5{};
+        HRESULT featureHr = candidateDevice->CheckFeatureSupport(
+            D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
+        if (FAILED(featureHr) || options5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
         {
-            printf("[init] Adapter: %ls\n", d.Description);
-            break;
+            char adapterName[128];
+            std::snprintf(adapterName, sizeof(adapterName), "%ls", d.Description);
+            dxrProbeLog += "  - ";
+            dxrProbeLog += adapterName;
+            dxrProbeLog += ": ";
+            dxrProbeLog += FAILED(featureHr) ? "failed DXR feature query" : "no DXR support";
+            dxrProbeLog += "\n";
+            continue;
         }
+
+        m_device = candidateDevice;
+        printf("[init] Adapter: %ls\n", d.Description);
+        printf("[init] DXR tier: %s\n", options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1 ? "1.1" : "1.0");
+        break;
     }
     if (!m_device)
+    {
+        if (!dxrProbeLog.empty())
+            throw std::runtime_error("No DXR-capable D3D12 adapter found. Checked adapters:\n" + dxrProbeLog);
         throw std::runtime_error("No D3D12 device");
-    D3D12_FEATURE_DATA_D3D12_OPTIONS5 o5{};
-    ThrowIfFailed(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &o5, sizeof(o5)), "Features");
-    if (o5.RaytracingTier == D3D12_RAYTRACING_TIER_NOT_SUPPORTED)
-        throw std::runtime_error("No DXR");
-    printf("[init] DXR tier: %s\n", o5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1 ? "1.1" : "1.0");
+    }
 }
 
 void DXRApp::CreateCommandQueue()
@@ -577,7 +601,7 @@ void DXRApp::CreateAccelerationStructure()
     printf("[accel] %zu BLAS + TLAS built\n", meshes.size());
 }
 
-// Scene data buffers — material properties, normals, indices
+// Scene data buffers. material properties, normals, indices
 void DXRApp::CreateSceneBuffers()
 {
     const auto &meshes = m_noriScene->getMeshes();
@@ -621,6 +645,10 @@ void DXRApp::CreateSceneBuffers()
         mat.indexCount = ic;
         mat.surfaceArea = mesh->getDiscretePDF().getSum();
         mat.emitterCdfOffset = 0;
+        mat.albedoTexIndex = 0xFFFFFFFF;
+        mat.normalTexIndex = 0xFFFFFFFF;
+        mat.roughnessTexIndex = 0xFFFFFFFF;
+        mat.metallicTexIndex = 0xFFFFFFFF;
 
         totalVertices += vc;
         totalIndices += ic;
@@ -663,7 +691,7 @@ void DXRApp::CreateSceneBuffers()
         m_materialBuffer->Unmap(0, nullptr);
     }
 
-    // Concatenate vertex normals into one buffer
+    // concatenate vertex normals into one buffer
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
         m_globalNormalBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
@@ -671,7 +699,7 @@ void DXRApp::CreateSceneBuffers()
                                             D3D12_HEAP_TYPE_UPLOAD);
         uint8_t *dst;
         m_globalNormalBuffer->Map(0, nullptr, (void **)&dst);
-        memset(dst, 0, sz); // zero-fill: meshes without normals get zeros
+        memset(dst, 0, sz);
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
             const auto &N = meshes[i]->getVertexNormals();
@@ -686,7 +714,7 @@ void DXRApp::CreateSceneBuffers()
         m_globalNormalBuffer->Unmap(0, nullptr);
     }
 
-    // Concatenate triangle indices into one buffer. Indices are LOCAL per mesh, looked up with vertexOffset in the shader
+    // Concatenate triangle indices into one buffer. Indices are LOCAL per mesh!!, looked up with vertexOffset in the shader
     {
         UINT64 sz = totalIndices * sizeof(uint32_t);
         m_globalIndexBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
@@ -704,8 +732,7 @@ void DXRApp::CreateSceneBuffers()
         m_globalIndexBuffer->Unmap(0, nullptr);
     }
 
-    // Concatenate vertex positions into one buffer
-    // Needed for emitter sampling
+    // Concatenate vertex positions into one buffer, needed for emitter sampling
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
         m_globalVertexBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
@@ -738,6 +765,228 @@ void DXRApp::CreateSceneBuffers()
 
     printf("[scene] Buffers uploaded: %u materials, %u verts, %u indices, %zu CDF entries\n",
            m_meshCount, totalVertices, totalIndices, allCdfData.size());
+
+    // Concatenate vertex texture coordinates
+    {
+        UINT64 sz = totalVertices * 2 * sizeof(float);
+        m_globalTexCoordBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
+                                              D3D12_RESOURCE_STATE_GENERIC_READ,
+                                              D3D12_HEAP_TYPE_UPLOAD);
+        uint8_t *dst;
+        m_globalTexCoordBuffer->Map(0, nullptr, (void **)&dst);
+        memset(dst, 0, sz);
+        for (uint32_t i = 0; i < m_meshCount; i++)
+        {
+            const auto &UV = meshes[i]->getVertexTexCoords();
+            uint32_t vc = materials[i].vertexCount;
+            if (UV.cols() > 0)
+            {
+                // UV is 2×N column-major (all U's then all V's).
+                // Shader expects interleaved [u0,v0, u1,v1, ...].
+                float *out = reinterpret_cast<float *>(dst);
+                for (uint32_t v = 0; v < vc; v++)
+                {
+                    out[v * 2 + 0] = UV(0, v); // u
+                    out[v * 2 + 1] = UV(1, v); // v
+                }
+            }
+            dst += vc * 2 * sizeof(float);
+        }
+        m_globalTexCoordBuffer->Unmap(0, nullptr);
+        printf("[scene] UV buffer uploaded: %u vertices\n", totalVertices);
+    }
+}
+
+// Texture loading via stb_image lirbary
+uint32_t DXRApp::LoadTexture(const std::string &path)
+{
+    int w, h, channels;
+    unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
+    if (!pixels)
+    {
+        printf("[texture] Failed to load: %s\n", path.c_str());
+        return 0xFFFFFFFF;
+    }
+
+    uint32_t texIndex = (uint32_t)m_textures.size();
+    UINT64 rowPitch = ((w * 4 + 255) & ~255); // D3D12 requires 256-byte row alignment
+    UINT64 uploadSize = rowPitch * h;
+
+    // Create the GPU texture resource on default heap vram
+    D3D12_HEAP_PROPERTIES defaultHeap{};
+    defaultHeap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+    D3D12_RESOURCE_DESC td{};
+    td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    td.Width = w;
+    td.Height = h;
+    td.DepthOrArraySize = 1;
+    td.MipLevels = 1;
+    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.SampleDesc.Count = 1;
+    td.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    td.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    ComPtr<ID3D12Resource> texture;
+    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &td,
+                                                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                    IID_PPV_ARGS(&texture)),
+                  "Create texture");
+
+    // Create upload buffer
+    auto uploadBuf = CreateBuffer(uploadSize, D3D12_RESOURCE_FLAG_NONE,
+                                  D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+
+    // Copy pixel data into upload buffer
+    uint8_t *mapped;
+    uploadBuf->Map(0, nullptr, (void **)&mapped);
+    for (int y = 0; y < h; y++)
+        memcpy(mapped + y * rowPitch, pixels + y * w * 4, w * 4);
+    uploadBuf->Unmap(0, nullptr);
+    stbi_image_free(pixels);
+
+    // Copy from upload buffer to texture
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = texture.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst.SubresourceIndex = 0;
+
+    src.pResource = uploadBuf.Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    src.PlacedFootprint.Footprint.Width = w;
+    src.PlacedFootprint.Footprint.Height = h;
+    src.PlacedFootprint.Footprint.Depth = 1;
+    src.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    // Transition to shader resource
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource = texture.Get();
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(1, &barrier);
+
+    m_textures.push_back(texture);
+    m_texUploads.push_back(uploadBuf);
+
+    printf("[texture] Loaded %s (%dx%d) as texture %u\n", path.c_str(), w, h, texIndex);
+    return texIndex;
+}
+
+void DXRApp::CreateTextures()
+{
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "Alloc");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "CmdList");
+
+    {
+        D3D12_HEAP_PROPERTIES hp{};
+        hp.Type = D3D12_HEAP_TYPE_DEFAULT;
+        D3D12_RESOURCE_DESC td{};
+        td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        td.Width = 1;
+        td.Height = 1;
+        td.DepthOrArraySize = 1;
+        td.MipLevels = 1;
+        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        td.SampleDesc.Count = 1;
+        ComPtr<ID3D12Resource> dummyTex;
+        ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
+                                                        D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                        IID_PPV_ARGS(&dummyTex)),
+                      "Dummy texture");
+
+        auto uploadBuf = CreateBuffer(256, D3D12_RESOURCE_FLAG_NONE,
+                                      D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+        uint8_t *mapped;
+        uploadBuf->Map(0, nullptr, (void **)&mapped);
+        uint8_t white[4] = {255, 255, 255, 255};
+        memcpy(mapped, white, 4);
+        uploadBuf->Unmap(0, nullptr);
+
+        D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+        dst.pResource = dummyTex.Get();
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        src.pResource = uploadBuf.Get();
+        src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        src.PlacedFootprint.Footprint.Width = 1;
+        src.PlacedFootprint.Footprint.Height = 1;
+        src.PlacedFootprint.Footprint.Depth = 1;
+        src.PlacedFootprint.Footprint.RowPitch = 256;
+        m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource = dummyTex.Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        m_commandList->ResourceBarrier(1, &barrier);
+
+        m_textures.insert(m_textures.begin(), dummyTex); // slot 0 = dummy
+        m_texUploads.push_back(uploadBuf);
+    }
+
+    // Load textures referenced by materials w/ deduplication
+    const auto &meshes = m_noriScene->getMeshes();
+    std::unordered_map<std::string, uint32_t> texCache;
+
+    auto loadIfNotEmpty = [&](const std::string &relPath) -> uint32_t
+    {
+        if (relPath.empty())
+            return 0xFFFFFFFF;
+        filesystem::path resolved = getFileResolver()->resolve(relPath);
+        std::string key = resolved.str();
+        auto it = texCache.find(key);
+        if (it != texCache.end())
+            return it->second;
+        uint32_t idx = LoadTexture(key);
+        if (idx != 0xFFFFFFFF)
+            texCache[key] = idx;
+        return idx;
+    };
+
+    // per-mesh texture indices
+    struct MeshTexIndices
+    {
+        uint32_t albedo, normal, roughness, metallic;
+    };
+    std::vector<MeshTexIndices> meshTexIndices(meshes.size());
+
+    for (uint32_t i = 0; i < (uint32_t)meshes.size(); i++)
+    {
+        BSDFGPUData gd = meshes[i]->getBSDF()->getGPUData();
+        meshTexIndices[i].albedo = loadIfNotEmpty(gd.albedoTexture);
+        meshTexIndices[i].normal = loadIfNotEmpty(gd.normalTexture);
+        meshTexIndices[i].roughness = loadIfNotEmpty(gd.roughnessTexture);
+        meshTexIndices[i].metallic = loadIfNotEmpty(gd.metallicTexture);
+    }
+
+    m_textureCount = (uint32_t)m_textures.size();
+
+    FlushCommandQueue();
+    m_texUploads.clear();
+
+    // patch texture indices into the material buffer
+    {
+        GPUMaterial *mats = nullptr;
+        m_materialBuffer->Map(0, nullptr, (void **)&mats);
+        for (uint32_t i = 0; i < (uint32_t)meshes.size(); i++)
+        {
+            mats[i].albedoTexIndex = meshTexIndices[i].albedo;
+            mats[i].normalTexIndex = meshTexIndices[i].normal;
+            mats[i].roughnessTexIndex = meshTexIndices[i].roughness;
+            mats[i].metallicTexIndex = meshTexIndices[i].metallic;
+        }
+        m_materialBuffer->Unmap(0, nullptr);
+    }
+
+    printf("[texture] %u textures loaded (%u real + 1 dummy)\n",
+           m_textureCount, m_textureCount - 1);
 }
 
 // camera
@@ -769,9 +1018,23 @@ void DXRApp::SetupCamera()
         return pos + r.d * t;
     };
     Point3f P_bl = project(ray_bl);
+    Point3f P_br = project(ray_br);
     Point3f P_tl = project(ray_tl);
     float halfHeight = (P_tl - P_bl).norm() * 0.5f;
     m_camFovY = 2.0f * atanf(halfHeight);
+
+    // Detect whether Nori's camera has a horizontal flip relative to the DXR yaw/pitch model.
+    // DXR's "right" = (cos(yaw), 0, -sin(yaw)) = world_up x fwd = the camera-LEFT direction.
+    // If Nori's horizontal axis (P_br - P_bl) is aligned with DXR right, the scene uses an
+    // implicit x-flip (e.g. <scale value="-1,1,1"/>), so m_camXFlip = +1 (no change needed).
+    // If anti-aligned (e.g. Ajax with no scale correction), m_camXFlip = -1 to negate the
+    // horizontal axis and produce an image consistent with Nori's output.
+    {
+        float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
+        Vector3f dxrRight(cy, 0.0f, -sy);
+        Vector3f noriHoriz = (P_br - P_bl).normalized();
+        m_camXFlip = (noriHoriz.dot(dxrRight) >= 0.0f) ? 1.0f : -1.0f;
+    }
 
     m_camera.meshCount = m_meshCount;
     m_camera.frameCount = 0;
@@ -815,8 +1078,8 @@ void DXRApp::RecomputeCameraPlane()
     float llc[3], horiz[3], vert[3];
     for (int i = 0; i < 3; i++)
     {
-        llc[i] = m_camPos[i] + fwd[i] - halfW * right[i] - halfH * up[i];
-        horiz[i] = 2.0f * halfW * right[i];
+        llc[i] = m_camPos[i] + fwd[i] - m_camXFlip * halfW * right[i] - halfH * up[i];
+        horiz[i] = m_camXFlip * 2.0f * halfW * right[i];
         vert[i] = 2.0f * halfH * up[i];
     }
 
@@ -829,13 +1092,16 @@ void DXRApp::RecomputeCameraPlane()
 // Pipeline, output, shader table, render
 void DXRApp::CreateRaytracingPipeline()
 {
+    // Compute total SRV count: 7 fixed (t0-t6) + N textures (t7+)
+    UINT totalSRVs = 7 + m_textureCount;
+
     D3D12_DESCRIPTOR_RANGE ranges[2]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     ranges[0].NumDescriptors = 2; // u0=output, u1=accumulation
     ranges[0].BaseShaderRegister = 0;
     ranges[0].OffsetInDescriptorsFromTableStart = 0;
     ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    ranges[1].NumDescriptors = 6; // t0=TLAS, t1=materials, t2=normals, t3=indices, t4=vertices, t5=emitterCdf
+    ranges[1].NumDescriptors = totalSRVs; // t0-t6 fixed + t7..tN textures
     ranges[1].BaseShaderRegister = 0;
     ranges[1].OffsetInDescriptorsFromTableStart = 2;
 
@@ -849,9 +1115,20 @@ void DXRApp::CreateRaytracingPipeline()
     rp[1].DescriptorTable.pDescriptorRanges = ranges;
     rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
+    // Static sampler for texture sampling (bilinear, wrap)
+    D3D12_STATIC_SAMPLER_DESC sampler{};
+    sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.ShaderRegister = 0; // s0
+    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
     D3D12_ROOT_SIGNATURE_DESC rsd{};
     rsd.NumParameters = 2;
     rsd.pParameters = rp;
+    rsd.NumStaticSamplers = 1;
+    rsd.pStaticSamplers = &sampler;
     ComPtr<ID3DBlob> sig, err;
     ThrowIfFailed(D3D12SerializeRootSignature(&rsd, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &err), "RootSig serialize");
     ThrowIfFailed(m_device->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
@@ -874,7 +1151,7 @@ void DXRApp::CreateRaytracingPipeline()
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &hg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
-    sc.MaxPayloadSizeInBytes = 48; // not sure if this payload size is correct
+    sc.MaxPayloadSizeInBytes = 48; // HitPayload: 11 fields x 4 bytes = 44, rounded up
     sc.MaxAttributeSizeInBytes = 8;
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     so[idx++].pDesc = &sc;
@@ -935,7 +1212,7 @@ void DXRApp::CreateOutputResource()
                       "Accum tex");
     }
 
-    // Descriptor heap: 8 slots
+    // Descriptor heap: 9 + N texture slots
     //  [0] u0  UAV output texture
     //  [1] u1  UAV accumulation texture
     //  [2] t0  SRV TLAS
@@ -944,8 +1221,11 @@ void DXRApp::CreateOutputResource()
     //  [5] t3  SRV global index buffer (raw)
     //  [6] t4  SRV global vertex positions (raw)
     //  [7] t5  SRV emitter CDF (raw)
+    //  [8] t6  SRV global UV buffer (raw)
+    //  [9+] t7+ SRV textures
+    UINT totalDescriptors = 9 + m_textureCount;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
-    dhd.NumDescriptors = 8;
+    dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     dhd.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(m_device->CreateDescriptorHeap(&dhd, IID_PPV_ARGS(&m_srvUavHeap)), "SRV/UAV heap");
@@ -1019,6 +1299,23 @@ void DXRApp::CreateOutputResource()
     // [7] SRV — emitter CDF (t5)
     if (m_emitterCdfBuffer)
         createRawSRV(m_emitterCdfBuffer.Get());
+    else
+        h.ptr += m_srvUavDescriptorSize; // skip slot even if no CDF buffer
+
+    // [8] SRV — global UV buffer (t6)
+    createRawSRV(m_globalTexCoordBuffer.Get());
+
+    // [9+] SRV — textures (t7+)
+    for (uint32_t i = 0; i < m_textureCount; i++)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
+        sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        sd.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        sd.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        sd.Texture2D.MipLevels = 1;
+        m_device->CreateShaderResourceView(m_textures[i].Get(), &sd, h);
+        h.ptr += m_srvUavDescriptorSize;
+    }
 
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
@@ -1030,7 +1327,7 @@ void DXRApp::CreateOutputResource()
     b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &b);
     FlushCommandQueue();
-    printf("[output] Output + accum textures + 8 descriptors created\n");
+    printf("[output] Output + accum textures + %u descriptors created\n", totalDescriptors);
 }
 
 void DXRApp::CreateShaderTable()

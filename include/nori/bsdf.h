@@ -7,6 +7,7 @@
 #pragma once
 
 #include <nori/object.h>
+#include <string>
 
 NORI_NAMESPACE_BEGIN
 
@@ -53,6 +54,11 @@ struct BSDFGPUData
     float intIOR = 1.5046f;
     float extIOR = 1.000277f;
     float alpha = 0.1f;
+
+    std::string albedoTexture;
+    std::string normalTexture;
+    std::string roughnessTexture;
+    std::string metallicTexture;
 };
 
 /**

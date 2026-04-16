@@ -31,6 +31,10 @@ struct GPUMaterial
     uint vertexCount;
     float surfaceArea;
     uint emitterCdfOffset;
+    uint albedoTexIndex;
+    uint normalTexIndex;
+    uint roughnessTexIndex;
+    uint metallicTexIndex;
 };
 
 float3 MatAlbedo(GPUMaterial m) { return float3(m.albedoR, m.albedoG, m.albedoB); }
@@ -41,6 +45,12 @@ ByteAddressBuffer g_normals : register(t2);
 ByteAddressBuffer g_indices : register(t3);
 ByteAddressBuffer g_vertices : register(t4);
 ByteAddressBuffer g_emitterCdf : register(t5);
+ByteAddressBuffer g_texcoords : register(t6);
+
+// Texture array and sampler for material textures
+// Textures are bound starting at t7, indices stored in GPUMaterial
+Texture2D g_textures[] : register(t7);
+SamplerState g_sampler : register(s0);
 
 static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
@@ -53,6 +63,7 @@ struct HitPayload
     float geoNormalX, geoNormalY, geoNormalZ;
     uint materialID;
     uint hit;
+    float texU, texV;
 };
 struct ShadowPayload
 {
@@ -131,6 +142,27 @@ float3 GetInterpolatedNormal(uint instanceID, uint primitiveID, float2 bary)
     if (len2 < 1e-8)
         return GetGeometricNormal(instanceID, primitiveID);
     return n * rsqrt(len2);
+}
+
+float2 LoadFloat2(ByteAddressBuffer buf, uint elementIndex)
+{
+    return asfloat(buf.Load2(elementIndex * 8));
+}
+
+float2 GetInterpolatedUV(uint instanceID, uint primitiveID, float2 bary)
+{
+    GPUMaterial mat = g_materials[instanceID];
+    uint base = mat.indexOffset + primitiveID * 3;
+    uint i0 = g_indices.Load((base + 0) * 4);
+    uint i1 = g_indices.Load((base + 1) * 4);
+    uint i2 = g_indices.Load((base + 2) * 4);
+
+    float2 uv0 = LoadFloat2(g_texcoords, mat.vertexOffset + i0);
+    float2 uv1 = LoadFloat2(g_texcoords, mat.vertexOffset + i1);
+    float2 uv2 = LoadFloat2(g_texcoords, mat.vertexOffset + i2);
+
+    float3 w = float3(1.0 - bary.x - bary.y, bary.x, bary.y);
+    return uv0 * w.x + uv1 * w.y + uv2 * w.z;
 }
 
 void BuildONB(float3 N, out float3 T, out float3 B)
@@ -431,7 +463,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
     float3 Lo = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
     float lastBsdfPdf = 0.0;
-    float eta = 1.0; // cumulative refractive index ratio for RR
+    float eta = 1.0;
 
     for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
     {
@@ -445,9 +477,34 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
         float3 N = normalize(float3(payload.normalX, payload.normalY, payload.normalZ));
         float3 Ng = normalize(float3(payload.geoNormalX, payload.geoNormalY, payload.geoNormalZ));
         GPUMaterial mat = g_materials[payload.materialID];
+        float2 hitUV = float2(payload.texU, payload.texV);
 
         if (dot(Ng, ray.Direction) > 0.0)
             Ng = -Ng;
+
+        // Texture sampling
+        float3 texAlbedo = MatAlbedo(mat);
+        if (mat.albedoTexIndex != 0xFFFFFFFF)
+            texAlbedo = g_textures[mat.albedoTexIndex].SampleLevel(g_sampler, hitUV, 0).rgb;
+
+        // Normal map
+        if (mat.normalTexIndex != 0xFFFFFFFF)
+        {
+            float3 T, B;
+            BuildONB(N, T, B);
+            float3 tangentNormal = g_textures[mat.normalTexIndex].SampleLevel(g_sampler, hitUV, 0).xyz; // HLSL's samplelevele is for normal mpaping, amazing
+            tangentNormal = tangentNormal * 2.0 - 1.0;                                                  // [0,1] -> [-1,1]
+            N = normalize(T * tangentNormal.x + B * tangentNormal.y + N * tangentNormal.z);
+        }
+
+        float texAlpha = mat.alpha;
+        if (mat.roughnessTexIndex != 0xFFFFFFFF)
+            texAlpha = g_textures[mat.roughnessTexIndex].SampleLevel(g_sampler, hitUV, 0).r;
+
+        mat.albedoR = texAlbedo.x;
+        mat.albedoG = texAlbedo.y;
+        mat.albedoB = texAlbedo.z;
+        mat.alpha = texAlpha;
 
         if (mat.isEmitter)
         {
@@ -602,6 +659,11 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 T, float3 B,
     payload.geoNormalX = Ng.x;
     payload.geoNormalY = Ng.y;
     payload.geoNormalZ = Ng.z;
+
+    // Texture coordinates
+    float2 texUV = GetInterpolatedUV(InstanceID(), PrimitiveIndex(), attr.barycentrics);
+    payload.texU = texUV.x;
+    payload.texV = texUV.y;
 }
 
 [shader("miss")] void Miss(inout HitPayload payload)

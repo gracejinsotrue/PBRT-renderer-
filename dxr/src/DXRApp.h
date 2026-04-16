@@ -41,12 +41,16 @@ struct GPUMaterial
     float alpha;
     uint32_t isEmitter;
     float radiance[3];
-    uint32_t indexOffset;      // first index,in elements, in global index buffer
-    uint32_t vertexOffset;     // first vertex, in elements, in global normal/pos buffer
-    uint32_t indexCount;       // number of indices for this mesh
-    uint32_t vertexCount;      // number of vertices for this mesh
-    float surfaceArea;         // total mesh surface area
-    uint32_t emitterCdfOffset; // first entry index in emitter CDF buffer
+    uint32_t indexOffset;       // first index,in elements, in global index buffer
+    uint32_t vertexOffset;      // first vertex, in elements, in global normal/pos buffer
+    uint32_t indexCount;        // number of indices for this mesh
+    uint32_t vertexCount;       // number of vertices for this mesh
+    float surfaceArea;          // total mesh surface area
+    uint32_t emitterCdfOffset;  // first entry index in emitter CDF buffer
+    uint32_t albedoTexIndex;    // texture index or 0xFFFFFFFF if none
+    uint32_t normalTexIndex;    // texture index or 0xFFFFFFFF if none
+    uint32_t roughnessTexIndex; // texture index or 0xFFFFFFFF if none
+    uint32_t metallicTexIndex;  // texture index or 0xFFFFFFFF if none
 };
 
 struct MeshGPUData
@@ -113,14 +117,20 @@ private:
     std::vector<MeshGPUData> m_meshGPU;
     ComPtr<ID3D12Resource> m_tlas;
 
-    // Scene data buffers (for shader access)
-    ComPtr<ID3D12Resource> m_materialBuffer;     // StructuredBuffer<GPUMaterial>
-    ComPtr<ID3D12Resource> m_globalNormalBuffer; // ByteAddressBuffer — all normals
-    ComPtr<ID3D12Resource> m_globalIndexBuffer;  // ByteAddressBuffer — all indices
-    ComPtr<ID3D12Resource> m_globalVertexBuffer; // ByteAddressBuffer — all positions
-    ComPtr<ID3D12Resource> m_emitterCdfBuffer;   // ByteAddressBuffer — emitter triangle area CDFs
+    // Scene data buffers for shader access
+    ComPtr<ID3D12Resource> m_materialBuffer;       // StructuredBuffer<GPUMaterial>
+    ComPtr<ID3D12Resource> m_globalNormalBuffer;   // ByteAddressBuffer — all normals
+    ComPtr<ID3D12Resource> m_globalIndexBuffer;    // ByteAddressBuffer — all indices
+    ComPtr<ID3D12Resource> m_globalVertexBuffer;   // ByteAddressBuffer — all positions
+    ComPtr<ID3D12Resource> m_emitterCdfBuffer;     // ByteAddressBuffer — emitter triangle area CDFs
+    ComPtr<ID3D12Resource> m_globalTexCoordBuffer; // ByteAddressBuffer — all UVs (float2 per vertex)
     uint32_t m_meshCount = 0;
     uint32_t m_frameCount = 0;
+
+    // Texture resources
+    std::vector<ComPtr<ID3D12Resource>> m_textures;
+    std::vector<ComPtr<ID3D12Resource>> m_texUploads;
+    uint32_t m_textureCount = 0;
 
     // Ray tracing pipeline
     ComPtr<ID3D12StateObject> m_rtStateObject;
@@ -129,7 +139,7 @@ private:
 
     // Output + descriptors
     ComPtr<ID3D12Resource> m_outputResource;
-    ComPtr<ID3D12Resource> m_accumResource; // R32G32B32A32_FLOAT accumulation buffer
+    ComPtr<ID3D12Resource> m_accumResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
     UINT m_srvUavDescriptorSize = 0;
 
@@ -141,8 +151,9 @@ private:
     float m_camYaw = 0.0f;
     float m_camPitch = 0.0f;
     float m_camPos[3] = {};
-    float m_camFovY = 0.0f;  // vertical FOV in radians
-    float m_camSpeed = 5.0f; // units/sec
+    float m_camFovY = 0.0f; // vertical FOV in radians
+    float m_camXFlip = 1.0f;
+    float m_camSpeed = 5.0f;
     float m_mouseSensitivity = 0.003f;
     bool m_cameraDirty = true; // set when camera moved; resets accumulation
 
@@ -162,12 +173,15 @@ private:
     void CreateFence();
     void CreateAccelerationStructure();
     void CreateSceneBuffers();
+    void CreateTextures();
     void CreateRaytracingPipeline();
     void CreateOutputResource();
     void CreateShaderTable();
     void SetupCamera();
 
-    // Recompute image plane from interactive camera state
+    // Texture helpers
+    uint32_t LoadTexture(const std::string &path);
+
     void RecomputeCameraPlane();
 
     // Render helpers
