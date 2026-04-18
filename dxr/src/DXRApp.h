@@ -132,6 +132,20 @@ private:
     std::vector<ComPtr<ID3D12Resource>> m_texUploads;
     uint32_t m_textureCount = 0;
 
+    // Environment map (IBL)
+    ComPtr<ID3D12Resource> m_envmap;
+    ComPtr<ID3D12Resource> m_envmapUpload;
+    std::vector<float> m_envmapPixels; // kept CPU-side for CDF build in Step 2
+    uint32_t m_envmapWidth = 0;
+    uint32_t m_envmapHeight = 0;
+    bool m_envmapValid = false;
+
+    // Envmap sampling CDFs (Distribution2D: marginal over rows,
+    // conditional per row). Built on CPU from m_envmapPixels, uploaded as
+    // ByteAddressBuffers.
+    ComPtr<ID3D12Resource> m_envmapMarginalCdf;    // (H + 1) floats
+    ComPtr<ID3D12Resource> m_envmapConditionalCdf; // H * (W + 1) floats
+
     // Ray tracing pipeline
     ComPtr<ID3D12StateObject> m_rtStateObject;
     ComPtr<ID3D12StateObjectProperties> m_rtStateObjectProps;
@@ -181,6 +195,8 @@ private:
 
     // Texture helpers
     uint32_t LoadTexture(const std::string &path);
+    void LoadEnvmap(const std::string &path);
+    void BuildEnvmapDistribution();
 
     void RecomputeCameraPlane();
 
