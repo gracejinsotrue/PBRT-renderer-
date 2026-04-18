@@ -877,6 +877,239 @@ uint32_t DXRApp::LoadTexture(const std::string &path)
     return texIndex;
 }
 
+// HDR envmap loading. Stores RGBA32F on GPU and keeps CPU-side pixel data
+// around for the CDF build in Step 2. Falls back to a flat gray 1x1 if the
+// file is missing, so the renderer still works with no envmap present.
+void DXRApp::LoadEnvmap(const std::string &path)
+{
+    int w = 0, h = 0, channels = 0;
+    float *pixels = stbi_loadf(path.c_str(), &w, &h, &channels, 0);
+
+    std::vector<float> rgba;
+    if (!pixels)
+    {
+        printf("[envmap] No HDR at '%s' — falling back to flat gray.\n", path.c_str());
+        w = 1;
+        h = 1;
+        rgba = {0.5f, 0.5f, 0.5f, 1.0f};
+        m_envmapValid = false;
+    }
+    else
+    {
+        rgba.resize((size_t)w * h * 4);
+        // Pad to 4 channels; stb gives us whatever the file has (usually 3).
+        for (int i = 0; i < w * h; ++i)
+        {
+            float r = pixels[i * channels + 0];
+            float g = (channels > 1) ? pixels[i * channels + 1] : r;
+            float b = (channels > 2) ? pixels[i * channels + 2] : r;
+            rgba[i * 4 + 0] = r;
+            rgba[i * 4 + 1] = g;
+            rgba[i * 4 + 2] = b;
+            rgba[i * 4 + 3] = 1.0f;
+        }
+        stbi_image_free(pixels);
+        m_envmapValid = true;
+    }
+
+    m_envmapWidth = (uint32_t)w;
+    m_envmapHeight = (uint32_t)h;
+    m_envmapPixels = std::move(rgba); // retained CPU-side for Step 2 CDF build
+
+    const UINT bytesPerPixel = 16; // RGBA32F
+    UINT64 rowPitch = ((UINT64)w * bytesPerPixel + 255) & ~255ULL;
+    UINT64 uploadSize = rowPitch * h;
+
+    D3D12_HEAP_PROPERTIES defaultHeap{};
+    defaultHeap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+    D3D12_RESOURCE_DESC td{};
+    td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    td.Width = w;
+    td.Height = h;
+    td.DepthOrArraySize = 1;
+    td.MipLevels = 1;
+    td.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    td.SampleDesc.Count = 1;
+    td.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    td.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &td,
+                                                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                    IID_PPV_ARGS(&m_envmap)),
+                  "Create envmap texture");
+
+    m_envmapUpload = CreateBuffer(uploadSize, D3D12_RESOURCE_FLAG_NONE,
+                                  D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+
+    uint8_t *mapped = nullptr;
+    m_envmapUpload->Map(0, nullptr, (void **)&mapped);
+    for (int y = 0; y < h; ++y)
+    {
+        memcpy(mapped + y * rowPitch,
+               m_envmapPixels.data() + (size_t)y * w * 4,
+               (size_t)w * bytesPerPixel);
+    }
+    m_envmapUpload->Unmap(0, nullptr);
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = m_envmap.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst.SubresourceIndex = 0;
+    src.pResource = m_envmapUpload.Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    src.PlacedFootprint.Footprint.Width = w;
+    src.PlacedFootprint.Footprint.Height = h;
+    src.PlacedFootprint.Footprint.Depth = 1;
+    src.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource = m_envmap.Get();
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(1, &barrier);
+
+    printf("[envmap] Loaded %s (%dx%d, %d channels -> RGBA32F)\n",
+           path.c_str(), w, h, channels);
+}
+
+// Build the 2D piecewise-constant sampling distribution over the envmap.
+// Factored as: marginal over rows, conditional per row over columns.
+// Density is proportional to luminance(x, y) * sin(theta_y) so the
+// solid-angle distortion of the equirectangular parameterization is cancelled.
+//
+// Outputs: two ByteAddressBuffers.
+//   m_envmapMarginalCdf    : (H + 1) floats, CDF over row probabilities.
+//   m_envmapConditionalCdf : H * (W + 1) floats, per-row CDF, row-major.
+//   Both are normalized so their final entry equals 1.0.
+void DXRApp::BuildEnvmapDistribution()
+{
+    const uint32_t W = m_envmapWidth;
+    const uint32_t H = m_envmapHeight;
+    if (W == 0 || H == 0 || m_envmapPixels.empty())
+    {
+        printf("[envmap-cdf] No envmap pixels — skipping.\n");
+        return;
+    }
+
+    const float M_PI_F = 3.14159265358979323846f;
+
+    // Rec. 709 luminance weights. Matches PBRT.
+    auto luma = [](float r, float g, float b)
+    { return 0.2126f * r + 0.7152f * g + 0.0722f * b; };
+
+    std::vector<float> conditional((size_t)H * (W + 1));
+    std::vector<float> rowSums(H);
+
+    for (uint32_t y = 0; y < H; ++y)
+    {
+        // Sample latitude at the pixel center.
+        float theta = M_PI_F * (y + 0.5f) / (float)H;
+        float sinTheta = std::sin(theta);
+
+        size_t rowBase = (size_t)y * (W + 1);
+        conditional[rowBase + 0] = 0.0f;
+
+        // Build the running (un-normalized) sum across this row.
+        float rowSum = 0.0f;
+        for (uint32_t x = 0; x < W; ++x)
+        {
+            size_t pixBase = ((size_t)y * W + x) * 4;
+            float r = m_envmapPixels[pixBase + 0];
+            float g = m_envmapPixels[pixBase + 1];
+            float b = m_envmapPixels[pixBase + 2];
+            float weight = luma(r, g, b) * sinTheta;
+            // Guard against negative values from broken HDRs.
+            if (weight < 0.0f)
+                weight = 0.0f;
+            rowSum += weight;
+            conditional[rowBase + x + 1] = rowSum;
+        }
+
+        rowSums[y] = rowSum;
+
+        // Normalize the row's CDF if it has any weight; otherwise fill with a
+        // uniform 0..1 ramp. The marginal will assign this row zero weight,
+        // so the conditional won't be queried in practice, but EnvmapPdf()
+        // must still return valid values via CDF differencing.
+        if (rowSum > 0.0f)
+        {
+            float inv = 1.0f / rowSum;
+            for (uint32_t x = 1; x <= W; ++x)
+                conditional[rowBase + x] *= inv;
+        }
+        else
+        {
+            for (uint32_t x = 0; x <= W; ++x)
+                conditional[rowBase + x] = (float)x / (float)W;
+        }
+    }
+
+    // Build the marginal CDF from row sums.
+    std::vector<float> marginal(H + 1);
+    double total = 0.0;
+    for (uint32_t y = 0; y < H; ++y)
+        total += rowSums[y];
+
+    marginal[0] = 0.0f;
+    if (total > 0.0)
+    {
+        double accum = 0.0;
+        double invTotal = 1.0 / total;
+        for (uint32_t y = 0; y < H; ++y)
+        {
+            accum += rowSums[y];
+            marginal[y + 1] = (float)(accum * invTotal);
+        }
+        // Floating-point nudge: make sure the last entry is exactly 1.0 so
+        // binary search on u ∈ [0, 1) never falls off the end.
+        marginal[H] = 1.0f;
+    }
+    else
+    {
+        for (uint32_t y = 0; y <= H; ++y)
+            marginal[y] = (float)y / (float)H;
+    }
+
+    // Upload both CDFs to GPU as ByteAddressBuffers on an UPLOAD heap.
+    // Same pattern as the emitter CDF.
+    {
+        UINT64 sz = marginal.size() * sizeof(float);
+        m_envmapMarginalCdf = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
+                                           D3D12_RESOURCE_STATE_GENERIC_READ,
+                                           D3D12_HEAP_TYPE_UPLOAD);
+        void *p;
+        m_envmapMarginalCdf->Map(0, nullptr, &p);
+        memcpy(p, marginal.data(), sz);
+        m_envmapMarginalCdf->Unmap(0, nullptr);
+    }
+    {
+        UINT64 sz = conditional.size() * sizeof(float);
+        m_envmapConditionalCdf = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
+                                              D3D12_RESOURCE_STATE_GENERIC_READ,
+                                              D3D12_HEAP_TYPE_UPLOAD);
+        void *p;
+        m_envmapConditionalCdf->Map(0, nullptr, &p);
+        memcpy(p, conditional.data(), sz);
+        m_envmapConditionalCdf->Unmap(0, nullptr);
+    }
+
+    // Sanity logging — cheap, and makes it obvious if the math broke.
+    uint32_t nonZeroRows = 0;
+    for (uint32_t y = 0; y < H; ++y)
+        if (rowSums[y] > 0.0f)
+            ++nonZeroRows;
+    printf("[envmap-cdf] %ux%u, luminance integral = %.3f, "
+           "marginal[H] = %.6f, conditional[0][W] = %.6f, "
+           "%u/%u rows non-zero\n",
+           W, H, (float)total,
+           marginal[H], conditional[W], nonZeroRows, H);
+}
+
 void DXRApp::CreateTextures()
 {
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "Alloc");
@@ -968,8 +1201,19 @@ void DXRApp::CreateTextures()
 
     m_textureCount = (uint32_t)m_textures.size();
 
+    // Load the HDR environment map on the same command list so its upload and barrier transition flush together with the material textures.
+    // TODO: this path is currently hardcoded, if I have time i need to wire through the scene XML so different scenes can specify their own HDR and parameters like intensity/rotation.
+    {
+        filesystem::path hdrPath =
+            getFileResolver()->resolve("textures/sunset.hdr");
+        LoadEnvmap(hdrPath.str());
+    }
+
+    BuildEnvmapDistribution();
+
     FlushCommandQueue();
     m_texUploads.clear();
+    m_envmapUpload.Reset();
 
     // patch texture indices into the material buffer
     {
@@ -1022,13 +1266,6 @@ void DXRApp::SetupCamera()
     Point3f P_tl = project(ray_tl);
     float halfHeight = (P_tl - P_bl).norm() * 0.5f;
     m_camFovY = 2.0f * atanf(halfHeight);
-
-    // Detect whether Nori's camera has a horizontal flip relative to the DXR yaw/pitch model.
-    // DXR's "right" = (cos(yaw), 0, -sin(yaw)) = world_up x fwd = the camera-LEFT direction.
-    // If Nori's horizontal axis (P_br - P_bl) is aligned with DXR right, the scene uses an
-    // implicit x-flip (e.g. <scale value="-1,1,1"/>), so m_camXFlip = +1 (no change needed).
-    // If anti-aligned (e.g. Ajax with no scale correction), m_camXFlip = -1 to negate the
-    // horizontal axis and produce an image consistent with Nori's output.
     {
         float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
         Vector3f dxrRight(cy, 0.0f, -sy);
@@ -1089,11 +1326,10 @@ void DXRApp::RecomputeCameraPlane()
     memcpy(m_camera.camVertical, vert, sizeof(float) * 3);
 }
 
-// Pipeline, output, shader table, render
+// pipeline, output, shader table, render
 void DXRApp::CreateRaytracingPipeline()
 {
-    // Compute total SRV count: 7 fixed (t0-t6) + N textures (t7+)
-    UINT totalSRVs = 7 + m_textureCount;
+    UINT totalSRVs = 7 + 1 + 2 + m_textureCount;
 
     D3D12_DESCRIPTOR_RANGE ranges[2]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -1101,7 +1337,7 @@ void DXRApp::CreateRaytracingPipeline()
     ranges[0].BaseShaderRegister = 0;
     ranges[0].OffsetInDescriptorsFromTableStart = 0;
     ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    ranges[1].NumDescriptors = totalSRVs; // t0-t6 fixed + t7..tN textures
+    ranges[1].NumDescriptors = totalSRVs;
     ranges[1].BaseShaderRegister = 0;
     ranges[1].OffsetInDescriptorsFromTableStart = 2;
 
@@ -1115,20 +1351,26 @@ void DXRApp::CreateRaytracingPipeline()
     rp[1].DescriptorTable.pDescriptorRanges = ranges;
     rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    // Static sampler for texture sampling (bilinear, wrap)
-    D3D12_STATIC_SAMPLER_DESC sampler{};
-    sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    sampler.ShaderRegister = 0; // s0
-    sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    D3D12_STATIC_SAMPLER_DESC samplers[2]{};
+    samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[0].ShaderRegister = 0; // s0
+    samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    samplers[1].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    samplers[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplers[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplers[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplers[1].ShaderRegister = 1; // s1
+    samplers[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rsd{};
     rsd.NumParameters = 2;
     rsd.pParameters = rp;
-    rsd.NumStaticSamplers = 1;
-    rsd.pStaticSamplers = &sampler;
+    rsd.NumStaticSamplers = 2;
+    rsd.pStaticSamplers = samplers;
     ComPtr<ID3DBlob> sig, err;
     ThrowIfFailed(D3D12SerializeRootSignature(&rsd, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &err), "RootSig serialize");
     ThrowIfFailed(m_device->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
@@ -1151,7 +1393,7 @@ void DXRApp::CreateRaytracingPipeline()
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &hg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
-    sc.MaxPayloadSizeInBytes = 48; // HitPayload: 11 fields x 4 bytes = 44, rounded up
+    sc.MaxPayloadSizeInBytes = 64;
     sc.MaxAttributeSizeInBytes = 8;
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     so[idx++].pDesc = &sc;
@@ -1178,7 +1420,6 @@ void DXRApp::CreateOutputResource()
     D3D12_HEAP_PROPERTIES hp{};
     hp.Type = D3D12_HEAP_TYPE_DEFAULT;
 
-    // output UAV texture R8G8B8A8_UNORM
     {
         D3D12_RESOURCE_DESC td{};
         td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -1212,18 +1453,21 @@ void DXRApp::CreateOutputResource()
                       "Accum tex");
     }
 
-    // Descriptor heap: 9 + N texture slots
-    //  [0] u0  UAV output texture
-    //  [1] u1  UAV accumulation texture
-    //  [2] t0  SRV TLAS
-    //  [3] t1  SRV material structured buffer
-    //  [4] t2  SRV global vertex normals (raw)
-    //  [5] t3  SRV global index buffer (raw)
-    //  [6] t4  SRV global vertex positions (raw)
-    //  [7] t5  SRV emitter CDF (raw)
-    //  [8] t6  SRV global UV buffer (raw)
-    //  [9+] t7+ SRV textures
-    UINT totalDescriptors = 9 + m_textureCount;
+    // Descriptor heap: 12 + N material-texture slots
+    //  [0]  u0  UAV output texture
+    //  [1]  u1  UAV accumulation texture
+    //  [2]  t0  SRV TLAS
+    //  [3]  t1  SRV material structured buffer
+    //  [4]  t2  SRV global vertex normals (raw)
+    //  [5]  t3  SRV global index buffer (raw)
+    //  [6]  t4  SRV global vertex positions (raw)
+    //  [7]  t5  SRV emitter CDF (raw)
+    //  [8]  t6  SRV global UV buffer (raw)
+    //  [9]  t7  SRV environment map (RGBA32F)
+    //  [10] t8  SRV envmap marginal CDF (raw)
+    //  [11] t9  SRV envmap conditional CDF (raw)
+    //  [12+] t10+ SRV material textures
+    UINT totalDescriptors = 12 + m_textureCount;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
     dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -1305,7 +1549,30 @@ void DXRApp::CreateOutputResource()
     // [8] SRV — global UV buffer (t6)
     createRawSRV(m_globalTexCoordBuffer.Get());
 
-    // [9+] SRV — textures (t7+)
+    // [9] SRV — environment map (t7)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
+        sd.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        sd.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        sd.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        sd.Texture2D.MipLevels = 1;
+        m_device->CreateShaderResourceView(m_envmap.Get(), &sd, h);
+        h.ptr += m_srvUavDescriptorSize;
+    }
+
+    // [10] SRV — envmap marginal CDF (t8, raw)
+    if (m_envmapMarginalCdf)
+        createRawSRV(m_envmapMarginalCdf.Get());
+    else
+        h.ptr += m_srvUavDescriptorSize;
+
+    // [11] SRV — envmap conditional CDF (t9, raw)
+    if (m_envmapConditionalCdf)
+        createRawSRV(m_envmapConditionalCdf.Get());
+    else
+        h.ptr += m_srvUavDescriptorSize;
+
+    // [12+] SRV — material textures (t10+)
     for (uint32_t i = 0; i < m_textureCount; i++)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
