@@ -34,7 +34,7 @@ struct CameraConstants
 
 struct GPUMaterial
 {
-    uint32_t type; // 0=diffuse, 1=mirror, 2=dielectric, 3=microfacet ...
+    uint32_t type; // 0=diffuse, 1=mirror, 2=dielectric, 3=microfacet, 4=disney
     float albedo[3];
     float intIOR;
     float extIOR;
@@ -51,7 +51,25 @@ struct GPUMaterial
     uint32_t normalTexIndex;    // texture index or 0xFFFFFFFF if none
     uint32_t roughnessTexIndex; // texture index or 0xFFFFFFFF if none
     uint32_t metallicTexIndex;  // texture index or 0xFFFFFFFF if none
+
+    // Disney BRDF parameters (Burley 2012). Read only when type == 4.
+    // baseColor is stored in the `albedo` field above to share texture
+    // plumbing with other BSDFs.
+    float roughness;
+    float metallic;
+    float specular;
+    float specularTint;
+    float sheen;
+    float sheenTint;
+    float subsurface;
+    float clearcoat;
+    float clearcoatGloss;
+    float anisotropic;
+    // float _pad[3]; // pad to 16-byte multiple (128 bytes total)
 };
+
+static_assert(sizeof(GPUMaterial) % 4 == 0,
+              "GPUMaterial field sizes must be 4-byte aligned");
 
 struct MeshGPUData
 {
@@ -130,6 +148,8 @@ private:
     // Texture resources
     std::vector<ComPtr<ID3D12Resource>> m_textures;
     std::vector<ComPtr<ID3D12Resource>> m_texUploads;
+
+    std::vector<uint8_t> m_textureIsSRGB;
     uint32_t m_textureCount = 0;
 
     // Environment map (IBL)
@@ -167,12 +187,13 @@ private:
     float m_camPos[3] = {};
     float m_camFovY = 0.0f; // vertical FOV in radians
     float m_camXFlip = 1.0f;
-    float m_camSpeed = 5.0f;
+    float m_camSpeed = 1.0f;
     float m_mouseSensitivity = 0.003f;
     bool m_cameraDirty = true; // set when camera moved; resets accumulation
 
     // Input state
     bool m_keys[256] = {};
+    bool m_mouseLeftDown = false;
     bool m_mouseRightDown = false;
     POINT m_lastMouse = {};
 
@@ -194,7 +215,8 @@ private:
     void SetupCamera();
 
     // Texture helpers
-    uint32_t LoadTexture(const std::string &path);
+    // uint32_t LoadTexture(const std::string &path = false);
+    uint32_t LoadTexture(const std::string &path, bool isSRGB);
     void LoadEnvmap(const std::string &path);
     void BuildEnvmapDistribution();
 

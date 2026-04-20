@@ -29,6 +29,20 @@ LRESULT CALLBACK Win32Application::WindowProc(HWND hWnd, UINT message, WPARAM wP
         if (pApp)
             pApp->OnKeyUp(static_cast<UINT8>(wParam));
         return 0;
+    case WM_LBUTTONDOWN:
+        if (pApp)
+        {
+            SetCapture(hWnd);
+            pApp->OnMouseDown(0, (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
+        }
+        return 0;
+    case WM_LBUTTONUP:
+        if (pApp)
+        {
+            ReleaseCapture();
+            pApp->OnMouseUp(0, (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
+        }
+        return 0;
     case WM_RBUTTONDOWN:
         if (pApp)
         {
@@ -48,7 +62,6 @@ LRESULT CALLBACK Win32Application::WindowProc(HWND hWnd, UINT message, WPARAM wP
             pApp->OnMouseMove((int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
         return 0;
     case WM_PAINT:
-        // Handled in idle loop; just validate
         ValidateRect(hWnd, nullptr);
         return 0;
     case WM_DESTROY:

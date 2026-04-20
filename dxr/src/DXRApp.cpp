@@ -172,6 +172,11 @@ void DXRApp::OnKeyUp(UINT8 key)
 
 void DXRApp::OnMouseDown(UINT button, int x, int y)
 {
+    if (button == 0) // left
+    {
+        m_mouseLeftDown = true;
+        m_lastMouse = {x, y};
+    }
     if (button == 1) // right
     {
         m_mouseRightDown = true;
@@ -181,6 +186,8 @@ void DXRApp::OnMouseDown(UINT button, int x, int y)
 
 void DXRApp::OnMouseUp(UINT button, int x, int y)
 {
+    if (button == 0)
+        m_mouseLeftDown = false;
     if (button == 1)
         m_mouseRightDown = false;
 }
@@ -188,7 +195,28 @@ void DXRApp::OnMouseUp(UINT button, int x, int y)
 // for mouse movements for dxr camera
 void DXRApp::OnMouseMove(int x, int y)
 {
-    if (m_mouseRightDown)
+    if (m_mouseLeftDown && m_mouseRightDown)
+    {
+        int dx = x - m_lastMouse.x;
+        int dy = y - m_lastMouse.y;
+        m_lastMouse = {x, y};
+
+        float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
+        float cp = cosf(m_camPitch), sp = sinf(m_camPitch);
+        float fwd[3] = {sy * cp, sp, cy * cp};
+        float right[3] = {cy, 0.0f, -sy};
+        float up[3] = {
+            fwd[1] * right[2] - fwd[2] * right[1],
+            fwd[2] * right[0] - fwd[0] * right[2],
+            fwd[0] * right[1] - fwd[1] * right[0]};
+
+        float panSpeed = 0.005f;
+        for (int i = 0; i < 3; i++)
+            m_camPos[i] -= right[i] * dx * panSpeed + up[i] * dy * panSpeed;
+
+        m_cameraDirty = true;
+    }
+    else if (m_mouseRightDown)
     {
         int dx = x - m_lastMouse.x;
         int dy = y - m_lastMouse.y;
@@ -243,7 +271,6 @@ void DXRApp::SaveSnapshot()
     m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
     FlushCommandQueue();
 
-    // Map and write BMP
     uint8_t *data;
     readback->Map(0, nullptr, (void **)&data);
 
@@ -259,7 +286,7 @@ void DXRApp::SaveSnapshot()
             const uint8_t *row = data + y * rowPitch;
             for (UINT x = 0; x < (UINT)desc.Width; x++)
             {
-                fwrite(row + x * 4, 1, 3, f); // RGB from RGBA
+                fwrite(row + x * 4, 1, 3, f);
             }
         }
         fclose(f);
@@ -604,6 +631,7 @@ void DXRApp::CreateAccelerationStructure()
 // Scene data buffers. material properties, normals, indices
 void DXRApp::CreateSceneBuffers()
 {
+    printf("[scene] sizeof(GPUMaterial) on CPU = %zu bytes\n", sizeof(GPUMaterial));
     const auto &meshes = m_noriScene->getMeshes();
     m_meshCount = (uint32_t)meshes.size();
 
@@ -649,6 +677,20 @@ void DXRApp::CreateSceneBuffers()
         mat.normalTexIndex = 0xFFFFFFFF;
         mat.roughnessTexIndex = 0xFFFFFFFF;
         mat.metallicTexIndex = 0xFFFFFFFF;
+
+        // Disney parameters (Burley 2012). Pack unconditionally; the HLSL
+        // side only reads these when mat.type == 4.
+        mat.roughness = gd.roughness;
+        mat.metallic = gd.metallic;
+        mat.specular = gd.specular;
+        mat.specularTint = gd.specularTint;
+        mat.sheen = gd.sheen;
+        mat.sheenTint = gd.sheenTint;
+        mat.subsurface = gd.subsurface;
+        mat.clearcoat = gd.clearcoat;
+        mat.clearcoatGloss = gd.clearcoatGloss;
+        mat.anisotropic = gd.anisotropic;
+        // mat._pad[0] = mat._pad[1] = mat._pad[2] = 0.0f;
 
         totalVertices += vc;
         totalIndices += ic;
@@ -786,8 +828,8 @@ void DXRApp::CreateSceneBuffers()
                 float *out = reinterpret_cast<float *>(dst);
                 for (uint32_t v = 0; v < vc; v++)
                 {
-                    out[v * 2 + 0] = UV(0, v); // u
-                    out[v * 2 + 1] = UV(1, v); // v
+                    out[v * 2 + 0] = UV(0, v);        // u
+                    out[v * 2 + 1] = 1.0f - UV(1, v); // v  (flip: OBJ V=0 bottom → DX V=0 top)
                 }
             }
             dst += vc * 2 * sizeof(float);
@@ -798,7 +840,19 @@ void DXRApp::CreateSceneBuffers()
 }
 
 // Texture loading via stb_image lirbary
-uint32_t DXRApp::LoadTexture(const std::string &path)
+// Loads a 2D texture from disk and creates a GPU resource for it.
+//
+// isSRGB semantics:
+//   - Pass `true` for color data (albedo / baseColor). The GPU will
+//     linearize the 8-bit sRGB-encoded values on sample. This is the
+//     correct behavior for color textures authored in standard sRGB,
+//     which is every JPEG/PNG/TGA "color" texture from Poly Haven,
+//     3D Scan Store, AmbientCG, etc.
+//   - Pass `false` for non-color data (normal maps, roughness, metallic,
+//     AO). Those textures carry scalar/vector data that's already in
+//     linear space by convention. Applying sRGB linearization to them
+//     would corrupt the values.
+uint32_t DXRApp::LoadTexture(const std::string &path, bool isSRGB)
 {
     int w, h, channels;
     unsigned char *pixels = stbi_load(path.c_str(), &w, &h, &channels, 4);
@@ -808,9 +862,70 @@ uint32_t DXRApp::LoadTexture(const std::string &path)
         return 0xFFFFFFFF;
     }
 
+    const DXGI_FORMAT fmt = isSRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+                                   : DXGI_FORMAT_R8G8B8A8_UNORM;
+
     uint32_t texIndex = (uint32_t)m_textures.size();
-    UINT64 rowPitch = ((w * 4 + 255) & ~255); // D3D12 requires 256-byte row alignment
-    UINT64 uploadSize = rowPitch * h;
+
+    // Compute full mip chain count
+    UINT mipCount = 1;
+    {
+        int dim = (std::max)(w, h);
+        while (dim > 1)
+        {
+            dim >>= 1;
+            mipCount++;
+        }
+    }
+
+    // Generate mip chain on CPU using box filter
+    std::vector<std::vector<uint8_t>> mipPixels(mipCount);
+    std::vector<int> mipW(mipCount), mipH(mipCount);
+
+    mipW[0] = w;
+    mipH[0] = h;
+    mipPixels[0].assign(pixels, pixels + w * h * 4);
+
+    for (UINT m = 1; m < mipCount; m++)
+    {
+        int pw = mipW[m - 1], ph = mipH[m - 1];
+        int mw = (std::max)(pw / 2, 1), mh = (std::max)(ph / 2, 1);
+        mipW[m] = mw;
+        mipH[m] = mh;
+        mipPixels[m].resize(mw * mh * 4);
+
+        const uint8_t *src = mipPixels[m - 1].data();
+        uint8_t *dst = mipPixels[m].data();
+        for (int y = 0; y < mh; y++)
+        {
+            for (int x = 0; x < mw; x++)
+            {
+                int sx = (std::min)(x * 2, pw - 1);
+                int sy = (std::min)(y * 2, ph - 1);
+                int sx1 = (std::min)(sx + 1, pw - 1);
+                int sy1 = (std::min)(sy + 1, ph - 1);
+                for (int c = 0; c < 4; c++)
+                {
+                    int v = (int)src[(sy * pw + sx) * 4 + c] + (int)src[(sy * pw + sx1) * 4 + c] + (int)src[(sy1 * pw + sx) * 4 + c] + (int)src[(sy1 * pw + sx1) * 4 + c];
+                    dst[(y * mw + x) * 4 + c] = (uint8_t)(v / 4);
+                }
+            }
+        }
+    }
+    stbi_image_free(pixels);
+
+    // Compute upload buffer layout: each mip aligned to D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT (512)
+    std::vector<UINT64> mipOffsets(mipCount);
+    std::vector<UINT64> mipRowPitches(mipCount);
+    UINT64 totalUploadSize = 0;
+    for (UINT m = 0; m < mipCount; m++)
+    {
+        UINT64 rowPitch = ((mipW[m] * 4 + 255) & ~255); // 256-byte row alignment
+        mipRowPitches[m] = rowPitch;
+        mipOffsets[m] = totalUploadSize;
+        totalUploadSize += rowPitch * mipH[m];
+        totalUploadSize = (totalUploadSize + 511) & ~511; // 512-byte placement alignment
+    }
 
     // Create the GPU texture resource on default heap vram
     D3D12_HEAP_PROPERTIES defaultHeap{};
@@ -821,8 +936,8 @@ uint32_t DXRApp::LoadTexture(const std::string &path)
     td.Width = w;
     td.Height = h;
     td.DepthOrArraySize = 1;
-    td.MipLevels = 1;
-    td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    td.MipLevels = mipCount;
+    td.Format = fmt;
     td.SampleDesc.Count = 1;
     td.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     td.Flags = D3D12_RESOURCE_FLAG_NONE;
@@ -833,33 +948,41 @@ uint32_t DXRApp::LoadTexture(const std::string &path)
                                                     IID_PPV_ARGS(&texture)),
                   "Create texture");
 
-    // Create upload buffer
-    auto uploadBuf = CreateBuffer(uploadSize, D3D12_RESOURCE_FLAG_NONE,
+    // Create upload buffer for all mip levels
+    auto uploadBuf = CreateBuffer(totalUploadSize, D3D12_RESOURCE_FLAG_NONE,
                                   D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
 
-    // Copy pixel data into upload buffer
+    // Copy all mip levels into upload buffer
     uint8_t *mapped;
     uploadBuf->Map(0, nullptr, (void **)&mapped);
-    for (int y = 0; y < h; y++)
-        memcpy(mapped + y * rowPitch, pixels + y * w * 4, w * 4);
+    for (UINT m = 0; m < mipCount; m++)
+    {
+        for (int y = 0; y < mipH[m]; y++)
+            memcpy(mapped + mipOffsets[m] + y * mipRowPitches[m],
+                   mipPixels[m].data() + y * mipW[m] * 4,
+                   mipW[m] * 4);
+    }
     uploadBuf->Unmap(0, nullptr);
-    stbi_image_free(pixels);
 
-    // Copy from upload buffer to texture
-    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
-    dst.pResource = texture.Get();
-    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    dst.SubresourceIndex = 0;
+    // Copy each mip level from upload buffer to texture subresource
+    for (UINT m = 0; m < mipCount; m++)
+    {
+        D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+        dst.pResource = texture.Get();
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        dst.SubresourceIndex = m;
 
-    src.pResource = uploadBuf.Get();
-    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    src.PlacedFootprint.Footprint.Width = w;
-    src.PlacedFootprint.Footprint.Height = h;
-    src.PlacedFootprint.Footprint.Depth = 1;
-    src.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+        src.pResource = uploadBuf.Get();
+        src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        src.PlacedFootprint.Offset = mipOffsets[m];
+        src.PlacedFootprint.Footprint.Format = fmt;
+        src.PlacedFootprint.Footprint.Width = mipW[m];
+        src.PlacedFootprint.Footprint.Height = mipH[m];
+        src.PlacedFootprint.Footprint.Depth = 1;
+        src.PlacedFootprint.Footprint.RowPitch = (UINT)mipRowPitches[m];
 
-    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+        m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    }
 
     // Transition to shader resource
     D3D12_RESOURCE_BARRIER barrier{};
@@ -872,8 +995,10 @@ uint32_t DXRApp::LoadTexture(const std::string &path)
 
     m_textures.push_back(texture);
     m_texUploads.push_back(uploadBuf);
+    m_textureIsSRGB.push_back(isSRGB ? 1 : 0);
 
-    printf("[texture] Loaded %s (%dx%d) as texture %u\n", path.c_str(), w, h, texIndex);
+    printf("[texture] Loaded %s (%dx%d, %u mips, %s) as texture %u\n",
+           path.c_str(), w, h, mipCount, isSRGB ? "sRGB" : "linear", texIndex);
     return texIndex;
 }
 
@@ -1161,6 +1286,7 @@ void DXRApp::CreateTextures()
         m_commandList->ResourceBarrier(1, &barrier);
 
         m_textures.insert(m_textures.begin(), dummyTex); // slot 0 = dummy
+        m_textureIsSRGB.insert(m_textureIsSRGB.begin(), 0);
         m_texUploads.push_back(uploadBuf);
     }
 
@@ -1168,7 +1294,7 @@ void DXRApp::CreateTextures()
     const auto &meshes = m_noriScene->getMeshes();
     std::unordered_map<std::string, uint32_t> texCache;
 
-    auto loadIfNotEmpty = [&](const std::string &relPath) -> uint32_t
+    auto loadIfNotEmpty = [&](const std::string &relPath, bool isSRGB) -> uint32_t
     {
         if (relPath.empty())
             return 0xFFFFFFFF;
@@ -1177,7 +1303,7 @@ void DXRApp::CreateTextures()
         auto it = texCache.find(key);
         if (it != texCache.end())
             return it->second;
-        uint32_t idx = LoadTexture(key);
+        uint32_t idx = LoadTexture(key, isSRGB);
         if (idx != 0xFFFFFFFF)
             texCache[key] = idx;
         return idx;
@@ -1193,10 +1319,12 @@ void DXRApp::CreateTextures()
     for (uint32_t i = 0; i < (uint32_t)meshes.size(); i++)
     {
         BSDFGPUData gd = meshes[i]->getBSDF()->getGPUData();
-        meshTexIndices[i].albedo = loadIfNotEmpty(gd.albedoTexture);
-        meshTexIndices[i].normal = loadIfNotEmpty(gd.normalTexture);
-        meshTexIndices[i].roughness = loadIfNotEmpty(gd.roughnessTexture);
-        meshTexIndices[i].metallic = loadIfNotEmpty(gd.metallicTexture);
+        // Albedo is COLOR data -> sRGB encoded on disk, must be linearized on sample.
+        // Normal/roughness/metallic are DATA textures -> already linear, leave as-is.
+        meshTexIndices[i].albedo = loadIfNotEmpty(gd.albedoTexture, true);
+        meshTexIndices[i].normal = loadIfNotEmpty(gd.normalTexture, false);
+        meshTexIndices[i].roughness = loadIfNotEmpty(gd.roughnessTexture, false);
+        meshTexIndices[i].metallic = loadIfNotEmpty(gd.metallicTexture, false);
     }
 
     m_textureCount = (uint32_t)m_textures.size();
@@ -1206,6 +1334,7 @@ void DXRApp::CreateTextures()
     {
         filesystem::path hdrPath =
             getFileResolver()->resolve("textures/sunset.hdr");
+        // getFileResolver()->resolve("textures/white_furnace.hdr");
         LoadEnvmap(hdrPath.str());
     }
 
@@ -1285,7 +1414,7 @@ void DXRApp::SetupCamera()
            m_camPos[0], m_camPos[1], m_camPos[2],
            m_camYaw * 180.0f / 3.14159f, m_camPitch * 180.0f / 3.14159f,
            m_camFovY * 180.0f / 3.14159f);
-    printf("[camera] Controls: WASD=move, QE=up/down, RightClick+drag=look, P=snapshot\n");
+    printf("[camera] Controls: WASD=move, QE=up/down, RightClick+drag=look, Both+drag=pan, P=snapshot\n");
 }
 
 // recompute the camera image plane from yaw/pitch/position/fov
@@ -1363,7 +1492,7 @@ void DXRApp::CreateRaytracingPipeline()
     samplers[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplers[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     samplers[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    samplers[1].ShaderRegister = 1; // s1
+    samplers[1].ShaderRegister = 1;
     samplers[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rsd{};
@@ -1518,7 +1647,7 @@ void DXRApp::CreateOutputResource()
         h.ptr += m_srvUavDescriptorSize;
     }
 
-    // Helper for raw (ByteAddressBuffer) SRVs
+    // helper for raw ByteAddressBuffer SRVs
     auto createRawSRV = [&](ID3D12Resource *buf)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
@@ -1544,7 +1673,7 @@ void DXRApp::CreateOutputResource()
     if (m_emitterCdfBuffer)
         createRawSRV(m_emitterCdfBuffer.Get());
     else
-        h.ptr += m_srvUavDescriptorSize; // skip slot even if no CDF buffer
+        h.ptr += m_srvUavDescriptorSize;
 
     // [8] SRV — global UV buffer (t6)
     createRawSRV(m_globalTexCoordBuffer.Get());
@@ -1572,18 +1701,19 @@ void DXRApp::CreateOutputResource()
     else
         h.ptr += m_srvUavDescriptorSize;
 
-    // [12+] SRV — material textures (t10+)
+    // [12+] SRV — material textures (t10+). The SRV's format must match
+    // the resource's format (sRGB vs UNORM), tracked in m_textureIsSRGB.
     for (uint32_t i = 0; i < m_textureCount; i++)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
-        sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        sd.Format = m_textureIsSRGB[i] ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+                                       : DXGI_FORMAT_R8G8B8A8_UNORM;
         sd.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         sd.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         sd.Texture2D.MipLevels = 1;
         m_device->CreateShaderResourceView(m_textures[i].Get(), &sd, h);
         h.ptr += m_srvUavDescriptorSize;
     }
-
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
     D3D12_RESOURCE_BARRIER b{};
