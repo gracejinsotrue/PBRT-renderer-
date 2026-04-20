@@ -47,7 +47,8 @@ struct BSDFGPUData
         DIFFUSE = 0,
         MIRROR = 1,
         DIELECTRIC = 2,
-        MICROFACET = 3
+        MICROFACET = 3,
+        DISNEY = 4
     };
     int type = DIFFUSE;
     float albedo[3] = {0.5f, 0.5f, 0.5f};
@@ -59,6 +60,21 @@ struct BSDFGPUData
     std::string normalTexture;
     std::string roughnessTexture;
     std::string metallicTexture;
+
+    // Disney BRDF parameters (Burley 2012). All default to reasonable
+    // neutral values so non-Disney materials ignore them safely.
+    // Disney's baseColor is stored in `albedo` above to share texture
+    // plumbing with other BSDFs.
+    float roughness = 0.5f;
+    float metallic = 0.0f;
+    float specular = 0.5f;     // F0 multiplier for non-metals (0.5 => 4% F0)
+    float specularTint = 0.0f; // tint specular lobe toward baseColor hue
+    float sheen = 0.0f;
+    float sheenTint = 0.5f;
+    float subsurface = 0.0f; // blend toward Hanrahan-Krueger diffuse lobe
+    float clearcoat = 0.0f;
+    float clearcoatGloss = 1.0f; // 0=rough clearcoat, 1=glossy clearcoat
+    float anisotropic = 0.0f;    // isotropic for now; implemented in later step
 };
 
 /**
