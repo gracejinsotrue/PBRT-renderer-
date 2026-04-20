@@ -90,6 +90,8 @@ add_executable(nori
   src/mirror.cpp
   src/dielectric.cpp
 
+  src/disney.cpp
+
   #normals.cpp
   src/normals.cpp
 
