@@ -57,6 +57,7 @@ set(NORI_SOURCES
     ${NORI_ROOT}/src/mirror.cpp
     ${NORI_ROOT}/src/dielectric.cpp
     ${NORI_ROOT}/src/microfacet.cpp
+    ${NORI_ROOT}/src/disney.cpp
     # Emitters
     ${NORI_ROOT}/src/area.cpp
     # Integrators
