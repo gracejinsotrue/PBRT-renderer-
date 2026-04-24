@@ -91,6 +91,7 @@ add_executable(nori
   src/dielectric.cpp
 
   src/disney.cpp
+  src/hair.cpp
 
   #normals.cpp
   src/normals.cpp

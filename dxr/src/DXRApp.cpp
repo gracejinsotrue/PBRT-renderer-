@@ -690,7 +690,7 @@ void DXRApp::CreateSceneBuffers()
         mat.clearcoat = gd.clearcoat;
         mat.clearcoatGloss = gd.clearcoatGloss;
         mat.anisotropic = gd.anisotropic;
-        // mat._pad[0] = mat._pad[1] = mat._pad[2] = 0.0f;
+        mat.betaN = gd.betaN;
 
         totalVertices += vc;
         totalIndices += ic;
@@ -826,16 +826,44 @@ void DXRApp::CreateSceneBuffers()
                 // UV is 2×N column-major (all U's then all V's).
                 // Shader expects interleaved [u0,v0, u1,v1, ...].
                 float *out = reinterpret_cast<float *>(dst);
+                bool isHair = meshes[i]->hasTangents();
                 for (uint32_t v = 0; v < vc; v++)
                 {
-                    out[v * 2 + 0] = UV(0, v);        // u
-                    out[v * 2 + 1] = 1.0f - UV(1, v); // v  (flip: OBJ V=0 bottom → DX V=0 top)
+                    out[v * 2 + 0] = UV(0, v); // u
+                    // For OBJ meshes, flip V (OBJ V=0 bottom → DX V=0 top).
+                    // For hair meshes, UV.y encodes the h parameter — do NOT flip.
+                    out[v * 2 + 1] = isHair ? UV(1, v) : (1.0f - UV(1, v));
                 }
             }
             dst += vc * 2 * sizeof(float);
         }
         m_globalTexCoordBuffer->Unmap(0, nullptr);
         printf("[scene] UV buffer uploaded: %u vertices\n", totalVertices);
+    }
+
+    // Concatenate per-vertex fiber tangents (float3 per vertex, zero for non-hair meshes)
+    {
+        UINT64 sz = totalVertices * 3 * sizeof(float);
+        m_globalTangentBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
+                                             D3D12_RESOURCE_STATE_GENERIC_READ,
+                                             D3D12_HEAP_TYPE_UPLOAD);
+        uint8_t *dst;
+        m_globalTangentBuffer->Map(0, nullptr, (void **)&dst);
+        memset(dst, 0, sz); // zero for non-hair meshes
+        for (uint32_t i = 0; i < m_meshCount; i++)
+        {
+            const auto &T = meshes[i]->getVertexTangents();
+            uint32_t vc = materials[i].vertexCount;
+            if (T.cols() > 0)
+            {
+                // T is 3×N column-major, same layout as normals
+                UINT64 bytes = T.size() * sizeof(float);
+                memcpy(dst, T.data(), bytes);
+            }
+            dst += vc * 3 * sizeof(float);
+        }
+        m_globalTangentBuffer->Unmap(0, nullptr);
+        printf("[scene] Tangent buffer uploaded: %u vertices\n", totalVertices);
     }
 }
 
@@ -1458,7 +1486,7 @@ void DXRApp::RecomputeCameraPlane()
 // pipeline, output, shader table, render
 void DXRApp::CreateRaytracingPipeline()
 {
-    UINT totalSRVs = 7 + 1 + 2 + m_textureCount;
+    UINT totalSRVs = 7 + 1 + 2 + 1 + m_textureCount; // +1 for tangent buffer
 
     D3D12_DESCRIPTOR_RANGE ranges[2]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -1522,7 +1550,7 @@ void DXRApp::CreateRaytracingPipeline()
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &hg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
-    sc.MaxPayloadSizeInBytes = 64;
+    sc.MaxPayloadSizeInBytes = 80;
     sc.MaxAttributeSizeInBytes = 8;
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     so[idx++].pDesc = &sc;
@@ -1582,7 +1610,7 @@ void DXRApp::CreateOutputResource()
                       "Accum tex");
     }
 
-    // Descriptor heap: 12 + N material-texture slots
+    // Descriptor heap: 13 + N material-texture slots
     //  [0]  u0  UAV output texture
     //  [1]  u1  UAV accumulation texture
     //  [2]  t0  SRV TLAS
@@ -1595,8 +1623,9 @@ void DXRApp::CreateOutputResource()
     //  [9]  t7  SRV environment map (RGBA32F)
     //  [10] t8  SRV envmap marginal CDF (raw)
     //  [11] t9  SRV envmap conditional CDF (raw)
-    //  [12+] t10+ SRV material textures
-    UINT totalDescriptors = 12 + m_textureCount;
+    //  [12] t10 SRV global fiber tangent buffer (raw, hair only)
+    //  [13+] t11+ SRV material textures
+    UINT totalDescriptors = 13 + m_textureCount;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
     dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -1701,7 +1730,10 @@ void DXRApp::CreateOutputResource()
     else
         h.ptr += m_srvUavDescriptorSize;
 
-    // [12+] SRV — material textures (t10+). The SRV's format must match
+    // [12] SRV — global fiber tangent buffer (t10, raw)
+    createRawSRV(m_globalTangentBuffer.Get());
+
+    // [13+] SRV — material textures (t11+). The SRV's format must match
     // the resource's format (sRGB vs UNORM), tracked in m_textureIsSRGB.
     for (uint32_t i = 0; i < m_textureCount; i++)
     {
