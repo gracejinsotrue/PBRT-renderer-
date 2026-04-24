@@ -132,6 +132,12 @@ public:
     /// Return a pointer to the triangle vertex index list
     const MatrixXu &getIndices() const { return m_F; }
 
+    /// Return a pointer to the per-vertex fiber tangents (empty if not a hair mesh)
+    const MatrixXf &getVertexTangents() const { return m_T; }
+
+    /// Returns true if this mesh has per-vertex tangent data (i.e. it is hair)
+    bool hasTangents() const { return m_T.cols() > 0; }
+
     /// Is this mesh an area emitter?
     bool isEmitter() const { return m_emitter != nullptr; }
 
@@ -170,6 +176,7 @@ protected:
     std::string m_name;           ///< Identifying name
     MatrixXf m_V;                 ///< Vertex positions
     MatrixXf m_N;                 ///< Vertex normals
+    MatrixXf m_T;                 ///< Vertex fiber tangents (hair only)
     MatrixXf m_UV;                ///< Vertex texture coordinates
     MatrixXu m_F;                 ///< Faces
     BSDF *m_bsdf = nullptr;       ///< BSDF of the surface

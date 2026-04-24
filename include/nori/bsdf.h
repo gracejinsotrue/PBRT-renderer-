@@ -48,7 +48,8 @@ struct BSDFGPUData
         MIRROR = 1,
         DIELECTRIC = 2,
         MICROFACET = 3,
-        DISNEY = 4
+        DISNEY = 4,
+        HAIR = 5
     };
     int type = DIFFUSE;
     float albedo[3] = {0.5f, 0.5f, 0.5f};
@@ -75,6 +76,9 @@ struct BSDFGPUData
     float clearcoat = 0.0f;
     float clearcoatGloss = 1.0f; // 0=rough clearcoat, 1=glossy clearcoat
     float anisotropic = 0.0f;    // isotropic for now; implemented in later step
+
+    // Hair BCSDF (Chiang 2016). Read only when type == HAIR (5).
+    float betaN = 0.3f; // azimuthal roughness β_N
 };
 
 /**

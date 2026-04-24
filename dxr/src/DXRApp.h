@@ -65,7 +65,7 @@ struct GPUMaterial
     float clearcoat;
     float clearcoatGloss;
     float anisotropic;
-    // float _pad[3]; // pad to 16-byte multiple (128 bytes total)
+    float betaN; // azimuthal roughness β_N (hair only, Chiang Eq. 8)
 };
 
 static_assert(sizeof(GPUMaterial) % 4 == 0,
@@ -142,6 +142,7 @@ private:
     ComPtr<ID3D12Resource> m_globalVertexBuffer;   // ByteAddressBuffer — all positions
     ComPtr<ID3D12Resource> m_emitterCdfBuffer;     // ByteAddressBuffer — emitter triangle area CDFs
     ComPtr<ID3D12Resource> m_globalTexCoordBuffer; // ByteAddressBuffer — all UVs (float2 per vertex)
+    ComPtr<ID3D12Resource> m_globalTangentBuffer;  // ByteAddressBuffer — all fiber tangents (float3 per vertex, hair only)
     uint32_t m_meshCount = 0;
     uint32_t m_frameCount = 0;
 
