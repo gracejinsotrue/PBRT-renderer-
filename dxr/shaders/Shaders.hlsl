@@ -14,6 +14,16 @@ cbuffer CameraParams : register(b0)
     uint meshCount;
     float3 camVertical;
     uint frameCount;
+
+    // Volume parameters for homogeneous participating medium
+    float volumeMinX, volumeMinY, volumeMinZ;
+    float volumeSigmaA;
+    float volumeMaxX, volumeMaxY, volumeMaxZ;
+    float volumeSigmaS;
+    float volumePhaseG;
+    uint volumeEnabled;
+    uint volumeHeterogeneous;
+    uint volumeHasTexture;
 };
 
 struct GPUMaterial
@@ -46,7 +56,7 @@ struct GPUMaterial
     float clearcoat;
     float clearcoatGloss;
     float anisotropic;
-    float betaN; // azimuthal roughness (hair, Chiang Eq. 8)
+    float betaN; // azimuthal roughness for hair
 };
 
 float3 MatAlbedo(GPUMaterial m) { return float3(m.albedoR, m.albedoG, m.albedoB); }
@@ -64,7 +74,7 @@ Texture2D<float4> g_envmap : register(t7);
 ByteAddressBuffer g_envmapMarginalCdf : register(t8);
 ByteAddressBuffer g_envmapConditionalCdf : register(t9);
 
-// Fiber tangent buffer (hair only, float3 per vertex)
+// Fiber tangent buffer for hair
 ByteAddressBuffer g_tangents : register(t10);
 
 // Texture array and sampler for material textures
@@ -73,11 +83,15 @@ Texture2D g_textures[] : register(t11);
 SamplerState g_sampler : register(s0);
 SamplerState g_envmapSampler : register(s1);
 
+// Volume density for heterogenous media
+Texture3D<float> g_volumeDensity : register(t0, space1);
+SamplerState g_volumeSampler : register(s2);
+
 static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
 static const int MAX_BOUNCES = 8;
 
-// remove later:
+// TODO remove later:
 //  When set to 1, the raygen shader replaces normal path tracing with a
 //  Monte Carlo estimator of the total envmap integral: each sample computes
 //  radiance / pdf from SampleEnvmap(). A correct sampler converges every
@@ -96,8 +110,8 @@ struct HitPayload
     float texU, texV;
     float envR, envG, envB;
     uint primitiveID;
-    float tangentX, tangentY, tangentZ; // fiber tangent (hair only)
-    float hairH;                        // fiber offset h in [-1,1] (hair only)
+    float tangentX, tangentY, tangentZ; // fiber tangent
+    float hairH;                        // fiber offset h in [-1,1]
 };
 struct ShadowPayload
 {
@@ -199,8 +213,7 @@ float2 GetInterpolatedUV(uint instanceID, uint primitiveID, float2 bary)
     return uv0 * w.x + uv1 * w.y + uv2 * w.z;
 }
 
-// Interpolate per-vertex fiber tangent at hit point (hair meshes only).
-// Returns zero vector for non-hair meshes (tangent buffer is zeroed).
+// Interpolate per-vertex hair tangent. Returns zero for non-hair meshes.
 float3 GetInterpolatedTangent(uint instanceID, uint primitiveID, float2 bary)
 {
     GPUMaterial mat = g_materials[instanceID];
@@ -219,7 +232,7 @@ float3 GetInterpolatedTangent(uint instanceID, uint primitiveID, float2 bary)
     return (len2 > 1e-8) ? t * rsqrt(len2) : float3(0, 0, 0);
 }
 
-// compute the UV-space footprint of a single pixel at the hit point, and returns the approximate UV-space length that one screen pixel covers.
+// Approximate UV footprint of one screen pixel at the hit point.
 float ComputeUVFootprint(uint materialID, uint primitiveID, float hitT, uint2 dims)
 {
     GPUMaterial mat = g_materials[materialID];
@@ -271,7 +284,7 @@ float3 OffsetRayOrigin(float3 hitPos, float3 Ng, float3 N)
     return p;
 }
 
-// evaluate the equirectangular environment map along a world-space direction, here y = up. phi in [0, 2*pi), theta in [0, pi], u = phi / (2*pi), v = theta / pi
+// Evaluate equirectangular envmap for a world-space direction
 float3 EvalEnvmap(float3 dir)
 {
     float3 d = normalize(dir);
@@ -283,9 +296,7 @@ float3 EvalEnvmap(float3 dir)
     return g_envmap.SampleLevel(g_envmapSampler, uv, 0).rgb;
 }
 
-// binary search over a CDF stored in a ByteAddressBuffer, starting at byte offset. CDF has a number of entries of monotonically increasing floats
-// with the last equal to 1.0.
-// returns the largest i s.t. cdf[i] <= u, which is the index of the cell containing u
+// Binary search over a monotonic CDF in a ByteAddressBuffer.
 uint EnvmapCdfSearch(ByteAddressBuffer buf, uint byteOffset, uint numEntries, float u)
 {
     uint lo = 0;
@@ -386,6 +397,8 @@ float3 ToWorld(float3 v, float3 T, float3 B, float3 N)
 {
     return T * v.x + B * v.y + N * v.z;
 }
+
+#include "Volume.hlsl"
 
 float3 CosineSampleHemisphere(float2 u)
 {
@@ -856,7 +869,7 @@ float HairI0(float x)
     return val;
 }
 
-// log(I0(x)) — numerically stable for large x.
+// log(I0(x))
 float HairLogI0(float x)
 {
     if (x > 12.0)
@@ -864,7 +877,7 @@ float HairLogI0(float x)
     return log(HairI0(x));
 }
 
-// Longitudinal scattering function Mp (d'Eon et al. 2011).
+// Longitudinal scattering function Mp (from d'Eon et al. 2011).
 // [PBRT] Eq. 9.49, [Chiang] Section 3.1
 float HairMp(float cosTheta_i, float cosTheta_o, float sinTheta_i,
              float sinTheta_o, float v)
@@ -927,8 +940,8 @@ float HairNp(float phi, int p, float s, float gamma_o, float gamma_t)
     return HairTrimmedLogistic(dphi, s, -M_PI, M_PI);
 }
 
-// Convert desired hair color to absorption coefficient σ_a.
-// [Chiang] Eq. 9 — least-squares fit relating multiple-scattering
+// Convert hair color to absorption coefficient σ_a.
+// [Chiang] Eq. 9:  least-squares fit relating multiple-scattering
 // albedo C and azimuthal roughness β_N to single-fiber σ_a.
 float3 HairSigmaAFromColor(float3 C, float betaN)
 {
@@ -960,16 +973,16 @@ HairLobeParams HairComputeParams(GPUMaterial mat)
     float v0 = 0.726 * bm + 0.812 * bm * bm + 3.7 * pow(bm, 20.0);
     v0 = v0 * v0;
     p.v[0] = v0;
-    p.v[1] = 0.25 * v0; // TT lobe: sharper (refraction focuses)
-    p.v[2] = 4.0 * v0;  // TRT: broader (multiple reflections spread)
+    p.v[1] = 0.25 * v0; // TT lobe: sharper, refraction focuses
+    p.v[2] = 4.0 * v0;  // TRT: broader, multiple reflections spread
     p.v[3] = p.v[2];
 
-    // Azimuthal roughness: Chiang Eq. 8
+    // Azimuthal roughness from Chiang Eq. 8
     float bn = mat.betaN;
     float SqrtPiOver8 = 0.626657069;
     p.s = SqrtPiOver8 * (0.265 * bn + 1.194 * bn * bn + 5.372 * pow(bn, 22.0));
 
-    // Cuticle scale tilt: PBRT Section 9.9.6, double-angle identities
+    // Cuticle scale tilt from PBRT Section 9.9.6
     float alphaRad = mat.alpha * M_PI / 180.0;
     p.sin2kAlpha[0] = sin(alphaRad);
     p.cos2kAlpha[0] = sqrt(max(0.0, 1.0 - p.sin2kAlpha[0] * p.sin2kAlpha[0]));
@@ -979,18 +992,18 @@ HairLobeParams HairComputeParams(GPUMaterial mat)
         p.cos2kAlpha[i] = p.cos2kAlpha[i - 1] * p.cos2kAlpha[i - 1] - p.sin2kAlpha[i - 1] * p.sin2kAlpha[i - 1];
     }
 
-    // Absorption from color
+    // absorption from color
     p.sigma_a = HairSigmaAFromColor(MatAlbedo(mat), bn);
 
     return p;
 }
 
-// Compute attenuation Ap for all lobes (Fresnel + Beer's law).
-// [PBRT] Section 9.9.4, [Chiang] Eq. 6 (4th lobe residual)
+// Compute attenuation Ap for all lobes
+// [PBRT] Section 9.9.4, [Chiang] Eq. 6 for 4th lobe residual
 void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
             float3 sigma_a, out float3 ap[4])
 {
-    // Modified IOR for normal-plane refraction: [PBRT] Section 9.9.4
+    // Modified IOR for normal-plane refraction from [PBRT] Section 9.9.4
     float etap = sqrt(max(0.0, eta * eta - sinTheta_o * sinTheta_o)) / max(cosTheta_o, 1e-6);
     float sinGamma_t = clamp(h / etap, -1.0, 1.0);
     float cosGamma_t = sqrt(max(0.0, 1.0 - sinGamma_t * sinGamma_t));
@@ -999,7 +1012,7 @@ void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
     float sinTheta_t = sinTheta_o / eta;
     float cosTheta_t = sqrt(max(0.0, 1.0 - sinTheta_t * sinTheta_t));
 
-    // Single-segment transmittance: Beer's law, PBRT Eq. 9.50
+    // Single-segment transmittance from Beer's law, PBRT Eq. 9.50
     float3 T = exp(-sigma_a * (2.0 * cosGamma_t / max(cosTheta_t, 1e-6)));
 
     // Fresnel at entry
@@ -1010,7 +1023,7 @@ void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
     ap[0] = float3(f, f, f);           // R: surface reflection
     ap[1] = (1.0 - f) * (1.0 - f) * T; // TT: two transmissions
     ap[2] = ap[1] * T * f;             // TRT: +reflection +segment
-    // Residual (Chiang Eq. 6): geometric series for all p >= 3
+    // Residual (Chiang Eq. 6) for geometric series for all p >= 3
     float3 tfProduct = T * f;
     float3 denom = max(float3(1, 1, 1) - tfProduct, float3(1e-10, 1e-10, 1e-10));
     ap[3] = ap[2] * f * T / denom;
@@ -1050,7 +1063,7 @@ void HairScaleTilt(int p, float sinTheta_o, float cosTheta_o,
 // h is the fiber offset ∈ [-1,1] from the tessellator.
 float3 HairBCSDF_Eval(float3 wi, float3 wo, GPUMaterial mat, float h)
 {
-    // No hemisphere check — hair BCSDF is valid for all directions.
+    // No hemisphere check here! hair BCSDF is valid for all directions.
     // Light enters/exits from any angle around the fiber.
 
     // Hair coordinate angles: [PBRT] Section 9.9.1
@@ -1152,7 +1165,7 @@ float HairBCSDF_Pdf(float3 wi, float3 wo, GPUMaterial mat, float h)
 
         pdf += HairMp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, lp.v[p]) * apLum[p] * invSum * HairNp(phi, p, lp.s, gamma_o, gamma_t);
     }
-    // Residual lobe: uniform azimuthal
+    // Residual lobe for uniform azimuthal
     pdf += HairMp(cosTheta_i, cosTheta_o, sinTheta_i, sinTheta_o, lp.v[HAIR_PMAX]) * apLum[HAIR_PMAX] * invSum * (1.0 / (2.0 * M_PI));
 
     return pdf;
@@ -1283,7 +1296,7 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat)
         float fCC = DisneyClearcoatEval(wi, wo, mat);
         return (1.0 - mat.metallic) * (fDiffuse + fSheen) + fSpec + fCC;
     }
-    else if (mat.type == 5) // Hair (Chiang BCSDF)
+    else if (mat.type == 5) // Hair
     {
         return HairBCSDF_Eval(wi, wo, mat, g_hairH);
     }
@@ -1312,7 +1325,7 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat)
         float pdfCC = DisneyClearcoatPdf(wi, wo, mat);
         return p.pDiffuse * pdfDiff + p.pSpecular * pdfSpec + p.pClearcoat * pdfCC;
     }
-    else if (mat.type == 5) // Hair (Chiang BCSDF)
+    else if (mat.type == 5) // Hair
     {
         return HairBCSDF_Pdf(wi, wo, mat, g_hairH);
     }
@@ -1515,7 +1528,8 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float w = BalanceHeuristic(pdfEms, pdfBsdf);
-    return es.radiance * f * cosTheta / max(pdfEms, 1e-20) * w;
+    float3 volTr = VolumeTransmittance(shadowOrigin, wi_world, dist, rng);
+    return es.radiance * f * cosTheta / max(pdfEms, 1e-20) * w * volTr;
 }
 
 // Envmap next-event estimation, which samples one direction from the envmap's importance distribution, shoots a shadow ray evaluates the BSDF in that direction, and
@@ -1555,7 +1569,90 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     float pdfBsdf = MaterialPdf(wi_local, wo_local, mat);
 
     float w = BalanceHeuristic(pdfEnv, pdfBsdf);
-    return Lenv * f * cosTheta / max(pdfEnv, 1e-20) * w;
+    float3 volTr = VolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
+    return Lenv * f * cosTheta / max(pdfEnv, 1e-20) * w * volTr;
+}
+
+// Volume NEE
+//  at a medium scatter point, explicitly sample a light direction and evaluate the phase function.
+// Unlike surface NEE, there is no cosine factor at the scatter point because volumes scatter isotropically w.r.t. geometry. the directional
+// dependence is entirely in the phase function.
+// MIS-weighted against the phase function sampling pdf.
+
+float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)
+{
+    EmitterSample es = SampleEmitter(rng);
+    if (!es.valid)
+        return float3(0, 0, 0);
+
+    float3 toLight = es.position - scatterPos;
+    float dist = length(toLight);
+    float3 wi = toLight / dist;
+    float cosLight = dot(es.normal, -wi);
+    if (cosLight <= 0.0)
+        return float3(0, 0, 0);
+
+    // Shadow ray from scatter point
+    RayDesc shadowRay;
+    shadowRay.Origin = scatterPos;
+    shadowRay.Direction = wi;
+    shadowRay.TMin = 0.001;
+    shadowRay.TMax = dist - 0.001;
+    ShadowPayload shadow;
+    shadow.shadowed = 1;
+    TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+             0xFF, 0, 0, 1, shadowRay, shadow);
+    if (shadow.shadowed)
+        return float3(0, 0, 0);
+
+    // Phase function value in the light direction
+    // wo = ray travel direction (toward scatter point), wi = toward light
+    float cosTheta = dot(wo, wi);
+    float fp = HenyeyGreenstein(cosTheta, phaseG);
+
+    // Emitter pdf in solid angle, phase function pdf = fp (already solid angle)
+    float pdfEms = es.pdfArea * dist * dist / cosLight;
+    float pdfPhase = fp;
+    float w = BalanceHeuristic(pdfEms, pdfPhase);
+
+    // Transmittance along shadow ray through volume
+    float3 volTr = VolumeTransmittance(scatterPos, wi, dist, rng);
+
+    // [Marschner] §5: estimator = σ_s · f_p · L / pdf_emitter, but σ_s is
+    // already folded into the throughput (as σ_s/σ_t), so we just need f_p · L.
+    // The σ_s/σ_t throughput weight accounts for the scattering coefficient.
+    return es.radiance * fp / max(pdfEms, 1e-20) * w * volTr;
+}
+
+float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)
+{
+    float u1 = NextFloat(rng);
+    float u2 = NextFloat(rng);
+    float3 wi, Lenv;
+    float pdfEnv;
+    SampleEnvmap(u1, u2, wi, Lenv, pdfEnv);
+    if (pdfEnv <= 0.0)
+        return float3(0, 0, 0);
+    RayDesc shadowRay;
+    shadowRay.Origin = scatterPos;
+    shadowRay.Direction = wi;
+    shadowRay.TMin = 0.001;
+    shadowRay.TMax = 1e20;
+    ShadowPayload shadow;
+    shadow.shadowed = 1;
+    TraceRay(g_scene,
+             RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+             0xFF, 0, 0, 1, shadowRay, shadow);
+    if (shadow.shadowed)
+        return float3(0, 0, 0);
+
+    float cosTheta = dot(wo, wi);
+    float fp = HenyeyGreenstein(cosTheta, phaseG);
+    float pdfPhase = fp;
+    float w = BalanceHeuristic(pdfEnv, pdfPhase);
+
+    float3 volTr = VolumeTransmittance(scatterPos, wi, 1e20, rng);
+    return Lenv * fp / max(pdfEnv, 1e-20) * w * volTr;
 }
 
 // Ray Generation
@@ -1611,7 +1708,90 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
         HitPayload payload;
         payload.hit = 0;
         TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
-        if (!payload.hit)
+
+        // ── Volume free-flight check ──────────────────────────────────
+        // [Marschner] §3, §5: before handling the surface hit, check
+        // whether the ray scatters inside a participating medium first.
+        // Sample free-flight distance s = -ln(ξ)/σ_t from the volume
+        // entry point.  If s falls within the volume segment, this
+        // bounce becomes a medium interaction (phase function scatter)
+        // instead of a surface hit.
+        bool volumeScattered = false;
+        if (volumeEnabled)
+        {
+            float sigmaT = volumeSigmaA + volumeSigmaS;
+            float3 vMin = float3(volumeMinX, volumeMinY, volumeMinZ);
+            float3 vMax = float3(volumeMaxX, volumeMaxY, volumeMaxZ);
+            float tNear, tFar;
+            if (sigmaT > 1e-8 &&
+                RayAABBIntersect(ray.Origin, ray.Direction, vMin, vMax, tNear, tFar))
+            {
+                tNear = max(tNear, 0.0);
+                float tSurface = payload.hit ? payload.hitT : 1e20;
+                tFar = min(tFar, tSurface);
+
+                if (tFar > tNear)
+                {
+                    float tScatter;
+                    bool scattered;
+
+                    if (volumeHeterogeneous)
+                    {
+                        // [Marschner] §4.2: delta tracking
+                        scattered = DeltaTracking(ray.Origin, ray.Direction,
+                                                  tNear, tFar, sigmaT,
+                                                  rng, tScatter);
+                    }
+                    else
+                    {
+                        // [Marschner] §3: homogeneous free-flight
+                        float s = SampleFreeFlightHomogeneous(sigmaT, rng);
+                        scattered = (s < (tFar - tNear));
+                        tScatter = tNear + s;
+                    }
+
+                    if (scattered)
+                    {
+                        // Medium scatter event
+                        volumeScattered = true;
+                        float3 scatterPos = ray.Origin + tScatter * ray.Direction;
+
+                        // Throughput weight: σ_s / σ_t (single-scattering albedo)
+                        // Applied before NEE so that NEE radiance is correctly
+                        // scaled by the path throughput up to this point.
+                        throughput *= volumeSigmaS / sigmaT;
+
+                        // [Marschner] §5 "Direct lighting for volumes": NEE
+                        Lo += throughput * VolumeNEEAreaLight(scatterPos,
+                                                              ray.Direction, volumePhaseG, rng);
+                        Lo += throughput * VolumeNEEEnvmap(scatterPos,
+                                                           ray.Direction, volumePhaseG, rng);
+
+                        // [Marschner] §5: importance-sample phase function
+                        // for the indirect bounce direction.
+                        float phasePdf;
+                        float3 newDir = SampleHG(ray.Direction, volumePhaseG,
+                                                 rng, phasePdf);
+
+                        ray.Origin = scatterPos;
+                        ray.Direction = newDir;
+                        ray.TMin = 0.0;
+                        ray.TMax = 1e20;
+
+                        // Store phase pdf for envmap MIS on the next miss
+                        lastBsdfPdf = max(phasePdf, 1e-20);
+                    }
+                }
+            }
+        }
+
+        // Branch: volume scatter / miss / surface hit
+        if (volumeScattered)
+        {
+            // Medium scatter — skip surface handling, proceed to
+            // Russian roulette at the bottom of the loop.
+        }
+        else if (!payload.hit)
         {
             float3 env = float3(payload.envR, payload.envG, payload.envB);
             if (lastBsdfPdf == 0.0)
@@ -1626,206 +1806,211 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
             }
             break;
         }
-
-        float3 hitPos = ray.Origin + ray.Direction * payload.hitT;
-        float3 N = normalize(float3(payload.normalX, payload.normalY, payload.normalZ));
-        float3 Ng = normalize(float3(payload.geoNormalX, payload.geoNormalY, payload.geoNormalZ));
-        GPUMaterial mat = g_materials[payload.materialID];
-        float2 hitUV = float2(payload.texU, payload.texV);
-
-        if (dot(Ng, ray.Direction) > 0.0)
-            Ng = -Ng;
-
-        bool hasAnyTex = (mat.albedoTexIndex != 0xFFFFFFFF) ||
-                         (mat.normalTexIndex != 0xFFFFFFFF) ||
-                         (mat.roughnessTexIndex != 0xFFFFFFFF);
-        float uvFoot = 0.0;
-        if (hasAnyTex)
-            uvFoot = ComputeUVFootprint(payload.materialID, payload.primitiveID, payload.hitT, dims);
-
-        // Texture sampling with LOD derived from actual texture resolution
-        float3 texAlbedo = MatAlbedo(mat);
-        if (mat.albedoTexIndex != 0xFFFFFFFF)
+        else
         {
-            float lod = ComputeTexLOD(g_textures[mat.albedoTexIndex], uvFoot);
-            texAlbedo = g_textures[mat.albedoTexIndex].SampleLevel(g_sampler, hitUV, lod).rgb;
-        }
+            // surface hit
 
-        // mormal map,  compute tangent frame from triangle UV derivatives
-        if (mat.normalTexIndex != 0xFFFFFFFF)
-        {
-            uint base = mat.indexOffset + payload.primitiveID * 3;
-            uint i0 = g_indices.Load((base + 0) * 4);
-            uint i1 = g_indices.Load((base + 1) * 4);
-            uint i2 = g_indices.Load((base + 2) * 4);
+            float3 hitPos = ray.Origin + ray.Direction * payload.hitT;
+            float3 N = normalize(float3(payload.normalX, payload.normalY, payload.normalZ));
+            float3 Ng = normalize(float3(payload.geoNormalX, payload.geoNormalY, payload.geoNormalZ));
+            GPUMaterial mat = g_materials[payload.materialID];
+            float2 hitUV = float2(payload.texU, payload.texV);
 
-            float3 p0 = LoadFloat3(g_vertices, mat.vertexOffset + i0);
-            float3 p1 = LoadFloat3(g_vertices, mat.vertexOffset + i1);
-            float3 p2 = LoadFloat3(g_vertices, mat.vertexOffset + i2);
+            if (dot(Ng, ray.Direction) > 0.0)
+                Ng = -Ng;
 
-            float2 uv0 = LoadFloat2(g_texcoords, mat.vertexOffset + i0);
-            float2 uv1 = LoadFloat2(g_texcoords, mat.vertexOffset + i1);
-            float2 uv2 = LoadFloat2(g_texcoords, mat.vertexOffset + i2);
+            bool hasAnyTex = (mat.albedoTexIndex != 0xFFFFFFFF) ||
+                             (mat.normalTexIndex != 0xFFFFFFFF) ||
+                             (mat.roughnessTexIndex != 0xFFFFFFFF);
+            float uvFoot = 0.0;
+            if (hasAnyTex)
+                uvFoot = ComputeUVFootprint(payload.materialID, payload.primitiveID, payload.hitT, dims);
 
-            float3 edge1 = p1 - p0;
-            float3 edge2 = p2 - p0;
-            float2 dUV1 = uv1 - uv0;
-            float2 dUV2 = uv2 - uv0;
+            // Texture sampling with LOD derived from actual texture resolution
+            float3 texAlbedo = MatAlbedo(mat);
+            if (mat.albedoTexIndex != 0xFFFFFFFF)
+            {
+                float lod = ComputeTexLOD(g_textures[mat.albedoTexIndex], uvFoot);
+                texAlbedo = g_textures[mat.albedoTexIndex].SampleLevel(g_sampler, hitUV, lod).rgb;
+            }
 
-            float det = dUV1.x * dUV2.y - dUV2.x * dUV1.y;
+            // mormal map,  compute tangent frame from triangle UV derivatives
+            if (mat.normalTexIndex != 0xFFFFFFFF)
+            {
+                uint base = mat.indexOffset + payload.primitiveID * 3;
+                uint i0 = g_indices.Load((base + 0) * 4);
+                uint i1 = g_indices.Load((base + 1) * 4);
+                uint i2 = g_indices.Load((base + 2) * 4);
+
+                float3 p0 = LoadFloat3(g_vertices, mat.vertexOffset + i0);
+                float3 p1 = LoadFloat3(g_vertices, mat.vertexOffset + i1);
+                float3 p2 = LoadFloat3(g_vertices, mat.vertexOffset + i2);
+
+                float2 uv0 = LoadFloat2(g_texcoords, mat.vertexOffset + i0);
+                float2 uv1 = LoadFloat2(g_texcoords, mat.vertexOffset + i1);
+                float2 uv2 = LoadFloat2(g_texcoords, mat.vertexOffset + i2);
+
+                float3 edge1 = p1 - p0;
+                float3 edge2 = p2 - p0;
+                float2 dUV1 = uv1 - uv0;
+                float2 dUV2 = uv2 - uv0;
+
+                float det = dUV1.x * dUV2.y - dUV2.x * dUV1.y;
+
+                float3 T, B;
+                if (abs(det) > 1e-8)
+                {
+                    float invDet = 1.0 / det;
+                    T = normalize((dUV2.y * edge1 - dUV1.y * edge2) * invDet);
+                    // orthogonalize T w.r.t. interpolated N, then derive B
+                    T = normalize(T - N * dot(N, T));
+                    B = cross(N, T);
+                }
+                else
+                {
+                    BuildONB(N, T, B);
+                }
+
+                float nLod = ComputeTexLOD(g_textures[mat.normalTexIndex], uvFoot);
+                float3 tangentNormal = g_textures[mat.normalTexIndex].SampleLevel(g_sampler, hitUV, nLod).xyz;
+                tangentNormal = tangentNormal * 2.0 - 1.0;
+                N = normalize(T * tangentNormal.x + B * tangentNormal.y + N * tangentNormal.z);
+            }
+
+            float texAlpha = mat.alpha;
+            if (mat.roughnessTexIndex != 0xFFFFFFFF)
+            {
+                float rLod = ComputeTexLOD(g_textures[mat.roughnessTexIndex], uvFoot);
+                texAlpha = g_textures[mat.roughnessTexIndex].SampleLevel(g_sampler, hitUV, rLod).r;
+            }
+
+            mat.albedoR = texAlbedo.x;
+            mat.albedoG = texAlbedo.y;
+            mat.albedoB = texAlbedo.z;
+            // For hair (type 5), mat.roughness = β_M and mat.alpha = cuticle tilt.
+            // These must NOT be overwritten by the texture roughness path.
+            if (mat.type != 5)
+            {
+                mat.alpha = texAlpha;
+                mat.roughness = texAlpha;
+            }
+
+            if (mat.isEmitter)
+            {
+                if (lastBsdfPdf == 0.0)
+                    Lo += throughput * MatRadiance(mat);
+                else
+                {
+
+                    float pdfEms = EmitterPdfSolidAngle(mat, hitPos, ray.Origin, N);
+                    Lo += throughput * MatRadiance(mat) * BalanceHeuristic(lastBsdfPdf, pdfEms);
+                }
+                break;
+            }
 
             float3 T, B;
-            if (abs(det) > 1e-8)
+            if (mat.type == 5)
             {
-                float invDet = 1.0 / det;
-                T = normalize((dUV2.y * edge1 - dUV1.y * edge2) * invDet);
-                // orthogonalize T w.r.t. interpolated N, then derive B
-                T = normalize(T - N * dot(N, T));
+                // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
+                // Reference: [PBRT] Section 9.9.1 — sinθ = ω.x (tangent component)
+                float3 hairTangent = normalize(float3(payload.tangentX, payload.tangentY, payload.tangentZ));
+                // Orthogonalize tangent against surface normal
+                T = normalize(hairTangent - N * dot(hairTangent, N));
                 B = cross(N, T);
+                // Set h for the dispatch layer
+                g_hairH = payload.hairH;
             }
             else
             {
                 BuildONB(N, T, B);
+                g_hairH = 0.0;
             }
+            float3 wi_local = ToLocal(-ray.Direction, T, B, N);
 
-            float nLod = ComputeTexLOD(g_textures[mat.normalTexIndex], uvFoot);
-            float3 tangentNormal = g_textures[mat.normalTexIndex].SampleLevel(g_sampler, hitUV, nLod).xyz;
-            tangentNormal = tangentNormal * 2.0 - 1.0;
-            N = normalize(T * tangentNormal.x + B * tangentNormal.y + N * tangentNormal.z);
-        }
+            // For Delta BSDFs, mirror and dielectric have their own branches. Next event estimation is
+            // skipped for them because f*cos/pdf with a Dirac-delta is undefined at non-exact directions.
 
-        float texAlpha = mat.alpha;
-        if (mat.roughnessTexIndex != 0xFFFFFFFF)
-        {
-            float rLod = ComputeTexLOD(g_textures[mat.roughnessTexIndex], uvFoot);
-            texAlpha = g_textures[mat.roughnessTexIndex].SampleLevel(g_sampler, hitUV, rLod).r;
-        }
-
-        mat.albedoR = texAlbedo.x;
-        mat.albedoG = texAlbedo.y;
-        mat.albedoB = texAlbedo.z;
-        // For hair (type 5), mat.roughness = β_M and mat.alpha = cuticle tilt.
-        // These must NOT be overwritten by the texture roughness path.
-        if (mat.type != 5)
-        {
-            mat.alpha = texAlpha;
-            mat.roughness = texAlpha;
-        }
-
-        if (mat.isEmitter)
-        {
-            if (lastBsdfPdf == 0.0)
-                Lo += throughput * MatRadiance(mat);
-            else
+            // Mirror (delta)
+            if (mat.type == 1)
             {
-
-                float pdfEms = EmitterPdfSolidAngle(mat, hitPos, ray.Origin, N);
-                Lo += throughput * MatRadiance(mat) * BalanceHeuristic(lastBsdfPdf, pdfEms);
+                float3 reflDir = reflect(ray.Direction, N);
+                ray.Origin = hitPos + Ng * 0.001;
+                ray.Direction = reflDir;
+                ray.TMin = 0.0;
+                ray.TMax = 1e20;
+                lastBsdfPdf = 0.0;
             }
-            break;
-        }
-
-        float3 T, B;
-        if (mat.type == 5)
-        {
-            // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
-            // Reference: [PBRT] Section 9.9.1 — sinθ = ω.x (tangent component)
-            float3 hairTangent = normalize(float3(payload.tangentX, payload.tangentY, payload.tangentZ));
-            // Orthogonalize tangent against surface normal
-            T = normalize(hairTangent - N * dot(hairTangent, N));
-            B = cross(N, T);
-            // Set h for the dispatch layer
-            g_hairH = payload.hairH;
-        }
-        else
-        {
-            BuildONB(N, T, B);
-            g_hairH = 0.0;
-        }
-        float3 wi_local = ToLocal(-ray.Direction, T, B, N);
-
-        // For Delta BSDFs, mirror and dielectric have their own branches. Next event estimation is
-        // skipped for them because f*cos/pdf with a Dirac-delta is undefined at non-exact directions.
-
-        // Mirror (delta)
-        if (mat.type == 1)
-        {
-            float3 reflDir = reflect(ray.Direction, N);
-            ray.Origin = hitPos + Ng * 0.001;
-            ray.Direction = reflDir;
-            ray.TMin = 0.0;
-            ray.TMax = 1e20;
-            lastBsdfPdf = 0.0;
-        }
-        // Dielectric (delta)
-        else if (mat.type == 2)
-        {
-            float3 I = ray.Direction;
-            float3 Nf;
-            float etaI, etaT;
-            if (dot(I, N) < 0.0)
+            // Dielectric (delta)
+            else if (mat.type == 2)
             {
-                Nf = N;
-                etaI = mat.extIOR;
-                etaT = mat.intIOR;
-            }
-            else
-            {
-                Nf = -N;
-                etaI = mat.intIOR;
-                etaT = mat.extIOR;
-            }
+                float3 I = ray.Direction;
+                float3 Nf;
+                float etaI, etaT;
+                if (dot(I, N) < 0.0)
+                {
+                    Nf = N;
+                    etaI = mat.extIOR;
+                    etaT = mat.intIOR;
+                }
+                else
+                {
+                    Nf = -N;
+                    etaI = mat.intIOR;
+                    etaT = mat.extIOR;
+                }
 
-            float cosThetaI = dot(-I, Nf);
-            float Fr = FresnelDielectric(cosThetaI, etaI, etaT);
+                float cosThetaI = dot(-I, Nf);
+                float Fr = FresnelDielectric(cosThetaI, etaI, etaT);
 
-            float3 newDir;
-            bool refracted = false;
-            float rngVal = NextFloat(rng);
-            if (rngVal < Fr)
-                newDir = reflect(I, Nf);
-            else
-            {
-                newDir = refract(I, Nf, etaI / etaT);
-                if (dot(newDir, newDir) < 0.001)
+                float3 newDir;
+                bool refracted = false;
+                float rngVal = NextFloat(rng);
+                if (rngVal < Fr)
                     newDir = reflect(I, Nf);
                 else
-                    refracted = true;
+                {
+                    newDir = refract(I, Nf, etaI / etaT);
+                    if (dot(newDir, newDir) < 0.001)
+                        newDir = reflect(I, Nf);
+                    else
+                        refracted = true;
+                }
+
+                float3 offsetN = (dot(newDir, Ng) > 0.0) ? Ng : -Ng;
+                ray.Origin = hitPos + offsetN * 0.001;
+                ray.Direction = newDir;
+                ray.TMin = 0.0;
+                ray.TMax = 1e20;
+                lastBsdfPdf = 0.0;
+
+                if (refracted)
+                    eta *= etaI / etaT;
+            }
+            else if (mat.type == 0 || mat.type == 3 || mat.type == 4 || mat.type == 5)
+            {
+                Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, rng);
+                Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, rng);
+
+                float3 wo_local;
+                float bsdfPdf;
+                float3 weight = MaterialSample(wi_local, rng, mat, wo_local, bsdfPdf);
+                if (bsdfPdf <= 0.0 || all(weight == 0.0))
+                    break;
+
+                ray.Origin = OffsetRayOrigin(hitPos, Ng, N);
+                ray.Direction = ToWorld(wo_local, T, B, N);
+                ray.TMin = 0.0;
+                ray.TMax = 1e20;
+
+                throughput *= weight;
+                lastBsdfPdf = max(bsdfPdf, 1e-20);
+            }
+            else
+            {
+                break;
             }
 
-            float3 offsetN = (dot(newDir, Ng) > 0.0) ? Ng : -Ng;
-            ray.Origin = hitPos + offsetN * 0.001;
-            ray.Direction = newDir;
-            ray.TMin = 0.0;
-            ray.TMax = 1e20;
-            lastBsdfPdf = 0.0;
-
-            if (refracted)
-                eta *= etaI / etaT;
-        }
-        else if (mat.type == 0 || mat.type == 3 || mat.type == 4 || mat.type == 5)
-        {
-            Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, rng);
-            Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, rng);
-
-            float3 wo_local;
-            float bsdfPdf;
-            float3 weight = MaterialSample(wi_local, rng, mat, wo_local, bsdfPdf);
-            if (bsdfPdf <= 0.0 || all(weight == 0.0))
-                break;
-
-            ray.Origin = OffsetRayOrigin(hitPos, Ng, N);
-            ray.Direction = ToWorld(wo_local, T, B, N);
-            ray.TMin = 0.0;
-            ray.TMax = 1e20;
-
-            throughput *= weight;
-            lastBsdfPdf = max(bsdfPdf, 1e-20);
-        }
-        else
-        {
-            break;
-        }
+        } // end surface hit
 
         if (bounce >= 3)
         {

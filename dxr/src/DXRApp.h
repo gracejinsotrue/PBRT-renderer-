@@ -30,6 +30,16 @@ struct CameraConstants
     uint32_t meshCount;
     float camVertical[3];
     uint32_t frameCount;
+
+    // Volume (homogeneous participating medium)
+    float volumeMin[3];
+    float volumeSigmaA;
+    float volumeMax[3];
+    float volumeSigmaS;
+    float volumePhaseG;
+    uint32_t volumeEnabled;
+    uint32_t volumeHeterogeneous;
+    uint32_t volumeHasTexture;
 };
 
 struct GPUMaterial
@@ -167,6 +177,11 @@ private:
     ComPtr<ID3D12Resource> m_envmapMarginalCdf;    // (H + 1) floats
     ComPtr<ID3D12Resource> m_envmapConditionalCdf; // H * (W + 1) floats
 
+    // Volume density texture (heterogeneous media)
+    ComPtr<ID3D12Resource> m_volumeTexture;
+    ComPtr<ID3D12Resource> m_volumeUpload;
+    bool m_hasVolumeTexture = false;
+
     // Ray tracing pipeline
     ComPtr<ID3D12StateObject> m_rtStateObject;
     ComPtr<ID3D12StateObjectProperties> m_rtStateObjectProps;
@@ -220,6 +235,7 @@ private:
     uint32_t LoadTexture(const std::string &path, bool isSRGB);
     void LoadEnvmap(const std::string &path);
     void BuildEnvmapDistribution();
+    void LoadVolume(const std::string &path);
 
     void RecomputeCameraPlane();
 

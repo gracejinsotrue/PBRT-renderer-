@@ -7,6 +7,7 @@
 #pragma once
 
 #include <nori/accel.h>
+#include <nori/medium.h>
 
 NORI_NAMESPACE_BEGIN
 
@@ -17,7 +18,8 @@ NORI_NAMESPACE_BEGIN
  * coordinating rendering jobs. It also provides useful query routines that
  * are mostly used by the \ref Integrator implementations.
  */
-class Scene : public NoriObject {
+class Scene : public NoriObject
+{
 public:
     /// Construct a new scene object
     Scene(const PropertyList &);
@@ -46,6 +48,9 @@ public:
     /// Return a reference to an array containing all meshes
     const std::vector<Mesh *> &getMeshes() const { return m_meshes; }
 
+    /// Return a pointer to the scene's participating medium (may be nullptr)
+    const Medium *getMedium() const { return m_medium; }
+
     /**
      * \brief Intersect a ray against all triangles stored in the scene
      * and return detailed intersection information
@@ -60,7 +65,8 @@ public:
      *
      * \return \c true if an intersection was found
      */
-    bool rayIntersect(const Ray3f &ray, Intersection &its) const {
+    bool rayIntersect(const Ray3f &ray, Intersection &its) const
+    {
         return m_accel->rayIntersect(ray, its, false);
     }
 
@@ -79,13 +85,15 @@ public:
      *
      * \return \c true if an intersection was found
      */
-    bool rayIntersect(const Ray3f &ray) const {
+    bool rayIntersect(const Ray3f &ray) const
+    {
         Intersection its; /* Unused */
         return m_accel->rayIntersect(ray, its, true);
     }
 
     /// \brief Return an axis-aligned box that bounds the scene
-    const BoundingBox3f &getBoundingBox() const {
+    const BoundingBox3f &getBoundingBox() const
+    {
         return m_accel->getBoundingBox();
     }
 
@@ -100,16 +108,18 @@ public:
     /// Add a child object to the scene (meshes, integrators etc.)
     void addChild(NoriObject *obj);
 
-    /// Return a string summary of the scene (for debugging purposes)
+    /// Return a string summary of the scene
     std::string toString() const;
 
     EClassType getClassType() const { return EScene; }
+
 private:
     std::vector<Mesh *> m_meshes;
     Integrator *m_integrator = nullptr;
     Sampler *m_sampler = nullptr;
     Camera *m_camera = nullptr;
     Accel *m_accel = nullptr;
+    Medium *m_medium = nullptr;
 };
 
 NORI_NAMESPACE_END
