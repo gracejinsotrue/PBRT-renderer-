@@ -59,6 +59,8 @@ set(NORI_SOURCES
     ${NORI_ROOT}/src/microfacet.cpp
     ${NORI_ROOT}/src/disney.cpp
     ${NORI_ROOT}/src/hair.cpp
+    ${NORI_ROOT}/src/homogeneous.cpp
+    ${NORI_ROOT}/src/heterogeneous.cpp
     # Emitters
     ${NORI_ROOT}/src/area.cpp
     # Integrators
@@ -83,11 +85,12 @@ endif()
 message(STATUS "Found DXC: ${DXC_EXECUTABLE}")
 
 set(SHADER_SRC ${CMAKE_SOURCE_DIR}/shaders/Shaders.hlsl)
+set(SHADER_VOL ${CMAKE_SOURCE_DIR}/shaders/Volume.hlsl)
 set(SHADER_CSO ${CMAKE_BINARY_DIR}/Shaders.cso)
 add_custom_command(
     OUTPUT ${SHADER_CSO}
     COMMAND ${DXC_EXECUTABLE} -T lib_6_3 -Fo ${SHADER_CSO} ${SHADER_SRC}
-    DEPENDS ${SHADER_SRC}
+    DEPENDS ${SHADER_SRC} ${SHADER_VOL}
     COMMENT "Compiling Shaders.hlsl"
     VERBATIM
 )
