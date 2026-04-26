@@ -92,6 +92,8 @@ add_executable(nori
 
   src/disney.cpp
   src/hair.cpp
+  src/homogeneous.cpp
+  src/heterogeneous.cpp
 
   #normals.cpp
   src/normals.cpp
