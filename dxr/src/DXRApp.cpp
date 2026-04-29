@@ -588,6 +588,11 @@ void DXRApp::CreateAccelerationStructure()
         inst.InstanceID = (UINT)i;
         inst.InstanceMask = 0xFF;
         inst.AccelerationStructure = m_meshGPU[i].blas->GetGPUVirtualAddress();
+
+        // Mark dielectric/mirror instances non-opaque so ShadowAnyHit runs for them
+        BSDFGPUData gd = meshes[i]->getBSDF()->getGPUData();
+        if (gd.type == BSDFGPUData::MIRROR || gd.type == BSDFGPUData::DIELECTRIC)
+            inst.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
     }
 
     // upload instance array to vram!
@@ -1695,7 +1700,7 @@ void DXRApp::CreateRaytracingPipeline()
     auto blob = ReadFileBytes(GetExeDirectory() + L"Shaders.cso");
     printf("[pipeline] Shader: %zu bytes\n", blob.size());
 
-    D3D12_STATE_SUBOBJECT so[5]{};
+    D3D12_STATE_SUBOBJECT so[6]{};
     int idx = 0;
     D3D12_DXIL_LIBRARY_DESC ld{};
     ld.DXILLibrary = {blob.data(), blob.size()};
@@ -1707,6 +1712,13 @@ void DXRApp::CreateRaytracingPipeline()
     hg.HitGroupExport = L"HitGroup";
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &hg;
+    // Shadow hit group: any-hit only (skips dielectrics with Fresnel attenuation)
+    D3D12_HIT_GROUP_DESC shg{};
+    shg.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
+    shg.AnyHitShaderImport = L"ShadowAnyHit";
+    shg.HitGroupExport = L"ShadowHitGroup";
+    so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+    so[idx++].pDesc = &shg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
     sc.MaxPayloadSizeInBytes = 80;
     sc.MaxAttributeSizeInBytes = 8;
@@ -1956,24 +1968,26 @@ void DXRApp::CreateShaderTable()
 {
     const UINT id = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     const UINT al = D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
-    // 4 entries: [RayGen] [Miss] [ShadowMiss] [HitGroup]
-    m_shaderTable = CreateBuffer(al * 4, D3D12_RESOURCE_FLAG_NONE,
+    // 5 entries: [RayGen] [Miss] [ShadowMiss] [HitGroup] [ShadowHitGroup]
+    m_shaderTable = CreateBuffer(al * 5, D3D12_RESOURCE_FLAG_NONE,
                                  D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
     void *rg = m_rtStateObjectProps->GetShaderIdentifier(L"RayGen");
     void *ms = m_rtStateObjectProps->GetShaderIdentifier(L"Miss");
     void *sm = m_rtStateObjectProps->GetShaderIdentifier(L"ShadowMiss");
     void *hg = m_rtStateObjectProps->GetShaderIdentifier(L"HitGroup");
-    if (!rg || !ms || !sm || !hg)
+    void *shg = m_rtStateObjectProps->GetShaderIdentifier(L"ShadowHitGroup");
+    if (!rg || !ms || !sm || !hg || !shg)
         throw std::runtime_error("Shader ID not found");
     uint8_t *m;
     m_shaderTable->Map(0, nullptr, (void **)&m);
-    memset(m, 0, al * 4);
-    memcpy(m, rg, id);          // [0] RayGen
-    memcpy(m + al, ms, id);     // [1] Miss
-    memcpy(m + al * 2, sm, id); // [2] ShadowMiss
-    memcpy(m + al * 3, hg, id); // [3] HitGroup
+    memset(m, 0, al * 5);
+    memcpy(m, rg, id);           // [0] RayGen
+    memcpy(m + al, ms, id);      // [1] Miss
+    memcpy(m + al * 2, sm, id);  // [2] ShadowMiss
+    memcpy(m + al * 3, hg, id);  // [3] HitGroup (primary rays, index 0)
+    memcpy(m + al * 4, shg, id); // [4] ShadowHitGroup (shadow rays, index 1)
     m_shaderTable->Unmap(0, nullptr);
-    printf("[shader table] Created (4 entries)\n");
+    printf("[shader table] Created (5 entries)\n");
 }
 
 void DXRApp::PopulateCommandList()
@@ -2010,7 +2024,7 @@ void DXRApp::PopulateCommandList()
 
     dr.MissShaderTable = {ta + sa, sa * 2, sa};
 
-    dr.HitGroupTable = {ta + sa * 3, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES};
+    dr.HitGroupTable = {ta + sa * 3, sa * 2, sa}; // 2 hit groups (primary + shadow), stride = sa
     dr.Width = m_width;
     dr.Height = m_height;
     dr.Depth = 1;

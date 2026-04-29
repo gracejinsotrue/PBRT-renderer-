@@ -11,12 +11,17 @@ import struct, argparse, numpy as np, os
 def write_vol(path, data, bbox_min, bbox_max):
     W, H, D = data.shape
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    # LoadVolume reads flat data as: flat[z*W*H + y*W + x] = voxel(x,y,z)
+    # i.e. x-fastest, z-slowest.  numpy (W,H,D) C-order is x-slowest,
+    # z-fastest — exactly backwards.  Transpose to (D,H,W) so .tobytes()
+    # produces the layout LoadVolume expects.
+    vol_data = np.ascontiguousarray(data.transpose(2, 1, 0)).astype(np.float32)
     with open(path, 'wb') as f:
         f.write(b'VOL1')
         f.write(struct.pack('<III', W, H, D))
         f.write(struct.pack('<fff', *bbox_min))
         f.write(struct.pack('<fff', *bbox_max))
-        f.write(data.astype(np.float32).tobytes())
+        f.write(vol_data.tobytes())
     mb = (W*H*D*4)/(1024*1024)
     print(f"Wrote {path}: {W}x{H}x{D} ({mb:.1f} MB)")
     print(f"  bbox=({bbox_min[0]:.4f},{bbox_min[1]:.4f},{bbox_min[2]:.4f})-({bbox_max[0]:.4f},{bbox_max[1]:.4f},{bbox_max[2]:.4f})")
@@ -88,6 +93,8 @@ def main():
     p.add_argument('--grid', default='density')
     p.add_argument('--pad', type=int, default=2)
     p.add_argument('--scale', type=float, default=1.0)
+    p.add_argument('--swap-yz', action='store_true',
+                   help='Swap Y/Z axes (Blender Z-up -> renderer Y-up)')
     p.add_argument('--test-sphere', action='store_true')
     p.add_argument('--res', type=int, default=64)
     p.add_argument('--bbox-min', type=float, nargs=3, default=[-0.5,0.2,-0.5])
@@ -102,6 +109,19 @@ def main():
         if not args.input: p.error("Input .vdb required (or --test-sphere)")
         print(f"Converting {args.input}...")
         data, bmin, bmax = convert_vdb(args.input, args.grid, args.pad)
+        if args.swap_yz:
+            # Blender: X-right, Y-forward, Z-up
+            # Renderer (Y-up): X-right, Y-up, Z-forward
+            # Swap Y<->Z in both data and bounds
+            data = np.ascontiguousarray(data.transpose(0, 2, 1))  # (W,H,D) -> (W,D,H)
+            bmin = (bmin[0], bmin[2], bmin[1])
+            bmax = (bmax[0], bmax[2], bmax[1])
+            # Ensure min < max after swap
+            bmin, bmax = (
+                tuple(min(a,b) for a,b in zip(bmin,bmax)),
+                tuple(max(a,b) for a,b in zip(bmin,bmax))
+            )
+            print(f"  Swapped Y/Z axes (Blender Z-up -> Y-up)")
         if args.scale != 1.0:
             bmin = tuple(v*args.scale for v in bmin)
             bmax = tuple(v*args.scale for v in bmax)

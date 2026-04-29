@@ -1,16 +1,6 @@
-// Volume.hlsl — Participating media support: homogeneous and heterogeneous.
-// Ray-AABB intersection, Henyey-Greenstein phase function, free-flight
-// sampling (homogeneous + delta tracking), and transmittance estimation.
-//
-// Requires: Common.hlsli, RNG.hlsli, GeometryUtils.hlsli (BuildONB)
+// Volume.hlsl for homogeneous amd heterogeneous participating media
 
-#ifndef VOLUME_HLSL
-#define VOLUME_HLSL
-
-// ============================================================================
-// Ray-AABB intersection (slab method)
-// ============================================================================
-
+// RAY AABB with slab method
 bool RayAABBIntersect(float3 origin, float3 dir,
                       float3 bmin, float3 bmax,
                       out float tNear, out float tFar)
@@ -25,11 +15,8 @@ bool RayAABBIntersect(float3 origin, float3 dir,
     return tFar >= max(tNear, 0.0);
 }
 
-// ============================================================================
 // Henyey-Greenstein phase function
-// ============================================================================
-
-// [PBRT4] Eq. 11.24.  Normalized so that integral over 4π of f_p dω = 1.
+// [PBRT4] Eq. 11.24.  Normalized so that integral over 4pi of f_p dw = 1.
 float HenyeyGreenstein(float cosTheta, float g)
 {
     float g2 = g * g;
@@ -37,7 +24,7 @@ float HenyeyGreenstein(float cosTheta, float g)
     return (1.0 / (4.0 * M_PI)) * (1.0 - g2) / (denom * sqrt(max(denom, 1e-8)));
 }
 
-// Sample a direction from the HG phase function.
+// Sample a direction from the HG phase function
 // [PBRT4] Eq. 11.25 inversion sampling.
 float3 SampleHG(float3 wo, float g, inout RNG rng, out float pdf)
 {
@@ -68,23 +55,20 @@ float3 SampleHG(float3 wo, float g, inout RNG rng, out float pdf)
     return normalize(wi);
 }
 
-// ============================================================================
-// Free-flight sampling — homogeneous
-// ============================================================================
-
-// p(s) = σ_t exp(-σ_t s).  Inversion: s = -ln(ξ) / σ_t.
+// homogenous sampling
+// p(s) = sigma_t exp(-sigma_t s).  Inversion: s = -ln(xi) / sigma_t.
 float SampleFreeFlightHomogeneous(float sigmaT, inout RNG rng)
 {
     float xi = max(NextFloat(rng), 1e-10);
     return -log(xi) / sigmaT;
 }
 
-// ============================================================================
-// Density field lookup (heterogeneous)
-// ============================================================================
+// HETEROGENEOUS MEDIUM SUPPORT
 
-// When a volume file is loaded (volumeHasTexture = 1), sample the Texture3D
-// by mapping world position into [0,1]^3 UVW.
+// Density field lookup
+// When a volume file is loaded ( in the code it is just volumeHasTexture = 1),
+// then sample the Texture3D by mapping world position into [0,1]^3 UVW.
+// TODO: remove the dumbass procedural test branch
 float SampleDensity(float3 worldPos)
 {
     float3 vMin = float3(volumeMinX, volumeMinY, volumeMinZ);
@@ -92,12 +76,13 @@ float SampleDensity(float3 worldPos)
 
     if (volumeHasTexture)
     {
+        // Map world position to [0,1]^3 UVW
         float3 uvw = (worldPos - vMin) / max(vMax - vMin, float3(1e-6, 1e-6, 1e-6));
         return g_volumeDensity.SampleLevel(g_volumeSampler, uvw, 0);
     }
     else
     {
-        // Procedural sphere falloff (test mode)
+        // TODO: Procedural sphere falloff but this was test mode, i need to remove later
         float3 center = (vMin + vMax) * 0.5;
         float3 extent = (vMax - vMin) * 0.5;
         float radius = min(extent.x, min(extent.y, extent.z)) * 0.9;
@@ -106,14 +91,18 @@ float SampleDensity(float3 worldPos)
     }
 }
 
-// ============================================================================
-// Delta tracking (heterogeneous free-flight sampling)
-// ============================================================================
-
-// Samples a free-flight distance in heterogeneous media using null-collision
-// method.  σ_t(x) = σ_max * density(x), density ∈ [0,1].
+// Delta tracking
+// Samples a free-flight distance in heterogeneous media.
+//
+// The medium has sigma_t(x) = sigma_max * density(x), where sigma_max is
+// the majorant (maximum extinction = sigma_a + sigma_s) and density in [0,1].
+//
+// Algorithm: take steps as if the medium had constant density sigma_max
+// At each step, accept with probability density(x) = sigma_t(x)/sigma_max.  If
+// rejected, we continue stepping.  This produces samples with the exact pdf p(s) = sigma_t(s) * exp(-integral_0^s sigma_t(s') ds').
 //
 // Returns true if a real scatter event occurred within [tNear, tFar].
+// On true, tScatter is the absolute ray parameter of the scatter point.
 bool DeltaTracking(float3 origin, float3 dir,
                    float tNear, float tFar, float sigmaMax,
                    inout RNG rng, out float tScatter)
@@ -127,25 +116,28 @@ bool DeltaTracking(float3 origin, float3 dir,
         if (t >= tFar)
         {
             tScatter = tFar;
-            return false;
+            return false; // ray exited volume without scattering
         }
 
+        // accept with probability = local density = sigma_t(x) / sigma_max
         float3 pos = origin + t * dir;
         float density = SampleDensity(pos);
         if (NextFloat(rng) < density)
         {
             tScatter = t;
-            return true;
+            return true; // this is a real scatter event
         }
+        /
     }
 }
+// TODO
 
-// ============================================================================
-// Transmittance estimation
-// ============================================================================
-
-// Ray-marched transmittance (deterministic, biased but zero-variance).
-#define TRANSMITTANCE_STEPS 32
+// Ray-marched transmittance (deterministic)
+//  Numerically integrate optical depth along the ray
+// using fixed-step quadrature, then compute exp(-tau).
+// This is biased but zero-variance, which makes
+// shadow rays cleaner than ratio tracking.
+#define TRANSMITTANCE_STEPS 64
 
 float RayMarchTransmittance(float3 origin, float3 dir,
                             float tNear, float tFar, float sigmaMax)
@@ -159,13 +151,16 @@ float RayMarchTransmittance(float3 origin, float3 dir,
         float3 pos = origin + t * dir;
         float density = SampleDensity(pos);
         tau += density * sigmaMax * dt;
+        if (tau > 10.0)
+            return 0.0; // exp(-10) < 0.00005, not worth continuing
     }
 
     return exp(-tau);
 }
 
-// Transmittance through volume.
-// Homogeneous: exact Beer-Lambert.  Heterogeneous: deterministic ray marching.
+// trasmittance through valume
+// Homogeneous: exact Beer-Lambert.
+// Heterogeneous: deterministic ray marching
 float3 VolumeTransmittance(float3 origin, float3 dir, float tMax,
                            inout RNG rng)
 {
@@ -201,5 +196,3 @@ float3 VolumeTransmittance(float3 origin, float3 dir, float tMax,
 
     return float3(tr, tr, tr);
 }
-
-#endif // VOLUME_HLSL
