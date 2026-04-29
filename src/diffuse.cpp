@@ -7,6 +7,8 @@
 #include <nori/bsdf.h>
 #include <nori/frame.h>
 #include <nori/warp.h>
+#include <nori/texture.h>
+#include <memory>
 
 NORI_NAMESPACE_BEGIN
 
@@ -18,11 +20,15 @@ class Diffuse : public BSDF
 public:
     Diffuse(const PropertyList &propList)
     {
+
         m_albedo = propList.getColor("albedo", Color3f(0.5f));
         m_albedoTexture = propList.getString("albedoTexture", "");
         m_normalTexture = propList.getString("normalTexture", "");
         m_roughnessTexture = propList.getString("roughnessTexture", "");
         m_metallicTexture = propList.getString("metallicTexture", "");
+        // Load image if a path was given
+        if (!m_albedoTexture.empty())
+            m_texture = std::make_unique<Texture2D>(m_albedoTexture);
     }
 
     /// Evaluate the BRDF model
@@ -34,7 +40,7 @@ public:
             return Color3f(0.0f);
 
         /* The BRDF is simply the albedo / pi */
-        return m_albedo * INV_PI;
+        return getAlbedo(bRec.uv) * INV_PI;
     }
 
     /// Compute the density of \ref sample() wrt. solid angles
@@ -71,7 +77,7 @@ public:
 
         /* eval() / pdf() * cos(theta) = albedo. There
            is no need to call these functions. */
-        return m_albedo;
+        return getAlbedo(bRec.uv);
     }
 
     bool isDiffuse() const
@@ -111,6 +117,12 @@ private:
     std::string m_normalTexture;
     std::string m_roughnessTexture;
     std::string m_metallicTexture;
+
+    std::unique_ptr<Texture2D> m_texture;
+    Color3f getAlbedo(const Point2f &uv) const
+    {
+        return m_texture ? m_texture->eval(uv) : m_albedo;
+    }
 };
 
 NORI_REGISTER_CLASS(Diffuse, "diffuse");

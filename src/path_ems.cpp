@@ -5,13 +5,15 @@
 #include <nori/bsdf.h>
 
 NORI_NAMESPACE_BEGIN
-//path tracer w/ next event 
+// path tracer w/ next event
 
-class PathEmsIntegrator : public Integrator {
+class PathEmsIntegrator : public Integrator
+{
 public:
-    PathEmsIntegrator(const PropertyList &props) { }
+    PathEmsIntegrator(const PropertyList &props) {}
 
-    Color3f Li(const Scene *scene, Sampler *sampler, const Ray3f &ray) const {
+    Color3f Li(const Scene *scene, Sampler *sampler, const Ray3f &ray) const
+    {
         Color3f result(0.0f);
         Color3f throughput(1.0f);
         Ray3f currentRay = ray;
@@ -23,7 +25,8 @@ public:
         // accounted for it
         bool lastBounceSpecular = true;
 
-        while (true) {
+        while (true)
+        {
             Intersection its;
             if (!scene->rayIntersect(currentRay, its))
                 break;
@@ -40,11 +43,13 @@ public:
 
             // applicable only for non-specular surfaces. for specular BSDFs,
             // eval() returns 0 for any specific direction, so light sampling would always contribute nothing.
-            if (bsdf->isDiffuse()) {
+            if (bsdf->isDiffuse())
+            {
                 result += throughput * emitterSample(scene, sampler, currentRay, its);
             }
-            // for the next bsdf bounce 
+            // for the next bsdf bounce
             BSDFQueryRecord bRec(its.toLocal(-currentRay.d));
+            bRec.uv = its.uv;
             Color3f bsdfWeight = bsdf->sample(bRec, sampler->next2D());
 
             if (bsdfWeight.isZero())
@@ -55,7 +60,8 @@ public:
             lastBounceSpecular = !bsdf->isDiffuse();
 
             bounces++;
-            if (bounces >= 3) {
+            if (bounces >= 3)
+            {
                 float q = std::min(throughput.maxCoeff() * eta * eta, 0.99f);
                 if (sampler->next1D() >= q)
                     break;
@@ -70,11 +76,12 @@ public:
     }
     // This line and below is just copied from directcpp emitter sampling. The logic is idenitical.
 
-
     Color3f emitterSample(const Scene *scene, Sampler *sampler,
-                          const Ray3f &ray, const Intersection &its) const {
+                          const Ray3f &ray, const Intersection &its) const
+    {
         std::vector<const Mesh *> emitterMeshes;
-        for (const auto *mesh : scene->getMeshes()) {
+        for (const auto *mesh : scene->getMeshes())
+        {
             if (mesh->isEmitter())
                 emitterMeshes.push_back(mesh);
         }
@@ -111,6 +118,7 @@ public:
             return Color3f(0.0f);
 
         BSDFQueryRecord bRec(its.toLocal(-ray.d), its.toLocal(wi), ESolidAngle);
+        bRec.uv = its.uv;
         Color3f fr = its.mesh->getBSDF()->eval(bRec);
 
         Color3f Le = emitterMesh->getEmitter()->getRadiance();
@@ -119,7 +127,8 @@ public:
         return fr * G * Le / pdfArea;
     }
 
-    std::string toString() const {
+    std::string toString() const
+    {
         return "PathEmsIntegrator[]";
     }
 };

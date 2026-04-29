@@ -6,13 +6,15 @@
 
 NORI_NAMESPACE_BEGIN
 
-//combines both strategies from 1. path tracing with next event estimation, or
-//2. mats material sampling path tracer.
-class PathMisIntegrator : public Integrator {
+// combines both strategies from 1. path tracing with next event estimation, or
+// 2. mats material sampling path tracer.
+class PathMisIntegrator : public Integrator
+{
 public:
-    PathMisIntegrator(const PropertyList &props) { }
+    PathMisIntegrator(const PropertyList &props) {}
 
-    Color3f Li(const Scene *scene, Sampler *sampler, const Ray3f &ray) const {
+    Color3f Li(const Scene *scene, Sampler *sampler, const Ray3f &ray) const
+    {
         Color3f result(0.0f);
         Color3f throughput(1.0f);
         Ray3f currentRay = ray;
@@ -20,8 +22,8 @@ public:
         int bounces = 0;
         bool lastBounceSpecular = true;
 
-
-        while (true) {
+        while (true)
+        {
             Intersection its;
             if (!scene->rayIntersect(currentRay, its))
                 break;
@@ -30,21 +32,25 @@ public:
             if (its.mesh->isEmitter() && lastBounceSpecular)
                 result += throughput * its.mesh->getEmitter()->getRadiance();
 
-            if (bsdf->isDiffuse()) {
+            if (bsdf->isDiffuse())
+            {
                 result += throughput * misDirectIllumination(scene, sampler, currentRay, its);
             }
 
             BSDFQueryRecord bRec(its.toLocal(-currentRay.d));
+            bRec.uv = its.uv; // pass UV so textured BSDFs can look up the right color
             Color3f bsdfWeight = bsdf->sample(bRec, sampler->next2D());
 
             if (bsdfWeight.isZero())
                 break;
 
-            if (bsdf->isDiffuse()) {
+            if (bsdf->isDiffuse())
+            {
                 Vector3f wo = its.toWorld(bRec.wo);
                 Ray3f bsdfRay(its.p, wo, Epsilon, std::numeric_limits<float>::infinity());
                 Intersection lightIts;
-                if (scene->rayIntersect(bsdfRay, lightIts) && lightIts.mesh->isEmitter()) {
+                if (scene->rayIntersect(bsdfRay, lightIts) && lightIts.mesh->isEmitter())
+                {
                     Color3f Le = lightIts.mesh->getEmitter()->getRadiance();
 
                     float pb = bsdf->pdf(bRec);
@@ -67,7 +73,8 @@ public:
             lastBounceSpecular = !bsdf->isDiffuse();
             bounces++;
 
-            if (bounces >= 3) {
+            if (bounces >= 3)
+            {
                 float q = std::min(throughput.maxCoeff() * eta * eta, 0.99f);
                 if (sampler->next1D() >= q)
                     break;
@@ -79,28 +86,30 @@ public:
         }
 
         return result;
-        
-  
     }
-          std::string toString() const {
-    return "PathMisIntegrator[]";
-}
+    std::string toString() const
+    {
+        return "PathMisIntegrator[]";
+    }
 
 private:
-    int emitterCount(const Scene *scene) const {
+    int emitterCount(const Scene *scene) const
+    {
         int count = 0;
         for (const auto *mesh : scene->getMeshes())
-            if (mesh->isEmitter()) count++;
+            if (mesh->isEmitter())
+                count++;
         return std::max(count, 1);
     }
     // this is just from the emitter block inside misSample() from direct.cpp.
     /// just from direct.cp.
     // 1. pick an emitter
-    //2. samsple a point
-    //3, test the shadow
+    // 2. samsple a point
+    // 3, test the shadow
     // 4 wl = pl / (pb + pl), return weighted contribution
     Color3f misDirectIllumination(const Scene *scene, Sampler *sampler,
-                                  const Ray3f &ray, const Intersection &its) const {
+                                  const Ray3f &ray, const Intersection &its) const
+    {
         std::vector<const Mesh *> emitterMeshes;
         for (const auto *mesh : scene->getMeshes())
             if (mesh->isEmitter())
@@ -137,6 +146,7 @@ private:
         if (scene->rayIntersect(shadowRay))
             return Color3f(0.0f);
         BSDFQueryRecord bRec(its.toLocal(-ray.d), its.toLocal(wi), ESolidAngle);
+        bRec.uv = its.uv;
         Color3f fr = bsdf->eval(bRec);
 
         float pl = pdfArea * distSquared / cosTheta_y;

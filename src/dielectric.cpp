@@ -20,6 +20,9 @@ public:
 
         /* Exterior IOR (default: air) */
         m_extIOR = propList.getFloat("extIOR", 1.000277f);
+
+        /* Optional transmission tint color. defauult is just white, no tint*/
+        m_tintColor = propList.getColor("tintColor", Color3f(1.0f));
     }
 
     Color3f eval(const BSDFQueryRecord &) const
@@ -113,7 +116,9 @@ public:
     {
         BSDFGPUData d;
         d.type = BSDFGPUData::DIELECTRIC;
-        d.albedo[0] = d.albedo[1] = d.albedo[2] = 1.0f;
+        d.albedo[0] = m_tintColor[0];
+        d.albedo[1] = m_tintColor[1];
+        d.albedo[2] = m_tintColor[2];
         d.intIOR = m_intIOR;
         d.extIOR = m_extIOR;
         return d;
@@ -121,6 +126,7 @@ public:
 
 private:
     float m_intIOR, m_extIOR;
+    Color3f m_tintColor;
 };
 
 NORI_REGISTER_CLASS(Dielectric, "dielectric");

@@ -29,6 +29,7 @@ struct BSDFQueryRecord
     /// Measure associated with the sample
     EMeasure measure;
 
+    Point2f uv;
     /// Create a new record for sampling the BSDF
     BSDFQueryRecord(const Vector3f &wi)
         : wi(wi), eta(1.f), measure(EUnknownMeasure) {}

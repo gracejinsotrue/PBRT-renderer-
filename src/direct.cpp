@@ -35,6 +35,7 @@ public:
         {
 
             BSDFQueryRecord bRec(its.toLocal(-ray.d));
+            bRec.uv = its.uv;
             Color3f weight = bsdf->sample(bRec, sampler->next2D());
 
             if (weight.isZero())
@@ -68,6 +69,7 @@ public:
         // 1. sample a direction from the BSDF
         const BSDF *bsdf = its.mesh->getBSDF();
         BSDFQueryRecord bRec(its.toLocal(-ray.d));
+        bRec.uv = its.uv;
         Color3f bsdfWeight = bsdf->sample(bRec, sampler->next2D());
 
         if (bsdfWeight.isZero())
@@ -137,6 +139,7 @@ public:
 
         //  evaluate the BSDF
         BSDFQueryRecord bRec(its.toLocal(-ray.d), its.toLocal(wi), ESolidAngle);
+        bRec.uv = its.uv;
         Color3f fr = its.mesh->getBSDF()->eval(bRec);
 
         // fr * G * Le / pdf_area estimator
@@ -167,6 +170,7 @@ public:
         {
             // sample a direction from the BSDF
             BSDFQueryRecord bRec(its.toLocal(-ray.d));
+            bRec.uv = its.uv;
             Color3f bsdfWeight = bsdf->sample(bRec, sampler->next2D());
 
             if (!bsdfWeight.isZero())
@@ -222,6 +226,7 @@ public:
                 {
                     // evaluate the BSDF
                     BSDFQueryRecord bRec(its.toLocal(-ray.d), its.toLocal(wi), ESolidAngle);
+                    bRec.uv = its.uv;
                     Color3f fr = bsdf->eval(bRec);
 
                     float pl = pdfArea * distSquared / cosTheta_y;
