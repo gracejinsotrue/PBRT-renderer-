@@ -1882,6 +1882,11 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
 
             if (dot(Ng, ray.Direction) > 0.0)
                 Ng = -Ng;
+            // Keep shading normal in the same hemisphere as Ng (handles back-face hits
+            // on two-sided geometry like hair cards — otherwise wi_local.z < 0 and the
+            // BSDF returns zero, producing solid-black rectangles).
+            if (dot(N, Ng) < 0.0)
+                N = -N;
 
             bool hasAnyTex = (mat.albedoTexIndex != 0xFFFFFFFF) ||
                              (mat.normalTexIndex != 0xFFFFFFFF) ||

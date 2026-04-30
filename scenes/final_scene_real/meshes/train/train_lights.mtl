@@ -1,0 +1,17 @@
+# Blender 5.1.1 MTL File: 'holyshit.blend'
+# www.blender.org
+
+newmtl pasted__lambert20.002
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 6.201924 6.201924 6.201924
+Ni 1.500000
+d 1.000000
+illum 2
+Pr 0.600000
+Pm 0.000000
+Ps 0.000000
+Pc 0.000000
+Pcr 0.030000
+aniso 0.000000
+anisor 0.000000

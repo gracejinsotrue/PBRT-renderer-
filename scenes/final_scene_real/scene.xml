@@ -1,0 +1,601 @@
+<?xml version='1.0' encoding='utf-8'?>
+<scene>
+	<integrator type="path_mis"/>
+    
+
+	<camera type="perspective">
+		<float name="fov" value="45"/>
+		<transform name="toWorld">
+			<lookat target="-0.023, 0.411, 0.253"
+			        origin="-0.023, 0.411, 2.5"
+			        up="0, 1, 0"/>
+		</transform>
+		<integer name="height" value="1000"/>
+		<integer name="width" value="1600"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="2048"/>
+	</sampler>
+<!-- 
+    <mesh type="obj">
+    <string name="filename" value="meshes/water.obj"/>
+    <bsdf type="dielectric">
+        <float name="intIOR" value="1.33"/>
+        <float name="extIOR" value="1.0"/>
+    </bsdf>
+</mesh> -->
+
+<!--
+    <mesh type="obj">
+    <string name="filename" value="meshes/water2.obj"/>
+    <bsdf type="dielectric">
+        <float name="intIOR" value="1.33"/>
+        <float name="extIOR" value="1.0"/>
+        <color name="tintColor" value="0.08 0.25 0.55"/>
+    </bsdf>
+</mesh>
+-->
+
+
+
+	<!-- <mesh type="obj">
+		<string name="filename" value="meshes/tank1.obj"/>
+		<bsdf type="dielectric"/>
+	</mesh> -->
+<!-- 
+		<mesh type="obj">
+		<string name="filename" value="meshes/tank2.obj"/>
+		<bsdf type="dielectric"/>
+	</mesh> -->
+<!-- 
+	<mesh type="obj">
+		<string name="filename" value="meshes/fish/body.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/fish_textures/body_baseColor.png"/>
+			<string name="normalTexture"    value="textures/fish_textures/body_normal.png"/>
+			<string name="roughnessTexture" value="textures/fish_textures/body_metallicRoughness.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.2"/>
+			<float name="sheen"          value="0.1"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.1"/>
+			<float name="clearcoat"      value="0.2"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/fish/fin_top.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/fish_textures/fin_top_baseColor.png"/>
+			<string name="normalTexture"    value="textures/fish_textures/fin_top_normal.png"/>
+			<string name="roughnessTexture" value="textures/fish_textures/fin_top_metallicRoughness.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.2"/>
+			<float name="sheen"          value="0.2"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.05"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.6"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/fish/back.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/fish_textures/fin_back_baseColor.png"/>
+			<string name="normalTexture"    value="textures/fish_textures/fin_back_normal.png"/>
+			<string name="roughnessTexture" value="textures/fish_textures/fin_back_metallicRoughness.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.2"/>
+			<float name="sheen"          value="0.2"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.05"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.6"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/fish/fin_down.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/fish_textures/Fin_down_baseColor.png"/>
+			<string name="normalTexture"    value="textures/fish_textures/Fin_down_normal.png"/>
+			<string name="roughnessTexture" value="textures/fish_textures/Fin_down_metallicRoughness.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.2"/>
+			<float name="sheen"          value="0.2"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.05"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.6"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/fish/eyes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/fish_textures/eyes_baseColor.png"/>
+			<string name="roughnessTexture" value="textures/fish_textures/eyes_metallicRoughness.png"/>
+			<float name="roughness"      value="0.2"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.6"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.1"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="1.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh> -->
+
+	<!-- <mesh type="obj">
+		<string name="filename" value="meshes/tile_1/tile_1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/tile1_textures/preschool-tile_albedo.png"/>
+			<string name="normalTexture"    value="textures/tile1_textures/preschool-tile_normal-ogl.png"/>
+			<string name="roughnessTexture" value="textures/tile1_textures/preschool-tile_roughness.png"/>
+			<float name="roughness"      value="0.35"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.5"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.4"/>
+			<float name="clearcoatGloss" value="0.9"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh> -->
+
+	<!-- ============================================================
+	     TABLE – dark semi-gloss wood
+	     ============================================================ -->
+	<!-- <mesh type="obj">
+		<string name="filename" value="meshes/table.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/table/semi-gloss-wood_albedo.png"/>
+			<string name="normalTexture"    value="textures/table/semi-gloss-wood_normal-ogl.png"/>
+			<string name="roughnessTexture" value="textures/table/semi-gloss-wood_roughness.png"/>
+			<float name="roughness"      value="0.3"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.3"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.5"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.3"/>
+		</bsdf>
+	</mesh> -->
+
+	<!-- ============================================================
+	     TRAIN TRACKS
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train_track/track.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/tracks/Material_baseColor.png"/>
+			<string name="normalTexture"    value="textures/tracks/Material_normal.png"/>
+			<string name="roughnessTexture" value="textures/tracks/Material_metallicRoughness.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.8"/>
+			<float name="specular"       value="0.6"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.2"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+	
+	<!-- ============================================================
+	     TRAIN BODY
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_body.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/train_texture/pasted__aiStandardSurface1_baseColor.png"/>
+			<string name="normalTexture"    value="textures/train_texture/pasted__aiStandardSurface1_normal.png"/>
+			<string name="roughnessTexture" value="textures/train_texture/pasted__aiStandardSurface1_metallicRoughness.png"/>
+			<float name="roughness"      value="0.35"/>
+			<float name="metallic"       value="0.6"/>
+			<float name="specular"       value="0.7"/>
+			<float name="specularTint"   value="0.1"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN INTERIOR
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_interior1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/train_texture/pasted__aiStandardSurface2_baseColor.png"/>
+			<string name="normalTexture"    value="textures/train_texture/pasted__aiStandardSurface2_normal.png"/>
+			<string name="roughnessTexture" value="textures/train_texture/pasted__aiStandardSurface2_metallicRoughness.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.1"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN LIGHTS (emissive area light)
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_lights.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="15, 15, 13"/>
+		</emitter>
+		<bsdf type="diffuse">
+			<color name="albedo" value="0 0 0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN SIGNS
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_signs.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/train_texture/pasted__aiStandardSurface4_baseColor.png"/>
+			<string name="normalTexture"    value="textures/train_texture/pasted__aiStandardSurface4_normal.png"/>
+			<string name="roughnessTexture" value="textures/train_texture/pasted__aiStandardSurface4_metallicRoughness.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN WRITING
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_writing.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/train_texture/pasted__aiStandardSurface3_baseColor.png"/>
+			<string name="roughnessTexture" value="textures/train_texture/pasted__aiStandardSurface3_metallicRoughness.png"/>
+			<float name="roughness"      value="0.6"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.2"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN CONNECTOR (lambert22 – uses lambert22_baseColor.png)
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_connector.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/train_texture/lambert22_baseColor.png"/>
+			<float name="roughness"      value="0.6"/>
+			<float name="metallic"       value="0.1"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN DOORS
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_doors.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/train_texture/pasted__aiStandardSurface5_baseColor.png"/>
+			<string name="normalTexture"    value="textures/train_texture/pasted__aiStandardSurface5_normal.png"/>
+			<string name="roughnessTexture" value="textures/train_texture/pasted__aiStandardSurface5_metallicRoughness.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.2"/>
+			<float name="specular"       value="0.5"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.2"/>
+			<float name="clearcoatGloss" value="0.7"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     TRAIN GLASS (dielectric – IOR 1.5, dark tint)
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/train/train_glass.obj"/>
+		<bsdf type="dielectric">
+			<float name="intIOR" value="1.5"/>
+			<float name="extIOR" value="1.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     NO FACE – head (textured)
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/noface/nofacehead.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/noface/aiStandardSurface1SG_baseColor.jpeg"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.1"/>
+			<float name="clearcoatGloss" value="0.6"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     NO FACE – body (semi-transparent black cloak)
+	     ============================================================ -->
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/noface/nofacebody.obj"/>
+		<bsdf type="dielectric">
+			<float name="intIOR" value="1.5"/>
+			<float name="extIOR" value="1.0"/>
+			<color name="tintColor" value="0.05 0.05 0.05"/>
+		</bsdf>
+	</mesh>-->
+
+	<!--<mesh type="obj">
+		<string name="filename" value="meshes/fence/fence.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/fence_textures/WoodLog_Plank_baseColor.jpeg"/>
+			<float name="roughness"      value="0.7"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.2"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>-->
+
+		<!--<mesh type="obj">
+		<string name="filename" value="meshes/fence/floor.obj"/>
+<bsdf type="diffuse">
+
+
+    <string name="albedoTexture" value="textures/fence_textures/WoodLog_Plank_baseColor.jpeg"/>
+</bsdf>
+	</mesh>-->
+
+	<!-- ============================================================
+	     GRACE – BODY
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/body.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/body/body_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/body/body_normal.png"/>
+			<string name="roughnessTexture" value="textures/grace_textures/body/body_SRM.png"/>
+			<float name="roughness"      value="0.6"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.1"/>
+			<float name="sheen"          value="0.2"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.3"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – HAIR
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/hair.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.03 0.02 0.015"/>
+			<string name="alphaTexture"     value="textures/grace_textures/hair/hair_alpha1.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.5"/>
+			<float name="sheen"          value="0.3"/>
+			<float name="sheenTint"      value="1.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – EYES
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/eye/baked_eyes_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/eye/eyes_normal.png"/>
+			<float name="roughness"      value="0.05"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.8"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.1"/>
+			<float name="clearcoat"      value="1.0"/>
+			<float name="clearcoatGloss" value="1.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – EYELASHES
+	     (Blender uses alpha channel of bc texture for cutout,
+	      base color is a dark solid — roughness 0.191)
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyelashes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
+			<string name="alphaTexture"  value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
+			<float name="roughness"      value="0.191"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.1"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – HAIR
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/hair.obj"/>
+		<bsdf type="hair_bsdf">
+			<color name="color" value="0.06 0.03 0.01"/>
+			<float name="beta_m" value="0.25"/>
+			<float name="beta_n" value="0.3"/>
+			<float name="alpha" value="2.0"/>
+			<float name="eta" value="1.55"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – HEAD
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/head.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/head/baked_head_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/head/baked_head_normal.png"/>
+			<string name="roughnessTexture" value="textures/grace_textures/head/head_SRM.PNG"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.1"/>
+			<float name="sheen"          value="0.1"/>
+			<float name="sheenTint"      value="0.3"/>
+			<float name="subsurface"     value="0.4"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – SHIRT
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/shirt.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/shirt/shirt_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/shirt/shirt_normal.png"/>
+			<string name="roughnessTexture" value="textures/grace_textures/shirt/shirt_specular.png"/>
+			<float name="roughness"      value="0.8"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.1"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.4"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     CLOUD VOLUME (heterogeneous medium)
+	     ============================================================ -->
+
+<medium type="heterogeneous">
+    <float name="sigmaA" value="0.005"/>
+    <float name="sigmaS" value="10.0"/>
+    <float name="g" value="0.85"/>
+    <string name="volume" value="clouds/volumes/cloud.vol"/>
+    <point name="boundsMin" value="0.4912, -2.9163, 0.4451"/>
+    <point name="boundsMax" value="1.7805, -1.0130, 1.5272"/>
+</medium>
+</scene>

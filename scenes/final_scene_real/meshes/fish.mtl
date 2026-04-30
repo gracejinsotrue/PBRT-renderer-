@@ -1,0 +1,56 @@
+# Blender 5.1.1 MTL File: 'holyshit.blend'
+# www.blender.org
+
+newmtl Fin_down
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/Fin_down_baseColor.png
+map_d C:/Fin_down_baseColor.png
+map_Bump -bm 1.000000 C:/Fin_down_normal.png
+
+newmtl body
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/body_baseColor.png
+map_Bump -bm 1.000000 C:/body_normal.png
+
+newmtl eyes
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/eyes_baseColor.png
+
+newmtl fin_back
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/fin_back_baseColor.png
+map_Bump -bm 1.000000 C:/fin_back_normal.png
+
+newmtl fin_top
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/fin_top_baseColor.png
+map_Bump -bm 1.000000 C:/fin_top_normal.png

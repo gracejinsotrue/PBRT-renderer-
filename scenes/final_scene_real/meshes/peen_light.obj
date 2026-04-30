@@ -1,0 +1,7 @@
+# Area light quad above and to the right of the peen volume
+# Center: (0.07, 6.5, -2.5), 1x1 quad in the XZ plane facing downward
+v -0.43 6.5 -3.0
+v  0.57 6.5 -3.0
+v  0.57 6.5 -2.0
+v -0.43 6.5 -2.0
+f 1 2 3 4

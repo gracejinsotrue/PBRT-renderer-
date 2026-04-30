@@ -1,0 +1,5 @@
+# Tiny triangle far below camera
+v -0.01 -100 -0.01
+v  0.01 -100 -0.01
+v  0.00 -100  0.01
+f 1 2 3
