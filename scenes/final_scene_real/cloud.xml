@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+<scene>
+	<integrator type="path_mis"/>
+
+	<camera type="perspective">
+		<float name="fov" value="45"/>
+		<transform name="toWorld">
+			<!-- Camera looking at the center of the cloud volume -->
+			<lookat target="1.0, -2.2, 0.95"
+			        origin="1.0, -2.2, 8.0"
+			        up="0, 1, 0"/>
+		</transform>
+		<integer name="width" value="1600"/>
+		<integer name="height" value="1000"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="256"/>
+	</sampler>
+
+	<!-- Glass box enclosing the cloud volume -->
+	<mesh type="obj">
+		<string name="filename" value="meshes/cloud_box.obj"/>
+		<bsdf type="dielectric">
+			<float name="intIOR" value="1.5"/>
+			<float name="extIOR" value="1.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- Cloud volume — raw bounds from vdb_to_vol.py output.
+	     If the cloud looks wrong (sideways/upside-down), try swapping Y/Z:
+	       boundsMin: -1.0913, -0.9015, -5.5514
+	       boundsMax:  3.0367,  2.7994,  1.1387
+	-->
+	<medium type="heterogeneous">
+		<float name="sigmaA" value="0.003"/>
+		<float name="sigmaS" value="3.0"/>
+		<float name="g" value="0.75"/>
+		<string name="volume" value="clouds/volumes/cloud.vol"/>
+		<point name="boundsMin" value="-1.0913, -5.5514, -0.9015"/>
+		<point name="boundsMax" value="3.0367, 1.1387, 2.7994"/>
+	</medium>
+</scene>
