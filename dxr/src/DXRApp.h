@@ -62,6 +62,8 @@ struct GPUMaterial
     uint32_t roughnessTexIndex; // texture index or 0xFFFFFFFF if none
     uint32_t metallicTexIndex;  // texture index or 0xFFFFFFFF if none
 
+    uint32_t alphaTexIndex; // texture index for alpha masking
+
     // Disney BRDF parameters (Burley 2012). Read only when type == 4.
     // baseColor is stored in the `albedo` field above to share texture
     // plumbing with other BSDFs.

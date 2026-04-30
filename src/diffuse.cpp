@@ -26,6 +26,12 @@ public:
         m_normalTexture = propList.getString("normalTexture", "");
         m_roughnessTexture = propList.getString("roughnessTexture", "");
         m_metallicTexture = propList.getString("metallicTexture", "");
+
+        // NEW: load alpha mask if specified
+        m_alphaTextureFile = propList.getString("alphaTexture", "");
+        if (!m_alphaTextureFile.empty())
+            m_alphaTex = std::make_unique<AlphaTexture>(m_alphaTextureFile);
+
         // Load image if a path was given
         if (!m_albedoTexture.empty())
             m_texture = std::make_unique<Texture2D>(m_albedoTexture);
@@ -96,8 +102,12 @@ public:
         d.normalTexture = m_normalTexture;
         d.roughnessTexture = m_roughnessTexture;
         d.metallicTexture = m_metallicTexture;
+        d.alphaTexture = m_alphaTextureFile; // NEW: pass to GPU data
         return d;
     }
+
+    // NEW: expose alpha texture for BVH traversal
+    const AlphaTexture *getAlphaTexture() const override { return m_alphaTex.get(); }
 
     /// Return a human-readable summary
     std::string toString() const
@@ -123,6 +133,10 @@ private:
     {
         return m_texture ? m_texture->eval(uv) : m_albedo;
     }
+
+    // NEW: alpha masking
+    std::string m_alphaTextureFile;
+    std::unique_ptr<AlphaTexture> m_alphaTex;
 };
 
 NORI_REGISTER_CLASS(Diffuse, "diffuse");

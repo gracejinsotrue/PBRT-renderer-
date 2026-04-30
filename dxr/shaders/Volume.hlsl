@@ -127,8 +127,7 @@ bool DeltaTracking(float3 origin, float3 dir,
             tScatter = t;
             return true; // this is a real scatter event
         }
-        /
-    }
+        }
 }
 // TODO
 

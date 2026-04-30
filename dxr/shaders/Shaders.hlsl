@@ -45,6 +45,7 @@ struct GPUMaterial
     uint normalTexIndex;
     uint roughnessTexIndex;
     uint metallicTexIndex;
+    uint alphaTexIndex;
 
     float roughness;
     float metallic;
@@ -1734,7 +1735,43 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     {
         HitPayload payload;
         payload.hit = 0;
-        TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
+
+        // Alpha masking: skip transparent hits and re-trace
+        {
+            const int MAX_ALPHA_SKIPS = 32;
+            for (int alphaSkip = 0; alphaSkip < MAX_ALPHA_SKIPS; alphaSkip++)
+            {
+                TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
+                if (!payload.hit)
+                    break;
+
+                GPUMaterial alphaCheckMat = g_materials[payload.materialID];
+                if (alphaCheckMat.alphaTexIndex == 0xFFFFFFFF)
+                    break;
+
+                float2 aUV = float2(payload.texU, payload.texV);
+                float a = g_textures[alphaCheckMat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+                if (a >= 0.995)
+                    break;
+
+                // Always advance past this transparent card.
+                ray.Origin = ray.Origin + ray.Direction * (payload.hitT + 0.001);
+            }
+
+            // If the loop exhausted its budget and the last hit is still transparent,
+            // treat it as a miss rather than shade a transparent card as opaque.
+            if (payload.hit)
+            {
+                GPUMaterial postCheckMat = g_materials[payload.materialID];
+                if (postCheckMat.alphaTexIndex != 0xFFFFFFFF)
+                {
+                    float2 aUV = float2(payload.texU, payload.texV);
+                    float a = g_textures[postCheckMat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+                    if (a < 0.995)
+                        payload.hit = 0;
+                }
+            }
+        }
 
         // ── Volume free-flight check ──────────────────────────────────
         // [Marschner] §3, §5: before handling the surface hit, check
@@ -2114,17 +2151,30 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     uint instanceID = InstanceID();
     GPUMaterial mat = g_materials[instanceID];
 
+    // Alpha transparency: accumulate fractional occlusion and continue the shadow ray,
+    // mirroring how dielectric transmission is handled below.
+    // a=0 (fully transparent) -> transmission unchanged, ray continues.
+    // a=1 (fully opaque)      -> transmission zeroed out, ray continues.
+    // If a solid (non-alpha) surface is hit later, shadowed=1 overrides anyway.
+    if (mat.alphaTexIndex != 0xFFFFFFFF)
+    {
+        float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
+        float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+        if (a >= 0.995)
+            return; // opaque — let shadowed=1 stand
+        payload.transmission *= (1.0 - a);
+        IgnoreHit();
+        return;
+    }
+
     if (mat.type == 1 || mat.type == 2) // mirror or dielectric
     {
-        // Compute Fresnel transmission at this interface
         float3 Ng = GetGeometricNormal(instanceID, PrimitiveIndex());
         float cosI = abs(dot(WorldRayDirection(), Ng));
         float Fr = FresnelDielectric(cosI, mat.extIOR, mat.intIOR);
         payload.transmission *= (1.0 - Fr);
-        IgnoreHit(); // continue traversal through glass
+        IgnoreHit();
     }
-    // Opaque non-glass material: don't call IgnoreHit() -> hit accepted -> shadowed
 }
-
 [shader("miss")] void ShadowMiss(inout ShadowPayload payload)
 { payload.shadowed = 0; }

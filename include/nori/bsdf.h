@@ -11,6 +11,8 @@
 
 NORI_NAMESPACE_BEGIN
 
+class AlphaTexture; // forward declare — full definition lives in texture.h
+
 /**
  * \brief Convenience data structure used to pass multiple
  * parameters to the evaluation and sampling routines in \ref BSDF
@@ -62,6 +64,7 @@ struct BSDFGPUData
     std::string normalTexture;
     std::string roughnessTexture;
     std::string metallicTexture;
+    std::string alphaTexture; // <-- NEW: path to RGBA image for alpha masking
 
     // Disney BRDF parameters (Burley 2012). All default to reasonable
     // neutral values so non-Disney materials ignore them safely.
@@ -149,6 +152,13 @@ public:
      * \brief Return material parameters for GPU upload
      */
     virtual BSDFGPUData getGPUData() const { return BSDFGPUData{}; }
+
+    /**
+     * \brief Return the alpha mask texture, or nullptr if this
+     * material has no alpha masking.  Used by the BVH traversal
+     * to skip transparent hits.
+     */
+    virtual const AlphaTexture *getAlphaTexture() const { return nullptr; }
 };
 
 NORI_NAMESPACE_END

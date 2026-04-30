@@ -591,7 +591,9 @@ void DXRApp::CreateAccelerationStructure()
 
         // Mark dielectric/mirror instances non-opaque so ShadowAnyHit runs for them
         BSDFGPUData gd = meshes[i]->getBSDF()->getGPUData();
-        if (gd.type == BSDFGPUData::MIRROR || gd.type == BSDFGPUData::DIELECTRIC)
+        // if (gd.type == BSDFGPUData::MIRROR || gd.type == BSDFGPUData::DIELECTRIC)
+        //     inst.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
+        if (gd.type == BSDFGPUData::MIRROR || gd.type == BSDFGPUData::DIELECTRIC || !gd.alphaTexture.empty())
             inst.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
     }
 
@@ -684,6 +686,7 @@ void DXRApp::CreateSceneBuffers()
         mat.normalTexIndex = 0xFFFFFFFF;
         mat.roughnessTexIndex = 0xFFFFFFFF;
         mat.metallicTexIndex = 0xFFFFFFFF;
+        mat.alphaTexIndex = 0xFFFFFFFF;
 
         mat.roughness = gd.roughness;
         mat.metallic = gd.metallic;
@@ -1434,7 +1437,7 @@ void DXRApp::CreateTextures()
     // per-mesh texture indices
     struct MeshTexIndices
     {
-        uint32_t albedo, normal, roughness, metallic;
+        uint32_t albedo, normal, roughness, metallic, alpha;
     };
     std::vector<MeshTexIndices> meshTexIndices(meshes.size());
 
@@ -1447,6 +1450,7 @@ void DXRApp::CreateTextures()
         meshTexIndices[i].normal = loadIfNotEmpty(gd.normalTexture, false);
         meshTexIndices[i].roughness = loadIfNotEmpty(gd.roughnessTexture, false);
         meshTexIndices[i].metallic = loadIfNotEmpty(gd.metallicTexture, false);
+        meshTexIndices[i].alpha = loadIfNotEmpty(gd.alphaTexture, false);
     }
 
     m_textureCount = (uint32_t)m_textures.size();
@@ -1487,6 +1491,7 @@ void DXRApp::CreateTextures()
             mats[i].normalTexIndex = meshTexIndices[i].normal;
             mats[i].roughnessTexIndex = meshTexIndices[i].roughness;
             mats[i].metallicTexIndex = meshTexIndices[i].metallic;
+            mats[i].alphaTexIndex = meshTexIndices[i].alpha;
         }
         m_materialBuffer->Unmap(0, nullptr);
     }

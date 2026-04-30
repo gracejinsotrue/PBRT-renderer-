@@ -26,6 +26,8 @@
 #include <nori/bsdf.h>
 #include <nori/frame.h>
 #include <nori/warp.h>
+#include <nori/texture.h>
+#include <memory>
 
 NORI_NAMESPACE_BEGIN
 
@@ -58,6 +60,11 @@ public:
         m_normalTexture = propList.getString("normalTexture", "");
         m_roughnessTexture = propList.getString("roughnessTexture", "");
         m_metallicTexture = propList.getString("metallicTexture", "");
+
+        // Alpha masking (e.g. eyelashes, hair cards, foliage)
+        m_alphaTextureFile = propList.getString("alphaTexture", "");
+        if (!m_alphaTextureFile.empty())
+            m_alphaTex = std::make_unique<AlphaTexture>(m_alphaTextureFile);
     }
 
     // ---- CPU-side stubs (Step 2): behave as Lambertian ----
@@ -117,8 +124,11 @@ public:
         d.normalTexture = m_normalTexture;
         d.roughnessTexture = m_roughnessTexture;
         d.metallicTexture = m_metallicTexture;
+        d.alphaTexture = m_alphaTextureFile;
         return d;
     }
+
+    const AlphaTexture *getAlphaTexture() const override { return m_alphaTex.get(); }
 
     std::string toString() const
     {
@@ -159,6 +169,10 @@ private:
     std::string m_normalTexture;
     std::string m_roughnessTexture;
     std::string m_metallicTexture;
+
+    // Alpha masking
+    std::string m_alphaTextureFile;
+    std::unique_ptr<AlphaTexture> m_alphaTex;
 };
 
 NORI_REGISTER_CLASS(Disney, "disney");

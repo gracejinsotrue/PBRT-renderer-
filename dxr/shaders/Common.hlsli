@@ -62,6 +62,7 @@ struct GPUMaterial
     uint roughnessTexIndex;
     uint metallicTexIndex;
 
+    uint alphaTexIndex;
     float roughness;
     float metallic;
     float specular;
