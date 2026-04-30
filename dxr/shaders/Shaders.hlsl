@@ -113,11 +113,13 @@ struct HitPayload
     uint primitiveID;
     float tangentX, tangentY, tangentZ; // fiber tangent
     float hairH;                        // fiber offset h in [-1,1]
+    uint rngState;                      // PCG state, propagated through any-hit
 };
 struct ShadowPayload
 {
     uint shadowed;
     float3 transmission; // accumulated Fresnel transmission through glass
+    uint rngState;       // PCG state, propagated through any-hit
 };
 
 uint PCGHash(uint input)
@@ -1520,8 +1522,10 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1561,9 +1565,11 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1616,8 +1622,10 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1668,9 +1676,11 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1735,43 +1745,9 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     {
         HitPayload payload;
         payload.hit = 0;
-
-        // Alpha masking: skip transparent hits and re-trace
-        {
-            const int MAX_ALPHA_SKIPS = 32;
-            for (int alphaSkip = 0; alphaSkip < MAX_ALPHA_SKIPS; alphaSkip++)
-            {
-                TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
-                if (!payload.hit)
-                    break;
-
-                GPUMaterial alphaCheckMat = g_materials[payload.materialID];
-                if (alphaCheckMat.alphaTexIndex == 0xFFFFFFFF)
-                    break;
-
-                float2 aUV = float2(payload.texU, payload.texV);
-                float a = g_textures[alphaCheckMat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
-                if (a >= 0.995)
-                    break;
-
-                // Always advance past this transparent card.
-                ray.Origin = ray.Origin + ray.Direction * (payload.hitT + 0.001);
-            }
-
-            // If the loop exhausted its budget and the last hit is still transparent,
-            // treat it as a miss rather than shade a transparent card as opaque.
-            if (payload.hit)
-            {
-                GPUMaterial postCheckMat = g_materials[payload.materialID];
-                if (postCheckMat.alphaTexIndex != 0xFFFFFFFF)
-                {
-                    float2 aUV = float2(payload.texU, payload.texV);
-                    float a = g_textures[postCheckMat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
-                    if (a < 0.995)
-                        payload.hit = 0;
-                }
-            }
-        }
+        payload.rngState = rng.state;
+        TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
+        rng.state = payload.rngState;
 
         // ── Volume free-flight check ──────────────────────────────────
         // [Marschner] §3, §5: before handling the surface hit, check
@@ -2147,28 +2123,63 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     payload.envG = env.y;
     payload.envB = env.z;
 }
-    // Shadow any-hit: skip dielectric/mirror surfaces, accumulating Fresnel transmission.
-    // Opaque geometry never invokes this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE),
-    // so only dielectric instances (marked FORCE_NON_OPAQUE) trigger this shader.
+    // Primary any-hit: hybrid cutoff + stochastic alpha test for the radiance ray.
+    // Hard reject below 0.1, accept above 0.95, stochastic in between. The RNG
+    // state is threaded through the payload so primary and shadow rays consume
+    // the same per-path stream.
+    [shader("anyhit")] void PrimaryAnyHit(inout HitPayload payload,
+                                          in BuiltInTriangleIntersectionAttributes attr)
+{
+    uint instanceID = InstanceID();
+    GPUMaterial mat = g_materials[instanceID];
+
+    if (mat.alphaTexIndex == 0xFFFFFFFF)
+        return;
+
+    float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
+    float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+
+    if (a < 0.1)
+    {
+        IgnoreHit();
+        return;
+    }
+    if (a >= 0.95)
+        return;
+
+    payload.rngState = PCGHash(payload.rngState);
+    float xi = float(payload.rngState) / 4294967295.0;
+    if (a < xi)
+        IgnoreHit();
+}
+
+    // Shadow any-hit: same hybrid alpha test as PrimaryAnyHit, plus Fresnel
+    // attenuation for dielectric/mirror surfaces. Opaque geometry never invokes
+    // this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE), so only instances
+    // marked FORCE_NON_OPAQUE trigger this shader.
     [shader("anyhit")] void ShadowAnyHit(inout ShadowPayload payload,
                                          in BuiltInTriangleIntersectionAttributes attr)
 {
     uint instanceID = InstanceID();
     GPUMaterial mat = g_materials[instanceID];
 
-    // Alpha transparency: accumulate fractional occlusion and continue the shadow ray,
-    // mirroring how dielectric transmission is handled below.
-    // a=0 (fully transparent) -> transmission unchanged, ray continues.
-    // a=1 (fully opaque)      -> transmission zeroed out, ray continues.
-    // If a solid (non-alpha) surface is hit later, shadowed=1 overrides anyway.
     if (mat.alphaTexIndex != 0xFFFFFFFF)
     {
         float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
         float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
-        if (a >= 0.995)
+
+        if (a < 0.1)
+        {
+            IgnoreHit();
+            return;
+        }
+        if (a >= 0.95)
             return; // opaque — let shadowed=1 stand
-        payload.transmission *= (1.0 - a);
-        IgnoreHit();
+
+        payload.rngState = PCGHash(payload.rngState);
+        float xi = float(payload.rngState) / 4294967295.0;
+        if (a < xi)
+            IgnoreHit();
         return;
     }
 

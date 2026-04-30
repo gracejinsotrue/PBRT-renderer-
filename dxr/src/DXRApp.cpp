@@ -1714,6 +1714,7 @@ void DXRApp::CreateRaytracingPipeline()
     D3D12_HIT_GROUP_DESC hg{};
     hg.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
     hg.ClosestHitShaderImport = L"ClosestHit";
+    hg.AnyHitShaderImport = L"PrimaryAnyHit";
     hg.HitGroupExport = L"HitGroup";
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &hg;
@@ -1725,7 +1726,7 @@ void DXRApp::CreateRaytracingPipeline()
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &shg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
-    sc.MaxPayloadSizeInBytes = 80;
+    sc.MaxPayloadSizeInBytes = 96;
     sc.MaxAttributeSizeInBytes = 8;
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     so[idx++].pDesc = &sc;
