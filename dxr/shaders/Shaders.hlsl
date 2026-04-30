@@ -45,6 +45,8 @@ struct GPUMaterial
     uint normalTexIndex;
     uint roughnessTexIndex;
     uint metallicTexIndex;
+    uint specularTexIndex;
+    uint subsurfaceTexIndex;
     uint alphaTexIndex;
 
     float roughness;
@@ -1866,7 +1868,9 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
 
             bool hasAnyTex = (mat.albedoTexIndex != 0xFFFFFFFF) ||
                              (mat.normalTexIndex != 0xFFFFFFFF) ||
-                             (mat.roughnessTexIndex != 0xFFFFFFFF);
+                             (mat.roughnessTexIndex != 0xFFFFFFFF) ||
+                             (mat.specularTexIndex != 0xFFFFFFFF) ||
+                             (mat.subsurfaceTexIndex != 0xFFFFFFFF);
             float uvFoot = 0.0;
             if (hasAnyTex)
                 uvFoot = ComputeUVFootprint(payload.materialID, payload.primitiveID, payload.hitT, dims);
@@ -1938,6 +1942,17 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
             {
                 mat.alpha = texAlpha;
                 mat.roughness = texAlpha;
+            }
+
+            if (mat.specularTexIndex != 0xFFFFFFFF)
+            {
+                float sLod = ComputeTexLOD(g_textures[mat.specularTexIndex], uvFoot);
+                mat.specular = g_textures[mat.specularTexIndex].SampleLevel(g_sampler, hitUV, sLod).r * 0.5;
+            }
+            if (mat.subsurfaceTexIndex != 0xFFFFFFFF)
+            {
+                float ssLod = ComputeTexLOD(g_textures[mat.subsurfaceTexIndex], uvFoot);
+                mat.subsurface = g_textures[mat.subsurfaceTexIndex].SampleLevel(g_sampler, hitUV, ssLod).r;
             }
 
             if (mat.isEmitter)
@@ -2137,19 +2152,17 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
         return;
 
     float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
-    float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+    float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).r;
 
-    if (a < 0.1)
+    if (a < 0.01)
     {
         IgnoreHit();
         return;
     }
-    if (a >= 0.95)
-        return;
 
     payload.rngState = PCGHash(payload.rngState);
     float xi = float(payload.rngState) / 4294967295.0;
-    if (a < xi)
+    if (a * a < xi)
         IgnoreHit();
 }
 
@@ -2166,19 +2179,17 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     if (mat.alphaTexIndex != 0xFFFFFFFF)
     {
         float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
-        float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+        float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).r;
 
-        if (a < 0.1)
+        if (a < 0.01)
         {
             IgnoreHit();
             return;
         }
-        if (a >= 0.95)
-            return; // opaque — let shadowed=1 stand
 
         payload.rngState = PCGHash(payload.rngState);
         float xi = float(payload.rngState) / 4294967295.0;
-        if (a < xi)
+        if (a * a < xi)
             IgnoreHit();
         return;
     }

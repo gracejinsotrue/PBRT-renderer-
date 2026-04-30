@@ -64,6 +64,8 @@ struct BSDFGPUData
     std::string normalTexture;
     std::string roughnessTexture;
     std::string metallicTexture;
+    std::string specularTexture;   // overrides scalar `specular` if set (sampled from .r)
+    std::string subsurfaceTexture; // overrides scalar `subsurface` if set (sampled from .r)
     std::string alphaTexture; // <-- NEW: path to RGBA image for alpha masking
 
     // Disney BRDF parameters (Burley 2012). All default to reasonable

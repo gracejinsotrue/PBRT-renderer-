@@ -445,7 +445,9 @@
 			<color name="baseColor" value="1.0 1.0 1.0"/>
 			<string name="albedoTexture"    value="textures/grace_textures/body/body_bc.png"/>
 			<string name="normalTexture"    value="textures/grace_textures/body/body_normal.png"/>
-			<string name="roughnessTexture" value="textures/grace_textures/body/body_SRM.png"/>
+			<string name="roughnessTexture" value="textures/grace_textures/body/body_roughness.png"/>
+			<string name="specularTexture"  value="textures/grace_textures/body/body_specular.png"/>
+			<string name="subsurfaceTexture" value="textures/grace_textures/body/body_subsurface.png"/>
 			<float name="roughness"      value="0.6"/>
 			<float name="metallic"       value="0.0"/>
 			<float name="specular"       value="0.3"/>
@@ -455,6 +457,27 @@
 			<float name="subsurface"     value="0.3"/>
 			<float name="clearcoat"      value="0.0"/>
 			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     GRACE – EYEBROWS
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyebrows.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.03 0.02 0.015"/>
+			<string name="alphaTexture"     value="textures/grace_textures/eyebrow/eyebrows_alpha.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.5"/>
+			<float name="sheen"          value="0.3"/>
+			<float name="sheenTint"      value="1.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
 			<float name="anisotropic"    value="0.0"/>
 		</bsdf>
 	</mesh>
@@ -512,7 +535,7 @@
 		<bsdf type="disney">
 			<color name="baseColor" value="1.0 1.0 1.0"/>
 			<string name="albedoTexture" value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
-			<string name="alphaTexture"  value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
+			<string name="alphaTexture"  value="textures/grace_textures/eyelash/eyelash_baked_alpha.png"/>
 			<float name="roughness"      value="0.191"/>
 			<float name="metallic"       value="0.0"/>
 			<float name="specular"       value="0.1"/>
@@ -529,7 +552,7 @@
 	<!-- ============================================================
 	     GRACE – HAIR
 	     ============================================================ -->
-	<mesh type="obj">
+	<!-- <mesh type="obj">
 		<string name="filename" value="grace_mesh/hair.obj"/>
 		<bsdf type="hair_bsdf">
 			<color name="color" value="0.06 0.03 0.01"/>
@@ -538,7 +561,7 @@
 			<float name="alpha" value="2.0"/>
 			<float name="eta" value="1.55"/>
 		</bsdf>
-	</mesh>
+	</mesh> -->
 
 	<!-- ============================================================
 	     GRACE – HEAD
@@ -549,7 +572,9 @@
 			<color name="baseColor" value="1.0 1.0 1.0"/>
 			<string name="albedoTexture"    value="textures/grace_textures/head/baked_head_bc.png"/>
 			<string name="normalTexture"    value="textures/grace_textures/head/baked_head_normal.png"/>
-			<string name="roughnessTexture" value="textures/grace_textures/head/head_SRM.PNG"/>
+			<string name="roughnessTexture" value="textures/grace_textures/head/head_roughness.PNG"/>
+			<string name="specularTexture" value="textures/grace_textures/head/head_specular.png"/>
+			<string name="subsurfaceTexture" value="textures/grace_textures/head/head_subsurface.png"/>
 			<float name="roughness"      value="0.5"/>
 			<float name="metallic"       value="0.0"/>
 			<float name="specular"       value="0.4"/>
@@ -572,7 +597,7 @@
 			<color name="baseColor" value="1.0 1.0 1.0"/>
 			<string name="albedoTexture"    value="textures/grace_textures/shirt/shirt_bc.png"/>
 			<string name="normalTexture"    value="textures/grace_textures/shirt/shirt_normal.png"/>
-			<string name="roughnessTexture" value="textures/grace_textures/shirt/shirt_specular.png"/>
+			<string name="specularTexture" value="textures/grace_textures/shirt/shirt_specular.png"/>
 			<float name="roughness"      value="0.8"/>
 			<float name="metallic"       value="0.0"/>
 			<float name="specular"       value="0.1"/>
