@@ -1973,12 +1973,49 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
             {
                 // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
                 // Reference: [PBRT] Section 9.9.1 — sinθ = ω.x (tangent component)
-                float3 hairTangent = normalize(float3(payload.tangentX, payload.tangentY, payload.tangentZ));
+                float3 hairTangent = float3(payload.tangentX, payload.tangentY, payload.tangentZ);
+                bool hasStrandTangent = dot(hairTangent, hairTangent) > 1e-8;
+                if (hasStrandTangent)
+                {
+                    // Strand geometry from tessellator — tangent buffer is valid.
+                    // h was encoded by tessellator as UV.y = (h+1)/2.
+                    hairTangent = normalize(hairTangent);
+                    g_hairH = payload.hairH; // payload.hairH = texUV.y * 2 - 1
+                }
+                else
+                {
+                    // Hair card (OBJ mesh) — no tangent buffer.
+                    // Derive fiber axis from UV: dP/dV runs along hair length (root→tip).
+                    // h is the offset across the card width: UV.x remapped to [-1,1].
+                    uint base2 = mat.indexOffset + payload.primitiveID * 3;
+                    uint ci0 = g_indices.Load((base2 + 0) * 4);
+                    uint ci1 = g_indices.Load((base2 + 1) * 4);
+                    uint ci2 = g_indices.Load((base2 + 2) * 4);
+                    float3 cp0 = LoadFloat3(g_vertices, mat.vertexOffset + ci0);
+                    float3 cp1 = LoadFloat3(g_vertices, mat.vertexOffset + ci1);
+                    float3 cp2 = LoadFloat3(g_vertices, mat.vertexOffset + ci2);
+                    float2 cuv0 = LoadFloat2(g_texcoords, mat.vertexOffset + ci0);
+                    float2 cuv1 = LoadFloat2(g_texcoords, mat.vertexOffset + ci1);
+                    float2 cuv2 = LoadFloat2(g_texcoords, mat.vertexOffset + ci2);
+                    float3 edge1c = cp1 - cp0, edge2c = cp2 - cp0;
+                    float2 dUV1c = cuv1 - cuv0, dUV2c = cuv2 - cuv0;
+                    float detc = dUV1c.x * dUV2c.y - dUV2c.x * dUV1c.y;
+                    if (abs(detc) > 1e-8)
+                    {
+                        float invDetc = 1.0 / detc;
+                        // dP/dV = (-dUV1c.x * edge1c + dUV2c.x * edge2c) * invDetc
+                        hairTangent = normalize((-dUV1c.x * edge1c + dUV2c.x * edge2c) * invDetc);
+                    }
+                    else
+                    {
+                        BuildONB(N, hairTangent, B);
+                    }
+                    // h = fiber offset across card width (UV.x in [0,1] → [-1,1])
+                    g_hairH = payload.texU * 2.0 - 1.0;
+                }
                 // Orthogonalize tangent against surface normal
                 T = normalize(hairTangent - N * dot(hairTangent, N));
                 B = cross(N, T);
-                // Set h for the dispatch layer
-                g_hairH = payload.hairH;
             }
             else
             {
@@ -2203,5 +2240,7 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
         IgnoreHit();
     }
 }
-[shader("miss")] void ShadowMiss(inout ShadowPayload payload)
-{ payload.shadowed = 0; }
+    [shader("miss")] void ShadowMiss(inout ShadowPayload payload)
+{
+    payload.shadowed = 0;
+}

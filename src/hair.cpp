@@ -8,10 +8,12 @@
 #include <nori/frame.h>
 #include <nori/warp.h>
 #include <nori/timer.h>
+#include <nori/texture.h>
 #include <filesystem/resolver.h>
 #include <fstream>
 #include <cstring>
 #include <cmath>
+#include <memory>
 
 NORI_NAMESPACE_BEGIN
 
@@ -349,6 +351,7 @@ public:
     {
         // Hair color — will be converted to σ_a on the GPU via
         // Chiang Eq. 9 (albedo inversion).
+        // deafult color here is medium brown but it is overwriten in the xml
         m_color = propList.getColor("color", Color3f(0.28f, 0.15f, 0.06f));
 
         // Longitudinal roughness β_M ∈ [0,1], mapped to variance v via Chiang Eq. 7 in the shader.
@@ -365,6 +368,11 @@ public:
 
         // Index of refraction of hair interior, typically 1.55
         m_eta = propList.getFloat("eta", 1.55f);
+
+        // Alpha masking (e.g. hair cards)
+        m_alphaTextureFile = propList.getString("alphaTexture", "");
+        if (!m_alphaTextureFile.empty())
+            m_alphaTex = std::make_unique<AlphaTexture>(m_alphaTextureFile);
     }
 
     Color3f eval(const BSDFQueryRecord &bRec) const override
@@ -413,9 +421,12 @@ public:
 
         // Azimuthal roughness β_N (Chiang Eq. 8)
         d.betaN = m_betaN;
+        d.alphaTexture = m_alphaTextureFile;
 
         return d;
     }
+
+    const AlphaTexture *getAlphaTexture() const override { return m_alphaTex.get(); }
 
     std::string toString() const override
     {
@@ -437,6 +448,10 @@ private:
     float m_betaN;
     float m_alpha;
     float m_eta;
+
+    // Alpha masking
+    std::string m_alphaTextureFile;
+    std::unique_ptr<AlphaTexture> m_alphaTex;
 };
 
 NORI_REGISTER_CLASS(HairBSDF, "hair_bsdf");

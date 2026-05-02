@@ -707,6 +707,9 @@ void DXRApp::CreateSceneBuffers()
 
         printf("[scene] Mesh %u: type=%u verts=%u tris=%u emitter=%u area=%.4f\n",
                i, mat.type, vc, ic / 3, mat.isEmitter, mat.surfaceArea);
+        if (mat.type == 5)
+            printf("[scene] Mesh %u (HAIR): albedo=(%.4f, %.4f, %.4f) betaN=%.4f roughness=%.4f\n",
+                   i, mat.albedo[0], mat.albedo[1], mat.albedo[2], mat.betaN, mat.roughness);
 
         printf("[scene] Mesh %u: V.cols=%u N.cols=%u N.size=%zu V.size=%zu\n",
                i, (unsigned)meshes[i]->getVertexPositions().cols(),
