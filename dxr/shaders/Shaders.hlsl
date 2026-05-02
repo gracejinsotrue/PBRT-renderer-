@@ -2203,12 +2203,12 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
         IgnoreHit();
 }
 
-    // Shadow any-hit: same hybrid alpha test as PrimaryAnyHit, plus Fresnel
-    // attenuation for dielectric/mirror surfaces. Opaque geometry never invokes
-    // this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE), so only instances
-    // marked FORCE_NON_OPAQUE trigger this shader.
-    [shader("anyhit")] void ShadowAnyHit(inout ShadowPayload payload,
-                                         in BuiltInTriangleIntersectionAttributes attr)
+// Shadow any-hit: same hybrid alpha test as PrimaryAnyHit, plus Fresnel
+// attenuation for dielectric/mirror surfaces. Opaque geometry never invokes
+// this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE), so only instances
+// marked FORCE_NON_OPAQUE trigger this shader.
+[shader("anyhit")] void ShadowAnyHit(inout ShadowPayload payload,
+                                        in BuiltInTriangleIntersectionAttributes attr)
 {
     uint instanceID = InstanceID();
     GPUMaterial mat = g_materials[instanceID];
@@ -2216,7 +2216,8 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     if (mat.alphaTexIndex != 0xFFFFFFFF)
     {
         float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
-        float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).r;
+        float4 t = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0);
+        float a = (t.a < 1.0) ? t.a : t.r;
 
         if (a < 0.01)
         {
