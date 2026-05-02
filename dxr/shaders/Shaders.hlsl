@@ -1926,22 +1926,17 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
                 N = normalize(T * tangentNormal.x + B * tangentNormal.y + N * tangentNormal.z);
             }
 
-            float texAlpha = mat.alpha;
-            if (mat.roughnessTexIndex != 0xFFFFFFFF)
-            {
-                float rLod = ComputeTexLOD(g_textures[mat.roughnessTexIndex], uvFoot);
-                texAlpha = g_textures[mat.roughnessTexIndex].SampleLevel(g_sampler, hitUV, rLod).r;
-            }
-
             mat.albedoR = texAlbedo.x;
             mat.albedoG = texAlbedo.y;
             mat.albedoB = texAlbedo.z;
-            // For hair (type 5), mat.roughness = β_M and mat.alpha = cuticle tilt.
-            // These must NOT be overwritten by the texture roughness path.
-            if (mat.type != 5)
+            // For hair (type 5), mat.roughness = β_M and mat.alpha = cuticle tilt — leave them.
+            // For everything else, only overwrite roughness/alpha if a roughness texture is actually bound.
+            if (mat.type != 5 && mat.roughnessTexIndex != 0xFFFFFFFF)
             {
-                mat.alpha = texAlpha;
-                mat.roughness = texAlpha;
+                float rLod = ComputeTexLOD(g_textures[mat.roughnessTexIndex], uvFoot);
+                float texRough = g_textures[mat.roughnessTexIndex].SampleLevel(g_sampler, hitUV, rLod).r;
+                mat.alpha = texRough;
+                mat.roughness = texRough;
             }
 
             if (mat.specularTexIndex != 0xFFFFFFFF)
