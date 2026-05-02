@@ -23,11 +23,11 @@ rules.ninja
 *.sln
 *.dir
 *.opendb
-*.obj
+# *.obj
 Debug
 x64
 
 dxr/build/
 
-scenes/
+# scenes/
 chi_tests/
