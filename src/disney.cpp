@@ -60,6 +60,8 @@ public:
         m_normalTexture = propList.getString("normalTexture", "");
         m_roughnessTexture = propList.getString("roughnessTexture", "");
         m_metallicTexture = propList.getString("metallicTexture", "");
+        m_specularTexture = propList.getString("specularTexture", "");
+        m_subsurfaceTexture = propList.getString("subsurfaceTexture", "");
 
         // Alpha masking (e.g. eyelashes, hair cards, foliage)
         m_alphaTextureFile = propList.getString("alphaTexture", "");
@@ -124,6 +126,8 @@ public:
         d.normalTexture = m_normalTexture;
         d.roughnessTexture = m_roughnessTexture;
         d.metallicTexture = m_metallicTexture;
+        d.specularTexture = m_specularTexture;
+        d.subsurfaceTexture = m_subsurfaceTexture;
         d.alphaTexture = m_alphaTextureFile;
         return d;
     }
@@ -169,6 +173,8 @@ private:
     std::string m_normalTexture;
     std::string m_roughnessTexture;
     std::string m_metallicTexture;
+    std::string m_specularTexture;
+    std::string m_subsurfaceTexture;
 
     // Alpha masking
     std::string m_alphaTextureFile;

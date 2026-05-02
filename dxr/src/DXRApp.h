@@ -51,16 +51,18 @@ struct GPUMaterial
     float alpha;
     uint32_t isEmitter;
     float radiance[3];
-    uint32_t indexOffset;       // first index,in elements, in global index buffer
-    uint32_t vertexOffset;      // first vertex, in elements, in global normal/pos buffer
-    uint32_t indexCount;        // number of indices for this mesh
-    uint32_t vertexCount;       // number of vertices for this mesh
-    float surfaceArea;          // total mesh surface area
-    uint32_t emitterCdfOffset;  // first entry index in emitter CDF buffer
-    uint32_t albedoTexIndex;    // texture index or 0xFFFFFFFF if none
-    uint32_t normalTexIndex;    // texture index or 0xFFFFFFFF if none
-    uint32_t roughnessTexIndex; // texture index or 0xFFFFFFFF if none
-    uint32_t metallicTexIndex;  // texture index or 0xFFFFFFFF if none
+    uint32_t indexOffset;        // first index,in elements, in global index buffer
+    uint32_t vertexOffset;       // first vertex, in elements, in global normal/pos buffer
+    uint32_t indexCount;         // number of indices for this mesh
+    uint32_t vertexCount;        // number of vertices for this mesh
+    float surfaceArea;           // total mesh surface area
+    uint32_t emitterCdfOffset;   // first entry index in emitter CDF buffer
+    uint32_t albedoTexIndex;     // texture index or 0xFFFFFFFF if none
+    uint32_t normalTexIndex;     // texture index or 0xFFFFFFFF if none
+    uint32_t roughnessTexIndex;  // texture index or 0xFFFFFFFF if none
+    uint32_t metallicTexIndex;   // texture index or 0xFFFFFFFF if none
+    uint32_t specularTexIndex;   // overrides scalar specular when valid
+    uint32_t subsurfaceTexIndex; // overrides scalar subsurface when valid
 
     uint32_t alphaTexIndex; // texture index for alpha masking
 

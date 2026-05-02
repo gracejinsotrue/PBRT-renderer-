@@ -686,6 +686,8 @@ void DXRApp::CreateSceneBuffers()
         mat.normalTexIndex = 0xFFFFFFFF;
         mat.roughnessTexIndex = 0xFFFFFFFF;
         mat.metallicTexIndex = 0xFFFFFFFF;
+        mat.specularTexIndex = 0xFFFFFFFF;
+        mat.subsurfaceTexIndex = 0xFFFFFFFF;
         mat.alphaTexIndex = 0xFFFFFFFF;
 
         mat.roughness = gd.roughness;
@@ -705,6 +707,9 @@ void DXRApp::CreateSceneBuffers()
 
         printf("[scene] Mesh %u: type=%u verts=%u tris=%u emitter=%u area=%.4f\n",
                i, mat.type, vc, ic / 3, mat.isEmitter, mat.surfaceArea);
+        if (mat.type == 5)
+            printf("[scene] Mesh %u (HAIR): albedo=(%.4f, %.4f, %.4f) betaN=%.4f roughness=%.4f\n",
+                   i, mat.albedo[0], mat.albedo[1], mat.albedo[2], mat.betaN, mat.roughness);
 
         printf("[scene] Mesh %u: V.cols=%u N.cols=%u N.size=%zu V.size=%zu\n",
                i, (unsigned)meshes[i]->getVertexPositions().cols(),
@@ -1437,7 +1442,7 @@ void DXRApp::CreateTextures()
     // per-mesh texture indices
     struct MeshTexIndices
     {
-        uint32_t albedo, normal, roughness, metallic, alpha;
+        uint32_t albedo, normal, roughness, metallic, specular, subsurface, alpha;
     };
     std::vector<MeshTexIndices> meshTexIndices(meshes.size());
 
@@ -1445,11 +1450,13 @@ void DXRApp::CreateTextures()
     {
         BSDFGPUData gd = meshes[i]->getBSDF()->getGPUData();
         // Albedo is COLOR data -> sRGB encoded on disk, must be linearized on sample.
-        // Normal/roughness/metallic are DATA textures -> already linear, leave as-is.
+        // Normal/roughness/metallic/specular/subsurface are DATA textures -> already linear, leave as-is.
         meshTexIndices[i].albedo = loadIfNotEmpty(gd.albedoTexture, true);
         meshTexIndices[i].normal = loadIfNotEmpty(gd.normalTexture, false);
         meshTexIndices[i].roughness = loadIfNotEmpty(gd.roughnessTexture, false);
         meshTexIndices[i].metallic = loadIfNotEmpty(gd.metallicTexture, false);
+        meshTexIndices[i].specular = loadIfNotEmpty(gd.specularTexture, false);
+        meshTexIndices[i].subsurface = loadIfNotEmpty(gd.subsurfaceTexture, false);
         meshTexIndices[i].alpha = loadIfNotEmpty(gd.alphaTexture, false);
     }
 
@@ -1491,6 +1498,8 @@ void DXRApp::CreateTextures()
             mats[i].normalTexIndex = meshTexIndices[i].normal;
             mats[i].roughnessTexIndex = meshTexIndices[i].roughness;
             mats[i].metallicTexIndex = meshTexIndices[i].metallic;
+            mats[i].specularTexIndex = meshTexIndices[i].specular;
+            mats[i].subsurfaceTexIndex = meshTexIndices[i].subsurface;
             mats[i].alphaTexIndex = meshTexIndices[i].alpha;
         }
         m_materialBuffer->Unmap(0, nullptr);
@@ -1714,6 +1723,7 @@ void DXRApp::CreateRaytracingPipeline()
     D3D12_HIT_GROUP_DESC hg{};
     hg.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
     hg.ClosestHitShaderImport = L"ClosestHit";
+    hg.AnyHitShaderImport = L"PrimaryAnyHit";
     hg.HitGroupExport = L"HitGroup";
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &hg;
@@ -1725,7 +1735,7 @@ void DXRApp::CreateRaytracingPipeline()
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &shg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
-    sc.MaxPayloadSizeInBytes = 80;
+    sc.MaxPayloadSizeInBytes = 96;
     sc.MaxAttributeSizeInBytes = 8;
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     so[idx++].pDesc = &sc;

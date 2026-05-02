@@ -45,6 +45,8 @@ struct GPUMaterial
     uint normalTexIndex;
     uint roughnessTexIndex;
     uint metallicTexIndex;
+    uint specularTexIndex;
+    uint subsurfaceTexIndex;
     uint alphaTexIndex;
 
     float roughness;
@@ -113,11 +115,13 @@ struct HitPayload
     uint primitiveID;
     float tangentX, tangentY, tangentZ; // fiber tangent
     float hairH;                        // fiber offset h in [-1,1]
+    uint rngState;                      // PCG state, propagated through any-hit
 };
 struct ShadowPayload
 {
     uint shadowed;
     float3 transmission; // accumulated Fresnel transmission through glass
+    uint rngState;       // PCG state, propagated through any-hit
 };
 
 uint PCGHash(uint input)
@@ -1520,8 +1524,10 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1561,9 +1567,11 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1616,8 +1624,10 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1668,9 +1678,11 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
              0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -1735,43 +1747,9 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     {
         HitPayload payload;
         payload.hit = 0;
-
-        // Alpha masking: skip transparent hits and re-trace
-        {
-            const int MAX_ALPHA_SKIPS = 32;
-            for (int alphaSkip = 0; alphaSkip < MAX_ALPHA_SKIPS; alphaSkip++)
-            {
-                TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
-                if (!payload.hit)
-                    break;
-
-                GPUMaterial alphaCheckMat = g_materials[payload.materialID];
-                if (alphaCheckMat.alphaTexIndex == 0xFFFFFFFF)
-                    break;
-
-                float2 aUV = float2(payload.texU, payload.texV);
-                float a = g_textures[alphaCheckMat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
-                if (a >= 0.995)
-                    break;
-
-                // Always advance past this transparent card.
-                ray.Origin = ray.Origin + ray.Direction * (payload.hitT + 0.001);
-            }
-
-            // If the loop exhausted its budget and the last hit is still transparent,
-            // treat it as a miss rather than shade a transparent card as opaque.
-            if (payload.hit)
-            {
-                GPUMaterial postCheckMat = g_materials[payload.materialID];
-                if (postCheckMat.alphaTexIndex != 0xFFFFFFFF)
-                {
-                    float2 aUV = float2(payload.texU, payload.texV);
-                    float a = g_textures[postCheckMat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
-                    if (a < 0.995)
-                        payload.hit = 0;
-                }
-            }
-        }
+        payload.rngState = rng.state;
+        TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
+        rng.state = payload.rngState;
 
         // ── Volume free-flight check ──────────────────────────────────
         // [Marschner] §3, §5: before handling the surface hit, check
@@ -1890,7 +1868,9 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
 
             bool hasAnyTex = (mat.albedoTexIndex != 0xFFFFFFFF) ||
                              (mat.normalTexIndex != 0xFFFFFFFF) ||
-                             (mat.roughnessTexIndex != 0xFFFFFFFF);
+                             (mat.roughnessTexIndex != 0xFFFFFFFF) ||
+                             (mat.specularTexIndex != 0xFFFFFFFF) ||
+                             (mat.subsurfaceTexIndex != 0xFFFFFFFF);
             float uvFoot = 0.0;
             if (hasAnyTex)
                 uvFoot = ComputeUVFootprint(payload.materialID, payload.primitiveID, payload.hitT, dims);
@@ -1964,6 +1944,17 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
                 mat.roughness = texAlpha;
             }
 
+            if (mat.specularTexIndex != 0xFFFFFFFF)
+            {
+                float sLod = ComputeTexLOD(g_textures[mat.specularTexIndex], uvFoot);
+                mat.specular = g_textures[mat.specularTexIndex].SampleLevel(g_sampler, hitUV, sLod).r * 0.5;
+            }
+            if (mat.subsurfaceTexIndex != 0xFFFFFFFF)
+            {
+                float ssLod = ComputeTexLOD(g_textures[mat.subsurfaceTexIndex], uvFoot);
+                mat.subsurface = g_textures[mat.subsurfaceTexIndex].SampleLevel(g_sampler, hitUV, ssLod).r;
+            }
+
             if (mat.isEmitter)
             {
                 if (lastBsdfPdf == 0.0)
@@ -1982,12 +1973,49 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
             {
                 // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
                 // Reference: [PBRT] Section 9.9.1 — sinθ = ω.x (tangent component)
-                float3 hairTangent = normalize(float3(payload.tangentX, payload.tangentY, payload.tangentZ));
+                float3 hairTangent = float3(payload.tangentX, payload.tangentY, payload.tangentZ);
+                bool hasStrandTangent = dot(hairTangent, hairTangent) > 1e-8;
+                if (hasStrandTangent)
+                {
+                    // Strand geometry from tessellator — tangent buffer is valid.
+                    // h was encoded by tessellator as UV.y = (h+1)/2.
+                    hairTangent = normalize(hairTangent);
+                    g_hairH = payload.hairH; // payload.hairH = texUV.y * 2 - 1
+                }
+                else
+                {
+                    // Hair card (OBJ mesh) — no tangent buffer.
+                    // Derive fiber axis from UV: dP/dV runs along hair length (root→tip).
+                    // h is the offset across the card width: UV.x remapped to [-1,1].
+                    uint base2 = mat.indexOffset + payload.primitiveID * 3;
+                    uint ci0 = g_indices.Load((base2 + 0) * 4);
+                    uint ci1 = g_indices.Load((base2 + 1) * 4);
+                    uint ci2 = g_indices.Load((base2 + 2) * 4);
+                    float3 cp0 = LoadFloat3(g_vertices, mat.vertexOffset + ci0);
+                    float3 cp1 = LoadFloat3(g_vertices, mat.vertexOffset + ci1);
+                    float3 cp2 = LoadFloat3(g_vertices, mat.vertexOffset + ci2);
+                    float2 cuv0 = LoadFloat2(g_texcoords, mat.vertexOffset + ci0);
+                    float2 cuv1 = LoadFloat2(g_texcoords, mat.vertexOffset + ci1);
+                    float2 cuv2 = LoadFloat2(g_texcoords, mat.vertexOffset + ci2);
+                    float3 edge1c = cp1 - cp0, edge2c = cp2 - cp0;
+                    float2 dUV1c = cuv1 - cuv0, dUV2c = cuv2 - cuv0;
+                    float detc = dUV1c.x * dUV2c.y - dUV2c.x * dUV1c.y;
+                    if (abs(detc) > 1e-8)
+                    {
+                        float invDetc = 1.0 / detc;
+                        // dP/dV = (-dUV1c.x * edge1c + dUV2c.x * edge2c) * invDetc
+                        hairTangent = normalize((-dUV1c.x * edge1c + dUV2c.x * edge2c) * invDetc);
+                    }
+                    else
+                    {
+                        BuildONB(N, hairTangent, B);
+                    }
+                    // h = fiber offset across card width (UV.x in [0,1] → [-1,1])
+                    g_hairH = payload.texU * 2.0 - 1.0;
+                }
                 // Orthogonalize tangent against surface normal
                 T = normalize(hairTangent - N * dot(hairTangent, N));
                 B = cross(N, T);
-                // Set h for the dispatch layer
-                g_hairH = payload.hairH;
             }
             else
             {
@@ -2147,28 +2175,61 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     payload.envG = env.y;
     payload.envB = env.z;
 }
-    // Shadow any-hit: skip dielectric/mirror surfaces, accumulating Fresnel transmission.
-    // Opaque geometry never invokes this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE),
-    // so only dielectric instances (marked FORCE_NON_OPAQUE) trigger this shader.
-    [shader("anyhit")] void ShadowAnyHit(inout ShadowPayload payload,
-                                         in BuiltInTriangleIntersectionAttributes attr)
+    // Primary any-hit: hybrid cutoff + stochastic alpha test for the radiance ray.
+    // Hard reject below 0.1, accept above 0.95, stochastic in between. The RNG
+    // state is threaded through the payload so primary and shadow rays consume
+    // the same per-path stream.
+    [shader("anyhit")] void PrimaryAnyHit(inout HitPayload payload,
+                                          in BuiltInTriangleIntersectionAttributes attr)
 {
     uint instanceID = InstanceID();
     GPUMaterial mat = g_materials[instanceID];
 
-    // Alpha transparency: accumulate fractional occlusion and continue the shadow ray,
-    // mirroring how dielectric transmission is handled below.
-    // a=0 (fully transparent) -> transmission unchanged, ray continues.
-    // a=1 (fully opaque)      -> transmission zeroed out, ray continues.
-    // If a solid (non-alpha) surface is hit later, shadowed=1 overrides anyway.
+    if (mat.alphaTexIndex == 0xFFFFFFFF)
+        return;
+
+    float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
+    float4 t = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0);
+    float a = (t.a < 1.0) ? t.a : t.r;
+
+    if (a < 0.01)
+    {
+        IgnoreHit();
+        return;
+    }
+
+    payload.rngState = PCGHash(payload.rngState);
+    float xi = float(payload.rngState) / 4294967295.0;
+    if (a * a < xi)
+        IgnoreHit();
+}
+
+// Shadow any-hit: same hybrid alpha test as PrimaryAnyHit, plus Fresnel
+// attenuation for dielectric/mirror surfaces. Opaque geometry never invokes
+// this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE), so only instances
+// marked FORCE_NON_OPAQUE trigger this shader.
+[shader("anyhit")] void ShadowAnyHit(inout ShadowPayload payload,
+                                     in BuiltInTriangleIntersectionAttributes attr)
+{
+    uint instanceID = InstanceID();
+    GPUMaterial mat = g_materials[instanceID];
+
     if (mat.alphaTexIndex != 0xFFFFFFFF)
     {
         float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
-        float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
-        if (a >= 0.995)
-            return; // opaque — let shadowed=1 stand
-        payload.transmission *= (1.0 - a);
-        IgnoreHit();
+        float4 t = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0);
+        float a = (t.a < 1.0) ? t.a : t.r;
+
+        if (a < 0.01)
+        {
+            IgnoreHit();
+            return;
+        }
+
+        payload.rngState = PCGHash(payload.rngState);
+        float xi = float(payload.rngState) / 4294967295.0;
+        if (a * a < xi)
+            IgnoreHit();
         return;
     }
 
@@ -2181,5 +2242,7 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
         IgnoreHit();
     }
 }
-[shader("miss")] void ShadowMiss(inout ShadowPayload payload)
-{ payload.shadowed = 0; }
+    [shader("miss")] void ShadowMiss(inout ShadowPayload payload)
+{
+    payload.shadowed = 0;
+}
