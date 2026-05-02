@@ -31,3 +31,14 @@ dxr/build/
 
 # scenes/
 chi_tests/
+scenes/a0/
+scenes/a1/
+scenes/a2/
+scenes/a3/
+scenes/a4/
+scenes/final_scenes/
+
+.exr
+.hdr
+
+scenes/final_scene_real/textures/table/semi-gloss-wood_albedo.png
