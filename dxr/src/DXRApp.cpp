@@ -11,6 +11,7 @@
 #include <nori/dpdf.h>
 #include <filesystem/resolver.h>
 
+#include <algorithm>
 #include <fstream>
 #include <cmath>
 #include <cstring>
@@ -86,6 +87,7 @@ void DXRApp::OnInit()
     CreateCommandAllocatorsAndList();
     CreateFence();
     CreateAccelerationStructure();
+    SetupVolumes();
     CreateSceneBuffers();
     CreateTextures();
     CreateRaytracingPipeline();
@@ -877,6 +879,26 @@ void DXRApp::CreateSceneBuffers()
         m_globalTangentBuffer->Unmap(0, nullptr);
         printf("[scene] Tangent buffer uploaded: %u vertices\n", totalVertices);
     }
+
+    // Volume structured buffer. Always allocate at least one entry so the
+    // descriptor table has a valid SRV target even when there are no
+    // volumes. The texture index inside m_volumes[0] may still be patched
+    // later by CreateTextures, so use an UPLOAD heap for persistent
+    // mapping.
+    {
+        size_t numEntries = std::max<size_t>(1, m_volumes.size());
+        UINT64 sz = numEntries * sizeof(GPUVolume);
+        m_volumeBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
+                                      D3D12_RESOURCE_STATE_GENERIC_READ,
+                                      D3D12_HEAP_TYPE_UPLOAD);
+        void *p = nullptr;
+        m_volumeBuffer->Map(0, nullptr, &p);
+        memset(p, 0, sz);
+        if (!m_volumes.empty())
+            memcpy(p, m_volumes.data(), m_volumes.size() * sizeof(GPUVolume));
+        m_volumeBuffer->Unmap(0, nullptr);
+        printf("[scene] Volume buffer uploaded: %zu entries\n", m_volumes.size());
+    }
 }
 
 // Texture loading via stb_image lirbary
@@ -1265,14 +1287,153 @@ void DXRApp::BuildEnvmapDistribution()
            marginal[H], conditional[W], nonZeroRows, H);
 }
 
-void DXRApp::LoadVolume(const std::string &path)
+// Build the m_volumes list from the scene's medium description. Runs
+// before CreateSceneBuffers so the structured buffer can be sized correctly,
+// and before CreateTextures so the medium's density texture (if any) can be
+// patched in by index later.
+void DXRApp::SetupVolumes()
 {
+    m_volumes.clear();
+    const Medium *medium = m_noriScene->getMedium();
+    if (medium)
+    {
+        BoundingBox3f vbox = medium->hasExplicitBounds()
+                                 ? medium->getExplicitBounds()
+                                 : m_noriScene->getBoundingBox();
+        Color3f sigmaARGB = medium->getSigmaARGB();
+        Color3f sigmaSRGB = medium->getSigmaSRGB();
+        GPUVolume v{};
+        v.vMin[0] = vbox.min.x();
+        v.vMin[1] = vbox.min.y();
+        v.vMin[2] = vbox.min.z();
+        v.vMax[0] = vbox.max.x();
+        v.vMax[1] = vbox.max.y();
+        v.vMax[2] = vbox.max.z();
+        v.sigmaA[0] = sigmaARGB.r();
+        v.sigmaA[1] = sigmaARGB.g();
+        v.sigmaA[2] = sigmaARGB.b();
+        v.sigmaS[0] = sigmaSRGB.r();
+        v.sigmaS[1] = sigmaSRGB.g();
+        v.sigmaS[2] = sigmaSRGB.b();
+        v.phaseG = medium->getPhaseG();
+        v.flags = medium->isHeterogeneous() ? VOLUME_FLAG_HETEROGENEOUS : 0u;
+        v.densityTexIndex = VOLUME_INVALID_TEX;  // patched in CreateTextures
+        v.majorantTexIndex = VOLUME_INVALID_TEX; // patched in CreateTextures
+        m_volumes.push_back(v);
+
+        printf("[volume] 1 volume: sigmaA=(%.3f,%.3f,%.3f) sigmaS=(%.3f,%.3f,%.3f) g=%.2f bbox=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f)%s%s\n",
+               v.sigmaA[0], v.sigmaA[1], v.sigmaA[2],
+               v.sigmaS[0], v.sigmaS[1], v.sigmaS[2], v.phaseG,
+               vbox.min.x(), vbox.min.y(), vbox.min.z(),
+               vbox.max.x(), vbox.max.y(), vbox.max.z(),
+               medium->hasExplicitBounds() ? " [explicit bounds]" : " [scene bbox]",
+               medium->isHeterogeneous() ? " [heterogeneous]" : " [homogeneous]");
+    }
+    else
+    {
+        printf("[volume] 0 volumes (no <medium> in scene XML)\n");
+    }
+}
+
+// Helper: upload a dense W×H×D R32_FLOAT volume to a Texture3D and append
+// it to m_volumeTextures. Returns the index in that array. Used for both
+// the dense density grid and the coarse brick-max-density majorant mip.
+static uint32_t UploadVolumeTexture3D(
+    ID3D12Device5 *device,
+    ID3D12GraphicsCommandList4 *cmdList,
+    std::vector<ComPtr<ID3D12Resource>> &textures,
+    std::vector<ComPtr<ID3D12Resource>> &uploads,
+    const float *data, uint32_t W, uint32_t H, uint32_t D)
+{
+    ComPtr<ID3D12Resource> tex;
+    D3D12_HEAP_PROPERTIES hp{};
+    hp.Type = D3D12_HEAP_TYPE_DEFAULT;
+    D3D12_RESOURCE_DESC td{};
+    td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+    td.Width = W;
+    td.Height = H;
+    td.DepthOrArraySize = (UINT16)D;
+    td.MipLevels = 1;
+    td.Format = DXGI_FORMAT_R32_FLOAT;
+    td.SampleDesc.Count = 1;
+    td.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    HRESULT hr = device->CreateCommittedResource(
+        &hp, D3D12_HEAP_FLAG_NONE, &td,
+        D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&tex));
+    if (FAILED(hr))
+        throw std::runtime_error("Volume Texture3D creation failed");
+
+    UINT64 uploadSize = 0;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+    UINT numRows = 0;
+    UINT64 rowSize = 0;
+    device->GetCopyableFootprints(&td, 0, 1, 0, &footprint, &numRows, &rowSize, &uploadSize);
+
+    D3D12_HEAP_PROPERTIES uhp{};
+    uhp.Type = D3D12_HEAP_TYPE_UPLOAD;
+    D3D12_RESOURCE_DESC ud{};
+    ud.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    ud.Width = uploadSize;
+    ud.Height = 1;
+    ud.DepthOrArraySize = 1;
+    ud.MipLevels = 1;
+    ud.Format = DXGI_FORMAT_UNKNOWN;
+    ud.SampleDesc.Count = 1;
+    ud.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    ComPtr<ID3D12Resource> upload;
+    if (FAILED(device->CreateCommittedResource(
+            &uhp, D3D12_HEAP_FLAG_NONE, &ud,
+            D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&upload))))
+        throw std::runtime_error("Volume upload buffer creation failed");
+
+    uint8_t *mapped = nullptr;
+    upload->Map(0, nullptr, (void **)&mapped);
+    mapped += footprint.Offset;
+    UINT srcRowPitch = W * sizeof(float);
+    UINT dstRowPitch = footprint.Footprint.RowPitch;
+    for (UINT z = 0; z < D; z++)
+    {
+        for (UINT y = 0; y < H; y++)
+        {
+            const float *srcRow = data + (size_t)W * (y + (size_t)H * z);
+            uint8_t *dstRow = mapped + (size_t)dstRowPitch * y + (size_t)dstRowPitch * (size_t)numRows * z;
+            memcpy(dstRow, srcRow, srcRowPitch);
+        }
+    }
+    upload->Unmap(0, nullptr);
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = tex.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    src.pResource = upload.Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint = footprint;
+    cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    D3D12_RESOURCE_BARRIER barrier{};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Transition.pResource = tex.Get();
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    cmdList->ResourceBarrier(1, &barrier);
+
+    uint32_t index = (uint32_t)textures.size();
+    textures.push_back(tex);
+    uploads.push_back(upload);
+    return index;
+}
+
+DXRApp::LoadedVolumeIndices DXRApp::LoadVolume(const std::string &path)
+{
+    LoadedVolumeIndices result{VOLUME_INVALID_TEX, VOLUME_INVALID_TEX};
+
     // Read .vol file which consists of 40-byte header + dense float array
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open())
     {
         printf("[volume] WARNING: could not open '%s'\n", path.c_str());
-        return;
+        return result;
     }
 
     char magic[4];
@@ -1280,7 +1441,7 @@ void DXRApp::LoadVolume(const std::string &path)
     if (memcmp(magic, "VOL1", 4) != 0)
     {
         printf("[volume] WARNING: invalid magic in '%s'\n", path.c_str());
-        return;
+        return result;
     }
 
     uint32_t W, H, D;
@@ -1301,68 +1462,46 @@ void DXRApp::LoadVolume(const std::string &path)
            path.c_str(), W, H, D,
            (numVoxels * 4) / (1024.0f * 1024.0f));
 
-    // Create Texture3D resource
-    D3D12_HEAP_PROPERTIES hp{};
-    hp.Type = D3D12_HEAP_TYPE_DEFAULT;
-    D3D12_RESOURCE_DESC td{};
-    td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-    td.Width = W;
-    td.Height = H;
-    td.DepthOrArraySize = (UINT16)D;
-    td.MipLevels = 1;
-    td.Format = DXGI_FORMAT_R32_FLOAT;
-    td.SampleDesc.Count = 1;
-    td.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    ThrowIfFailed(m_device->CreateCommittedResource(
-                      &hp, D3D12_HEAP_FLAG_NONE, &td,
-                      D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-                      IID_PPV_ARGS(&m_volumeTexture)),
-                  "Volume Texture3D");
+    // Upload the dense density grid.
+    result.densityIndex = UploadVolumeTexture3D(
+        m_device.Get(), m_commandList.Get(),
+        m_volumeTextures, m_volumeUploads,
+        data.data(), W, H, D);
 
-    UINT64 uploadSize = 0;
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
-    UINT numRows = 0;
-    UINT64 rowSize = 0;
-    m_device->GetCopyableFootprints(&td, 0, 1, 0, &footprint, &numRows, &rowSize, &uploadSize);
-
-    m_volumeUpload = CreateBuffer(uploadSize, D3D12_RESOURCE_FLAG_NONE,
-                                  D3D12_RESOURCE_STATE_GENERIC_READ,
-                                  D3D12_HEAP_TYPE_UPLOAD);
-
-    uint8_t *mapped = nullptr;
-    m_volumeUpload->Map(0, nullptr, (void **)&mapped);
-    mapped += footprint.Offset;
-
-    UINT srcRowPitch = W * sizeof(float);
-    UINT dstRowPitch = footprint.Footprint.RowPitch;
-    for (UINT z = 0; z < D; z++)
+    // Build a coarse brick-max-density mip used as a tracked majorant for
+    // null-collision tracking. Each majorant voxel holds the max density
+    // of a BRICK_SIZE^3 block of dense voxels, so the local μ within a
+    // brick becomes density_brick_max · σ_t,max — much smaller than the
+    // global μ in low-density regions, which lets exponential free-flight
+    // sampling take large steps through empty space.
+    const uint32_t BRICK_SIZE = 4;
+    const uint32_t mW = (W + BRICK_SIZE - 1) / BRICK_SIZE;
+    const uint32_t mH = (H + BRICK_SIZE - 1) / BRICK_SIZE;
+    const uint32_t mD = (D + BRICK_SIZE - 1) / BRICK_SIZE;
+    std::vector<float> majorant((size_t)mW * mH * mD, 0.0f);
+    for (uint32_t z = 0; z < D; z++)
     {
-        for (UINT y = 0; y < H; y++)
+        for (uint32_t y = 0; y < H; y++)
         {
-            const float *srcRow = data.data() + (size_t)W * (y + (size_t)H * z);
-            uint8_t *dstRow = mapped + (size_t)dstRowPitch * y + (size_t)dstRowPitch * (size_t)numRows * z;
-            memcpy(dstRow, srcRow, srcRowPitch);
+            for (uint32_t x = 0; x < W; x++)
+            {
+                float d = data[(size_t)x + (size_t)W * (y + (size_t)H * z)];
+                size_t mIdx = (size_t)(x / BRICK_SIZE) +
+                              (size_t)mW * ((y / BRICK_SIZE) + (size_t)mH * (z / BRICK_SIZE));
+                majorant[mIdx] = std::max(majorant[mIdx], d);
+            }
         }
     }
-    m_volumeUpload->Unmap(0, nullptr);
-    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
-    dst.pResource = m_volumeTexture.Get();
-    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    src.pResource = m_volumeUpload.Get();
-    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint = footprint;
-    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    result.majorantIndex = UploadVolumeTexture3D(
+        m_device.Get(), m_commandList.Get(),
+        m_volumeTextures, m_volumeUploads,
+        majorant.data(), mW, mH, mD);
 
-    D3D12_RESOURCE_BARRIER barrier{};
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Transition.pResource = m_volumeTexture.Get();
-    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    m_commandList->ResourceBarrier(1, &barrier);
-
-    m_hasVolumeTexture = true;
-    printf("[volume] Texture3D (%ux%ux%u, R32_FLOAT) uploaded\n", W, H, D);
+    printf("[volume] Density Texture3D (%ux%ux%u) uploaded as index %u\n",
+           W, H, D, result.densityIndex);
+    printf("[volume] Majorant Texture3D (%ux%ux%u, brick=%u) uploaded as index %u\n",
+           mW, mH, mD, BRICK_SIZE, result.majorantIndex);
+    return result;
 }
 
 void DXRApp::CreateTextures()
@@ -1473,20 +1612,37 @@ void DXRApp::CreateTextures()
 
     BuildEnvmapDistribution();
 
-    // Load volume density file if the scene has a heterogeneous medium
+    // Load any heterogeneous-volume density files referenced by the scene's
+    // medium. LoadVolume uploads both the dense density and a coarse
+    // brick-max-density majorant; both indices are patched into m_volumes
+    // below so the shader can walk bricks during null-collision tracking.
+    LoadedVolumeIndices mediumIdx{VOLUME_INVALID_TEX, VOLUME_INVALID_TEX};
     {
         const Medium *medium = m_noriScene->getMedium();
         if (medium && medium->isHeterogeneous() && !medium->getVolumePath().empty())
         {
             filesystem::path volPath = getFileResolver()->resolve(medium->getVolumePath());
-            LoadVolume(volPath.str());
+            mediumIdx = LoadVolume(volPath.str());
         }
     }
 
     FlushCommandQueue();
     m_texUploads.clear();
     m_envmapUpload.Reset();
-    m_volumeUpload.Reset();
+    m_volumeUploads.clear();
+
+    // Patch the medium's volume entry (built in SetupVolumes with placeholder
+    // texture indices) so its densityTexIndex / majorantTexIndex point at
+    // the uploaded Texture3D's, then re-upload the volume buffer.
+    if (!m_volumes.empty() && (m_volumes[0].flags & VOLUME_FLAG_HETEROGENEOUS))
+    {
+        m_volumes[0].densityTexIndex = mediumIdx.densityIndex;
+        m_volumes[0].majorantTexIndex = mediumIdx.majorantIndex;
+        void *p = nullptr;
+        m_volumeBuffer->Map(0, nullptr, &p);
+        memcpy(p, m_volumes.data(), m_volumes.size() * sizeof(GPUVolume));
+        m_volumeBuffer->Unmap(0, nullptr);
+    }
 
     // patch texture indices into the material buffer
     {
@@ -1563,50 +1719,7 @@ void DXRApp::SetupCamera()
            m_camFovY * 180.0f / 3.14159f);
     printf("[camera] Controls: WASD=move, QE=up/down, RightClick+drag=look, Both+drag=pan, P=snapshot\n");
 
-    // Volume: read participating medium from scene XML
-    const Medium *medium = m_noriScene->getMedium();
-    if (medium)
-    {
-        BoundingBox3f vbox;
-        if (medium->hasExplicitBounds())
-        {
-            vbox = medium->getExplicitBounds();
-        }
-        else
-        {
-            vbox = m_noriScene->getBoundingBox();
-        }
-        m_camera.volumeMin[0] = vbox.min.x();
-        m_camera.volumeMin[1] = vbox.min.y();
-        m_camera.volumeMin[2] = vbox.min.z();
-        m_camera.volumeMax[0] = vbox.max.x();
-        m_camera.volumeMax[1] = vbox.max.y();
-        m_camera.volumeMax[2] = vbox.max.z();
-        m_camera.volumeSigmaA = medium->getSigmaA();
-        m_camera.volumeSigmaS = medium->getSigmaS();
-        m_camera.volumePhaseG = medium->getPhaseG();
-        m_camera.volumeEnabled = 1;
-        m_camera.volumeHeterogeneous = medium->isHeterogeneous() ? 1 : 0;
-        m_camera.volumeHasTexture = m_hasVolumeTexture ? 1 : 0;
-        printf("[volume] enabled: sigmaA=%.3f sigmaS=%.3f g=%.2f bbox=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f)%s%s\n",
-               m_camera.volumeSigmaA, m_camera.volumeSigmaS, m_camera.volumePhaseG,
-               vbox.min.x(), vbox.min.y(), vbox.min.z(),
-               vbox.max.x(), vbox.max.y(), vbox.max.z(),
-               medium->hasExplicitBounds() ? " [explicit bounds]" : " [scene bbox]",
-               medium->isHeterogeneous() ? " [heterogeneous]" : " [homogeneous]");
-    }
-    else
-    {
-        m_camera.volumeEnabled = 0;
-        m_camera.volumeSigmaA = 0.0f;
-        m_camera.volumeSigmaS = 0.0f;
-        m_camera.volumePhaseG = 0.0f;
-        m_camera.volumeHeterogeneous = 0;
-        m_camera.volumeHasTexture = 0;
-        memset(m_camera.volumeMin, 0, sizeof(m_camera.volumeMin));
-        memset(m_camera.volumeMax, 0, sizeof(m_camera.volumeMax));
-        printf("[volume] disabled (no <medium> in scene XML)\n");
-    }
+    m_camera.volumeCount = (uint32_t)m_volumes.size();
 }
 
 // recompute the camera image plane from yaw/pitch/position/fov
@@ -1651,8 +1764,11 @@ void DXRApp::RecomputeCameraPlane()
 void DXRApp::CreateRaytracingPipeline()
 {
     UINT totalSRVs = 7 + 1 + 2 + 1 + m_textureCount; // +1 for tangent buffer
+    UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
 
-    D3D12_DESCRIPTOR_RANGE ranges[3]{};
+    // ranges[2]: t0 space1 — StructuredBuffer<GPUVolume> (1 descriptor)
+    // ranges[3]: t1 space1 — Texture3D<float>[] (volumeTexCount descriptors)
+    D3D12_DESCRIPTOR_RANGE ranges[4]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     ranges[0].NumDescriptors = 2; // u0=output, u1=accumulation
     ranges[0].BaseShaderRegister = 0;
@@ -1668,13 +1784,19 @@ void DXRApp::CreateRaytracingPipeline()
     ranges[2].RegisterSpace = 1;
     ranges[2].OffsetInDescriptorsFromTableStart = 2 + totalSRVs;
 
+    ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    ranges[3].NumDescriptors = volumeTexCount;
+    ranges[3].BaseShaderRegister = 1;
+    ranges[3].RegisterSpace = 1;
+    ranges[3].OffsetInDescriptorsFromTableStart = 2 + totalSRVs + 1;
+
     D3D12_ROOT_PARAMETER rp[2]{};
     rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     rp[0].Constants.ShaderRegister = 0;
     rp[0].Constants.Num32BitValues = sizeof(CameraConstants) / 4;
     rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    rp[1].DescriptorTable.NumDescriptorRanges = 3;
+    rp[1].DescriptorTable.NumDescriptorRanges = 4;
     rp[1].DescriptorTable.pDescriptorRanges = ranges;
     rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -1795,7 +1917,7 @@ void DXRApp::CreateOutputResource()
                       "Accum tex");
     }
 
-    // Descriptor heap: 13 + N material-texture slots + 1 volume density
+    // Descriptor heap layout:
     //  [0]  u0  UAV output texture
     //  [1]  u1  UAV accumulation texture
     //  [2]  t0  SRV TLAS
@@ -1809,9 +1931,11 @@ void DXRApp::CreateOutputResource()
     //  [10] t8  SRV envmap marginal CDF (raw)
     //  [11] t9  SRV envmap conditional CDF (raw)
     //  [12] t10 SRV global fiber tangent buffer (raw, hair only)
-    //  [13+] t11+ SRV material textures
-    //  [13+N] t0(space1) SRV volume density (Texture3D<float>)
-    UINT totalDescriptors = 14 + m_textureCount;
+    //  [13..13+N) t11+ SRV material textures
+    //  [13+N]     t0 (space1) SRV volume StructuredBuffer<GPUVolume>
+    //  [14+N..)   t1+ (space1) SRV volume density Texture3D<float>[]
+    UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
+    UINT totalDescriptors = 14 + m_textureCount + volumeTexCount;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
     dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -1933,20 +2057,32 @@ void DXRApp::CreateOutputResource()
         h.ptr += m_srvUavDescriptorSize;
     }
 
-    // [13+N] SRV — volume density Texture3D (t0, space1)
+    // [13+N] SRV — volume StructuredBuffer<GPUVolume> (t0, space1).
+    // The descriptor table always points at a real buffer (CreateSceneBuffers
+    // allocates at least one entry even when m_volumes is empty).
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
+        sd.Format = DXGI_FORMAT_UNKNOWN;
+        sd.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        sd.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        sd.Buffer.NumElements = (UINT)std::max<size_t>(1, m_volumes.size());
+        sd.Buffer.StructureByteStride = sizeof(GPUVolume);
+        m_device->CreateShaderResourceView(m_volumeBuffer.Get(), &sd, h);
+        h.ptr += m_srvUavDescriptorSize;
+    }
+
+    // [14+N..) SRV — volume density Texture3D[] (t1+, space1).
+    // If the scene has no volume textures, fill the slot with one dummy
+    // 1x1x1 R32_FLOAT resource so the descriptor table is valid.
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
         sd.Format = DXGI_FORMAT_R32_FLOAT;
         sd.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
         sd.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         sd.Texture3D.MipLevels = 1;
-        if (m_hasVolumeTexture)
+
+        if (m_volumeTextures.empty())
         {
-            m_device->CreateShaderResourceView(m_volumeTexture.Get(), &sd, h);
-        }
-        else
-        {
-            // Create a dummy 1x1x1 volume with density=0
             D3D12_HEAP_PROPERTIES dhp{};
             dhp.Type = D3D12_HEAP_TYPE_DEFAULT;
             D3D12_RESOURCE_DESC drd{};
@@ -1958,12 +2094,23 @@ void DXRApp::CreateOutputResource()
             drd.Format = DXGI_FORMAT_R32_FLOAT;
             drd.SampleDesc.Count = 1;
             static ComPtr<ID3D12Resource> dummyVol;
-            m_device->CreateCommittedResource(&dhp, D3D12_HEAP_FLAG_NONE, &drd,
-                                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, nullptr,
-                                              IID_PPV_ARGS(&dummyVol));
+            if (!dummyVol)
+            {
+                m_device->CreateCommittedResource(&dhp, D3D12_HEAP_FLAG_NONE, &drd,
+                                                  D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, nullptr,
+                                                  IID_PPV_ARGS(&dummyVol));
+            }
             m_device->CreateShaderResourceView(dummyVol.Get(), &sd, h);
+            h.ptr += m_srvUavDescriptorSize;
         }
-        h.ptr += m_srvUavDescriptorSize;
+        else
+        {
+            for (size_t i = 0; i < m_volumeTextures.size(); i++)
+            {
+                m_device->CreateShaderResourceView(m_volumeTextures[i].Get(), &sd, h);
+                h.ptr += m_srvUavDescriptorSize;
+            }
+        }
     }
 
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");

@@ -1768,6 +1768,18 @@
 		<string name="filename" value="meshes/tank3.obj"/>
 		<bsdf type="dielectric"/>
 		</mesh>  
+
+	<!-- ============================================================
+	CLOUD VOLUME (heterogeneous medium)
+	============================================================ -->
+	<medium type="heterogeneous">
+		<color name="sigmaA" value="0.0, 5.0, 5.0"/>
+		<color name="sigmaS" value="10.0, 10.0, 10.0"/>
+		<float name="g" value="0.85"/>
+		<string name="volume" value="clouds/volumes/cloud.vol"/>
+		<point name="boundsMin" value="0.4912, -2.9163, 0.4451"/>
+		<point name="boundsMax" value="1.7805, -1.0130, 1.5272"/>
+	</medium>
 	
 <!-- 
 	<!-- ============================================================
@@ -1914,16 +1926,4 @@
 			<float name="anisotropic"    value="0.0"/>
 		</bsdf>
 	</mesh> -->
-	<!-- ============================================================
-	     CLOUD VOLUME (heterogeneous medium)
-	     ============================================================ -->
-
-<!-- <medium type="heterogeneous">
-    <float name="sigmaA" value="0.005"/>
-    <float name="sigmaS" value="10.0"/>
-    <float name="g" value="0.85"/>
-    <string name="volume" value="clouds/volumes/cloud.vol"/>
-    <point name="boundsMin" value="0.4912, -2.9163, 0.4451"/>
-    <point name="boundsMax" value="1.7805, -1.0130, 1.5272"/>
-</medium> -->
 </scene>

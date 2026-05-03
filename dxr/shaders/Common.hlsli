@@ -27,15 +27,10 @@ cbuffer CameraParams : register(b0)
     float3 camVertical;
     uint frameCount;
 
-    // Volume parameters for homogeneous participating medium
-    float volumeMinX, volumeMinY, volumeMinZ;
-    float volumeSigmaA;
-    float volumeMaxX, volumeMaxY, volumeMaxZ;
-    float volumeSigmaS;
-    float volumePhaseG;
-    uint volumeEnabled;
-    uint volumeHeterogeneous;
-    uint volumeHasTexture;
+    // Number of participating-medium instances; per-volume data is in
+    // g_volumes (StructuredBuffer<GPUVolume>) below. Zero means no volumes.
+    uint volumeCount;
+    uint cbpad0, cbpad1, cbpad2;
 };
 
 // ============================================================================
@@ -106,8 +101,41 @@ Texture2D g_textures[] : register(t11);
 SamplerState g_sampler : register(s0);
 SamplerState g_envmapSampler : register(s1);
 
-// Volume density for heterogeneous media
-Texture3D<float> g_volumeDensity : register(t0, space1);
+// ============================================================================
+// Participating-medium volumes
+// ============================================================================
+//
+// Multi-volume design:
+//   - g_volumes is a flat array of GPUVolume records, one per medium instance.
+//   - Each record carries its own AABB, scattering coefficients, phase param,
+//     and (optionally) an index into g_volumeDensities[] for heterogeneous
+//     density lookup.
+//   - The path tracer walks all volumes a ray crosses (see Volume.hlsl).
+//   - This is the "Option A" layout. Migrating to procedural-AABB BLAS
+//     ("Option B") replaces enumeration but keeps GPUVolume identical.
+
+#define VOLUME_FLAG_HETEROGENEOUS 0x1u
+#define VOLUME_INVALID_TEX 0xFFFFFFFFu
+
+struct GPUVolume
+{
+    float3 vMin;
+    float pad0;
+    float3 sigmaA;
+    float pad1;
+    float3 vMax;
+    float pad2;
+    float3 sigmaS;
+    float phaseG;
+    uint densityTexIndex;  // index into g_volumeDensities[], or VOLUME_INVALID_TEX
+    uint flags;            // VOLUME_FLAG_*
+    uint majorantTexIndex; // index of the brick-max-density coarse mip,
+                           // or VOLUME_INVALID_TEX to fall back to global μ.
+    uint pad3;
+};
+
+StructuredBuffer<GPUVolume> g_volumes : register(t0, space1);
+Texture3D<float> g_volumeDensities[] : register(t1, space1);
 SamplerState g_volumeSampler : register(s2);
 
 // ============================================================================

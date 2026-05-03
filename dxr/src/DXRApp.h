@@ -31,16 +31,39 @@ struct CameraConstants
     float camVertical[3];
     uint32_t frameCount;
 
-    // Volume (homogeneous participating medium)
-    float volumeMin[3];
-    float volumeSigmaA;
-    float volumeMax[3];
-    float volumeSigmaS;
-    float volumePhaseG;
-    uint32_t volumeEnabled;
-    uint32_t volumeHeterogeneous;
-    uint32_t volumeHasTexture;
+    // Number of participating-medium instances. Per-volume data is uploaded
+    // separately as a StructuredBuffer<GPUVolume>; see m_volumeBuffer.
+    uint32_t volumeCount;
+    uint32_t cbpad0, cbpad1, cbpad2;
 };
+
+// Mirror of the HLSL GPUVolume — must stay byte-identical (80 bytes, 16-byte
+// aligned). Each float3 is followed by an explicit pad word so the layout
+// is robust against HLSL packing rules (DXC may force 16-byte alignment for
+// consecutive float3s in a StructuredBuffer; padding makes the answer the
+// same under either rule).
+struct GPUVolume
+{
+    float vMin[3];             // 0..11
+    float pad0;                // 12..15
+    float sigmaA[3];           // 16..27
+    float pad1;                // 28..31
+    float vMax[3];             // 32..43
+    float pad2;                // 44..47
+    float sigmaS[3];           // 48..59
+    float phaseG;              // 60..63
+    uint32_t densityTexIndex;  // 64..67  0xFFFFFFFF if homogeneous / no texture
+    uint32_t flags;            // 68..71  bit 0: heterogeneous
+    uint32_t majorantTexIndex; // 72..75  index of the brick-max-density mip,
+                               //         or 0xFFFFFFFF to fall back to global μ
+    uint32_t pad3;             // 76..79
+};
+
+static_assert(sizeof(GPUVolume) == 80,
+              "GPUVolume layout must match HLSL declaration");
+
+static constexpr uint32_t VOLUME_FLAG_HETEROGENEOUS = 0x1u;
+static constexpr uint32_t VOLUME_INVALID_TEX = 0xFFFFFFFFu;
 
 struct GPUMaterial
 {
@@ -181,10 +204,16 @@ private:
     ComPtr<ID3D12Resource> m_envmapMarginalCdf;    // (H + 1) floats
     ComPtr<ID3D12Resource> m_envmapConditionalCdf; // H * (W + 1) floats
 
-    // Volume density texture (heterogeneous media)
-    ComPtr<ID3D12Resource> m_volumeTexture;
-    ComPtr<ID3D12Resource> m_volumeUpload;
-    bool m_hasVolumeTexture = false;
+    // Participating-medium volumes (Option A: flat structured buffer).
+    // m_volumes is the CPU-side definition; m_volumeBuffer is the GPU-visible
+    // StructuredBuffer<GPUVolume>. Heterogeneous volumes that load a density
+    // file each push a Texture3D into m_volumeTextures and reference it by
+    // index. m_volumeUploads holds upload heaps until the load command list
+    // flushes.
+    std::vector<GPUVolume> m_volumes;
+    ComPtr<ID3D12Resource> m_volumeBuffer;
+    std::vector<ComPtr<ID3D12Resource>> m_volumeTextures;
+    std::vector<ComPtr<ID3D12Resource>> m_volumeUploads;
 
     // Ray tracing pipeline
     ComPtr<ID3D12StateObject> m_rtStateObject;
@@ -227,6 +256,7 @@ private:
     void CreateCommandAllocatorsAndList();
     void CreateFence();
     void CreateAccelerationStructure();
+    void SetupVolumes();
     void CreateSceneBuffers();
     void CreateTextures();
     void CreateRaytracingPipeline();
@@ -239,7 +269,18 @@ private:
     uint32_t LoadTexture(const std::string &path, bool isSRGB);
     void LoadEnvmap(const std::string &path);
     void BuildEnvmapDistribution();
-    void LoadVolume(const std::string &path);
+    // Load a heterogeneous-volume density file (.vol) and append two
+    // Texture3D's to m_volumeTextures: the dense density grid and a coarse
+    // brick-max-density mip used for tracked-majorant volume tracking.
+    // Returns the indices for GPUVolume::densityTexIndex and
+    // GPUVolume::majorantTexIndex respectively, or VOLUME_INVALID_TEX in
+    // both slots on failure.
+    struct LoadedVolumeIndices
+    {
+        uint32_t densityIndex;
+        uint32_t majorantIndex;
+    };
+    LoadedVolumeIndices LoadVolume(const std::string &path);
 
     void RecomputeCameraPlane();
 
