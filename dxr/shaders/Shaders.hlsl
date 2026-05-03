@@ -1858,10 +1858,11 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
             GPUMaterial mat = g_materials[payload.materialID];
             float2 hitUV = float2(payload.texU, payload.texV);
 
-            if (dot(Ng, ray.Direction) > 0.0)
+            bool hitBackFace = (dot(Ng, ray.Direction) > 0.0);
+
+            if (hitBackFace)
                 Ng = -Ng;
-            // Keep shading normal in the same hemisphere as Ng (handles back-face hits
-            // on two-sided geometry like hair cards — otherwise wi_local.z < 0 and the
+
             // BSDF returns zero, producing solid-black rectangles).
             if (dot(N, Ng) < 0.0)
                 N = -N;
@@ -2036,17 +2037,16 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
             else if (mat.type == 2)
             {
                 float3 I = ray.Direction;
-                float3 Nf;
+
+                float3 Nf = N;
                 float etaI, etaT;
-                if (dot(I, N) < 0.0)
+                if (!hitBackFace)
                 {
-                    Nf = N;
                     etaI = mat.extIOR;
                     etaT = mat.intIOR;
                 }
                 else
                 {
-                    Nf = -N;
                     etaI = mat.intIOR;
                     etaT = mat.extIOR;
                 }
@@ -2203,7 +2203,7 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
 // this (stays D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE), so only instances
 // marked FORCE_NON_OPAQUE trigger this shader.
 [shader("anyhit")] void ShadowAnyHit(inout ShadowPayload payload,
-                                        in BuiltInTriangleIntersectionAttributes attr)
+                                     in BuiltInTriangleIntersectionAttributes attr)
 {
     uint instanceID = InstanceID();
     GPUMaterial mat = g_materials[instanceID];

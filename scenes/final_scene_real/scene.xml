@@ -1691,6 +1691,84 @@
 		</bsdf>
 	</mesh>
 
+	<mesh type="obj">
+		<string name="filename" value="meshes/omori/diorama/present.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/present/Present_baseColor.png"/>
+			<string name="normalTexture"    value="textures/present/Present_normal.png"/>
+			<string name="roughnessTexture" value="textures/present/Present_metallicRoughness.png"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.2"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/omori/diorama/cat.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/omori/cat.png"/>
+			<float name="roughness"      value="0.9"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.0"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/omori/diorama/dice1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/omori/dice/Dice_1_baseColor.jpeg"/>
+			<string name="normalTexture"    value="textures/omori/dice/Dice_1_normal.png"/>
+			<string name="roughnessTexture" value="textures/omori/dice/Dice_1_metallicRoughness.png"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.2"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/omori/diorama/dice2.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/omori/dice/Dice_2_baseColor.jpeg"/>
+			<string name="normalTexture"    value="textures/omori/dice/Dice_2_normal.png"/>
+			<string name="roughnessTexture" value="textures/omori/dice/Dice_2_metallicRoughness.png"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.2"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
 	<!-- ============================================================
 	     CIRCUS FLOOR
 	     ============================================================ -->
