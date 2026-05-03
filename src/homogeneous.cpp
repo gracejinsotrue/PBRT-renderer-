@@ -21,8 +21,8 @@ class HomogeneousMedium : public Medium
 public:
     HomogeneousMedium(const PropertyList &propList)
     {
-        m_sigmaA = propList.getFloat("sigmaA", 0.0f);
-        m_sigmaS = propList.getFloat("sigmaS", 0.3f);
+        m_sigmaARGB = readScalarOrColor(propList, "sigmaA", 0.0f);
+        m_sigmaSRGB = readScalarOrColor(propList, "sigmaS", 0.3f);
         m_phaseG = propList.getFloat("g", 0.0f);
 
         Point3f defaultMin(1e18f, 1e18f, 1e18f);
@@ -41,8 +41,13 @@ public:
         }
     }
 
-    float getSigmaA() const override { return m_sigmaA; }
-    float getSigmaS() const override { return m_sigmaS; }
+    // RGB is the source of truth; the scalar getters return the red
+    // channel for backward compat (matches the original behavior for
+    // grayscale scenes since Color3f(s) broadcasts).
+    float getSigmaA() const override { return m_sigmaARGB.r(); }
+    float getSigmaS() const override { return m_sigmaSRGB.r(); }
+    Color3f getSigmaARGB() const override { return m_sigmaARGB; }
+    Color3f getSigmaSRGB() const override { return m_sigmaSRGB; }
     float getPhaseG() const override { return m_phaseG; }
     bool hasExplicitBounds() const override { return m_hasExplicitBounds; }
     BoundingBox3f getExplicitBounds() const override { return m_bounds; }
@@ -51,18 +56,18 @@ public:
     {
         return tfm::format(
             "HomogeneousMedium[\n"
-            "  sigmaA = %f,\n"
-            "  sigmaS = %f,\n"
+            "  sigmaA = %s,\n"
+            "  sigmaS = %s,\n"
             "  g = %f,\n"
             "  explicitBounds = %s\n"
             "]",
-            m_sigmaA, m_sigmaS, m_phaseG,
+            m_sigmaARGB.toString(), m_sigmaSRGB.toString(), m_phaseG,
             m_hasExplicitBounds ? "yes" : "no (scene bbox)");
     }
 
 private:
-    float m_sigmaA;
-    float m_sigmaS;
+    Color3f m_sigmaARGB;
+    Color3f m_sigmaSRGB;
     float m_phaseG;
     bool m_hasExplicitBounds = false;
     BoundingBox3f m_bounds;

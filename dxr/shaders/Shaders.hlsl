@@ -15,15 +15,10 @@ cbuffer CameraParams : register(b0)
     float3 camVertical;
     uint frameCount;
 
-    // Volume parameters for homogeneous participating medium
-    float volumeMinX, volumeMinY, volumeMinZ;
-    float volumeSigmaA;
-    float volumeMaxX, volumeMaxY, volumeMaxZ;
-    float volumeSigmaS;
-    float volumePhaseG;
-    uint volumeEnabled;
-    uint volumeHeterogeneous;
-    uint volumeHasTexture;
+    // Number of participating-medium instances; per-volume data lives in
+    // g_volumes (StructuredBuffer<GPUVolume>) below. Zero means no volumes.
+    uint volumeCount;
+    uint cbpad0, cbpad1, cbpad2;
 };
 
 struct GPUMaterial
@@ -86,8 +81,33 @@ Texture2D g_textures[] : register(t11);
 SamplerState g_sampler : register(s0);
 SamplerState g_envmapSampler : register(s1);
 
-// Volume density for heterogenous media
-Texture3D<float> g_volumeDensity : register(t0, space1);
+// Participating-medium volumes. Multi-instance design: each entry in
+// g_volumes carries its own AABB, scattering coefficients, phase param,
+// and (for heterogeneous media) an index into g_volumeDensities[].
+// See Common.hlsli for the canonical declaration.
+
+#define VOLUME_FLAG_HETEROGENEOUS 0x1u
+#define VOLUME_INVALID_TEX 0xFFFFFFFFu
+
+struct GPUVolume
+{
+    float3 vMin;
+    float pad0;
+    float3 sigmaA;
+    float pad1;
+    float3 vMax;
+    float pad2;
+    float3 sigmaS;
+    float phaseG;
+    uint densityTexIndex;  // index into g_volumeDensities[], or VOLUME_INVALID_TEX
+    uint flags;            // VOLUME_FLAG_*
+    uint majorantTexIndex; // index of the brick-max-density coarse mip,
+                           // or VOLUME_INVALID_TEX to fall back to global μ.
+    uint pad3;
+};
+
+StructuredBuffer<GPUVolume> g_volumes : register(t0, space1);
+Texture3D<float> g_volumeDensities[] : register(t1, space1);
 SamplerState g_volumeSampler : register(s2);
 
 static const float M_PI = 3.14159265358979323846;
@@ -1537,7 +1557,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float w = BalanceHeuristic(pdfEms, pdfBsdf);
-    float3 volTr = VolumeTransmittance(shadowOrigin, wi_world, dist, rng);
+    float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, dist, rng);
     return es.radiance * f * cosTheta / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
 }
 
@@ -1581,7 +1601,7 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     float pdfBsdf = MaterialPdf(wi_local, wo_local, mat);
 
     float w = BalanceHeuristic(pdfEnv, pdfBsdf);
-    float3 volTr = VolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
+    float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
     return Lenv * f * cosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
 }
 
@@ -1591,17 +1611,22 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
 // dependence is entirely in the phase function.
 // MIS-weighted against the phase function sampling pdf.
 
-float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)
+float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG rng)
 {
-    // Early exit: if scatter point is deep inside the volume in every direction,
-    // transmittance to any light will be negligible. Skip expensive shadow ray.
-    float sigmaT = volumeSigmaA + volumeSigmaS;
-    float3 vMin = float3(volumeMinX, volumeMinY, volumeMinZ);
-    float3 vMax = float3(volumeMaxX, volumeMaxY, volumeMaxZ);
-    float3 dMin = scatterPos - vMin;
-    float3 dMax = vMax - scatterPos;
+    // Early exit: if scatter point is deep inside the scattering volume in
+    // every direction, transmittance to any light will be negligible. Skip
+    // expensive shadow ray. Uses the volume the scatter happened in; ignores
+    // other volumes the shadow ray may cross (cheap and conservative). For
+    // RGB extinction we test against the dimmest channel — even one
+    // surviving channel is reason enough to keep the shadow ray.
+    GPUVolume vol = g_volumes[volumeIndex];
+    float3 sigmaT = VolumeSigmaT(vol);
+    float sigmaTmin = min(sigmaT.r, min(sigmaT.g, sigmaT.b));
+    float phaseG = vol.phaseG;
+    float3 dMin = scatterPos - vol.vMin;
+    float3 dMax = vol.vMax - scatterPos;
     float minDist = min(min(dMin.x, dMin.y), min(dMin.z, min(dMax.x, min(dMax.y, dMax.z))));
-    if (minDist * sigmaT > 8.0)
+    if (minDist * sigmaTmin > 8.0)
         return float3(0, 0, 0);
 
     EmitterSample es = SampleEmitter(rng);
@@ -1641,8 +1666,8 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     float pdfPhase = fp;
     float w = BalanceHeuristic(pdfEms, pdfPhase);
 
-    // Transmittance along shadow ray through volume
-    float3 volTr = VolumeTransmittance(scatterPos, wi, dist, rng);
+    // Transmittance along shadow ray through all volumes
+    float3 volTr = MultiVolumeTransmittance(scatterPos, wi, dist, rng);
 
     // [Marschner] §5: estimator = σ_s · f_p · L / pdf_emitter, but σ_s is
     // already folded into the throughput (as σ_s/σ_t), so we just need f_p · L.
@@ -1650,17 +1675,19 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     return es.radiance * fp / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
 }
 
-float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)
+float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG rng)
 {
     // Early exit: envmap shadow rays must traverse the full remaining volume.
-    // If the scatter point is deep inside, transmittance will be negligible.
-    float sigmaT = volumeSigmaA + volumeSigmaS;
-    float3 vMin = float3(volumeMinX, volumeMinY, volumeMinZ);
-    float3 vMax = float3(volumeMaxX, volumeMaxY, volumeMaxZ);
-    float3 dMin = scatterPos - vMin;
-    float3 dMax = vMax - scatterPos;
+    // If the scatter point is deep inside *every* channel, transmittance
+    // will be negligible.
+    GPUVolume vol = g_volumes[volumeIndex];
+    float3 sigmaT = VolumeSigmaT(vol);
+    float sigmaTmin = min(sigmaT.r, min(sigmaT.g, sigmaT.b));
+    float phaseG = vol.phaseG;
+    float3 dMin = scatterPos - vol.vMin;
+    float3 dMax = vol.vMax - scatterPos;
     float minDist = min(min(dMin.x, dMin.y), min(dMin.z, min(dMax.x, min(dMax.y, dMax.z))));
-    if (minDist * sigmaT > 8.0)
+    if (minDist * sigmaTmin > 8.0)
         return float3(0, 0, 0);
 
     float u1 = NextFloat(rng);
@@ -1691,7 +1718,7 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     float pdfPhase = fp;
     float w = BalanceHeuristic(pdfEnv, pdfPhase);
 
-    float3 volTr = VolumeTransmittance(scatterPos, wi, 1e20, rng);
+    float3 volTr = MultiVolumeTransmittance(scatterPos, wi, 1e20, rng);
     return Lenv * fp / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
 }
 
@@ -1752,78 +1779,68 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
         rng.state = payload.rngState;
 
         // ── Volume free-flight check ──────────────────────────────────
-        // [Marschner] §3, §5: before handling the surface hit, check
-        // whether the ray scatters inside a participating medium first.
-        // Sample free-flight distance s = -ln(ξ)/σ_t from the volume
-        // entry point.  If s falls within the volume segment, this
-        // bounce becomes a medium interaction (phase function scatter)
-        // instead of a surface hit.
+        // [Marschner] §3, §5: before handling the surface hit, see whether
+        // the ray scatters inside any participating medium first. The
+        // multi-volume entry point walks all volumes the ray crosses and
+        // returns the first scatter event (if any), along with the index
+        // of the scattering volume so we can read its phase param.
+        //
+        // SampleVolumeFreeFlight uses null-collision tracking and threads a
+        // per-channel weight back to us. We multiply throughput by it
+        // unconditionally:
+        //   - Pass-through: weight is the per-channel transmittance through
+        //     every volume the ray crossed (dim-extinction channels survive
+        //     better than the hero), so surfaces behind tinted media pick
+        //     up the correct color.
+        //   - Real scatter: weight already includes the σ_t_volume,c / μ
+        //     factor at the scatter site; combined with the σ_s,c / σ_t,c
+        //     albedo below, the scatter contribution becomes σ_s,c / μ
+        //     per channel (matching the previous formulation).
         bool volumeScattered = false;
-        if (volumeEnabled)
+        if (volumeCount > 0)
         {
-            float sigmaT = volumeSigmaA + volumeSigmaS;
-            float3 vMin = float3(volumeMinX, volumeMinY, volumeMinZ);
-            float3 vMax = float3(volumeMaxX, volumeMaxY, volumeMaxZ);
-            float tNear, tFar;
-            if (sigmaT > 1e-8 &&
-                RayAABBIntersect(ray.Origin, ray.Direction, vMin, vMax, tNear, tFar))
+            float tSurface = payload.hit ? payload.hitT : 1e20;
+            float tScatter;
+            uint scatterVolIdx;
+            float3 volWeight = float3(1, 1, 1);
+            bool scattered = SampleVolumeFreeFlight(
+                ray.Origin, ray.Direction, tSurface,
+                rng, volWeight, tScatter, scatterVolIdx);
+            throughput *= volWeight;
+
+            if (scattered)
             {
-                tNear = max(tNear, 0.0);
-                float tSurface = payload.hit ? payload.hitT : 1e20;
-                tFar = min(tFar, tSurface);
+                volumeScattered = true;
+                GPUVolume scVol = g_volumes[scatterVolIdx];
+                float3 scSigmaT = VolumeSigmaT(scVol);
+                float scPhaseG = scVol.phaseG;
+                float3 scatterPos = ray.Origin + tScatter * ray.Direction;
 
-                if (tFar > tNear)
-                {
-                    float tScatter;
-                    bool scattered;
+                // Per-channel single-scattering albedo σ_s,c / σ_t,c. The
+                // null-collision sampling already contributed σ_t,c / μ, so
+                // the combined per-channel weight at the scatter event
+                // equals σ_s,c / μ.
+                throughput *= scVol.sigmaS / max(scSigmaT, float3(1e-20, 1e-20, 1e-20));
 
-                    if (volumeHeterogeneous)
-                    {
-                        // [Marschner] §4.2: delta tracking
-                        scattered = DeltaTracking(ray.Origin, ray.Direction,
-                                                  tNear, tFar, sigmaT,
-                                                  rng, tScatter);
-                    }
-                    else
-                    {
-                        // [Marschner] §3: homogeneous free-flight
-                        float s = SampleFreeFlightHomogeneous(sigmaT, rng);
-                        scattered = (s < (tFar - tNear));
-                        tScatter = tNear + s;
-                    }
+                // [Marschner] §5 "Direct lighting for volumes": NEE
+                Lo += throughput * VolumeNEEAreaLight(scatterPos,
+                                                      ray.Direction, scatterVolIdx, rng);
+                Lo += throughput * VolumeNEEEnvmap(scatterPos,
+                                                   ray.Direction, scatterVolIdx, rng);
 
-                    if (scattered)
-                    {
-                        // Medium scatter event
-                        volumeScattered = true;
-                        float3 scatterPos = ray.Origin + tScatter * ray.Direction;
+                // [Marschner] §5: importance-sample phase function
+                // for the indirect bounce direction.
+                float phasePdf;
+                float3 newDir = SampleHG(ray.Direction, scPhaseG,
+                                         rng, phasePdf);
 
-                        // Throughput weight: σ_s / σ_t (single-scattering albedo)
-                        // Applied before NEE so that NEE radiance is correctly
-                        // scaled by the path throughput up to this point.
-                        throughput *= volumeSigmaS / sigmaT;
+                ray.Origin = scatterPos;
+                ray.Direction = newDir;
+                ray.TMin = 0.0;
+                ray.TMax = 1e20;
 
-                        // [Marschner] §5 "Direct lighting for volumes": NEE
-                        Lo += throughput * VolumeNEEAreaLight(scatterPos,
-                                                              ray.Direction, volumePhaseG, rng);
-                        Lo += throughput * VolumeNEEEnvmap(scatterPos,
-                                                           ray.Direction, volumePhaseG, rng);
-
-                        // [Marschner] §5: importance-sample phase function
-                        // for the indirect bounce direction.
-                        float phasePdf;
-                        float3 newDir = SampleHG(ray.Direction, volumePhaseG,
-                                                 rng, phasePdf);
-
-                        ray.Origin = scatterPos;
-                        ray.Direction = newDir;
-                        ray.TMin = 0.0;
-                        ray.TMax = 1e20;
-
-                        // Store phase pdf for envmap MIS on the next miss
-                        lastBsdfPdf = max(phasePdf, 1e-20);
-                    }
-                }
+                // Store phase pdf for envmap MIS on the next miss
+                lastBsdfPdf = max(phasePdf, 1e-20);
             }
         }
 
