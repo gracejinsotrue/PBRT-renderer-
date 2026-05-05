@@ -1483,13 +1483,12 @@ EmitterSample SampleEmitter(inout RNG rng)
     if (emitterCount == 0)
         return es;
 
-    // Power-weighted emitter selection: the power CDF lives at the start of
-    // g_emitterCdf (indices 0 .. emitterCount, i.e. emitterCount+1 entries).
-    // Sampling proportional to luma(radiance)*surfaceArea means bright/large
-    // lights are chosen more often, reducing variance with many lights.
-    uint pick = CdfSample(0, emitterCount + 1, NextFloat(rng));
+    // Uniform emitter selection: P(emitter) = 1 / emitterCount.
+    // The CPU still prepends a power CDF at the front of g_emitterCdf and
+    // shifts each per-emitter triangle CDF past it, so eMat.emitterCdfOffset
+    // remains valid; we just don't read the power CDF block here.
+    uint pick = min((uint)(NextFloat(rng) * float(emitterCount)), emitterCount - 1);
 
-    // Walk the mesh list to find the pick-th emitter mesh.
     uint count = 0;
     for (uint j = 0; j < meshCount; j++)
     {
@@ -1511,7 +1510,6 @@ EmitterSample SampleEmitter(inout RNG rng)
     es.radiance = MatRadiance(eMat);
     uint numTris = eMat.indexCount / 3;
     float u = NextFloat(rng);
-    // emitterCdfOffset already accounts for the power CDF block at the front.
     uint triIdx = min(CdfSample(eMat.emitterCdfOffset, numTris + 1, u), numTris - 1);
     uint base = eMat.indexOffset + triIdx * 3;
     uint i0 = g_indices.Load((base + 0) * 4);
@@ -1525,8 +1523,7 @@ EmitterSample SampleEmitter(inout RNG rng)
     float sr1 = sqrt(r1);
     es.position = (1.0 - sr1) * p0 + sr1 * (1.0 - r2) * p1 + sr1 * r2 * p2;
     es.normal = normalize(cross(p1 - p0, p2 - p0));
-    // pdfArea = P(select this emitter) / surfaceArea = emitterSelectionProb / surfaceArea
-    es.pdfArea = eMat.emitterSelectionProb / eMat.surfaceArea;
+    es.pdfArea = 1.0 / (eMat.surfaceArea * float(emitterCount));
     return es;
 }
 
@@ -1540,9 +1537,8 @@ float EmitterPdfSolidAngle(GPUMaterial emitMat, float3 hitPos, float3 shadingPos
     float cosL = abs(dot(emitNormal, -d / dist));
     if (cosL < 1e-8)
         return 0.0;
-    // Include the power-weighted emitter selection probability so this pdf
-    // matches exactly what SampleEmitter produces (needed for correct MIS).
-    return (emitMat.emitterSelectionProb / emitMat.surfaceArea) * dist2 / cosL;
+    // Match SampleEmitter: pdfArea = 1 / (surfaceArea * emitterCount).
+    return (1.0 / (emitMat.surfaceArea * float(emitterCount))) * dist2 / cosL;
 }
 
 float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
@@ -2088,15 +2084,20 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
                 g_hairH = 0.0;
             }
 
-            // Shadow terminator fix: interpolated/normal-mapped N can point away
-            // from the incoming ray even when the geometric normal Ng faces it.
-            // At those grazing pixels the BSDF sees wi_local.z <= 0 and returns
-            // black.  Fall back to the flat geometric normal for this hit so the
-            // BSDF gets a valid incoming direction.
-            if (dot(-ray.Direction, Ng) > 0.0 && dot(-ray.Direction, N) <= 0.0)
+            // Shading-normal terminator handling: when the perturbed N points
+            // away from the viewer but Ng faces it, the BSDF sees wi_local.z<=0
+            // and returns black. Snapping all the way to Ng wipes the normal
+            // map and inflates GGX specular at grazing angles. Bend N just
+            // enough to bring the view direction onto the front side instead.
             {
-                N = Ng;
-                BuildONB(N, T, B);
+                float3 V = -ray.Direction;
+                float NdotV = dot(N, V);
+                if (NdotV <= 0.0 && dot(V, Ng) > 0.0)
+                {
+                    const float kFrontEps = 1e-3;
+                    N = normalize(N + V * (kFrontEps - NdotV));
+                    BuildONB(N, T, B);
+                }
             }
 
             float3 wi_local = ToLocal(-ray.Direction, T, B, N);
