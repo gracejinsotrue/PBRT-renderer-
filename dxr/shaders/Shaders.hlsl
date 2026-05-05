@@ -18,7 +18,9 @@ cbuffer CameraParams : register(b0)
     // Number of participating-medium instances; per-volume data lives in
     // g_volumes (StructuredBuffer<GPUVolume>) below. Zero means no volumes.
     uint volumeCount;
-    uint cbpad0, cbpad1, cbpad2;
+    float lensRadius; // 0 = pinhole camera
+    float focalDistance;
+    uint emitterCount; // number of emitter meshes; power CDF has (emitterCount+1) entries at g_emitterCdf offset 0
 };
 
 struct GPUMaterial
@@ -54,7 +56,8 @@ struct GPUMaterial
     float clearcoat;
     float clearcoatGloss;
     float anisotropic;
-    float betaN; // azimuthal roughness for hair
+    float betaN;                // azimuthal roughness for hair
+    float emitterSelectionProb; // power-weighted probability of selecting this emitter (0 for non-emitters)
 };
 
 float3 MatAlbedo(GPUMaterial m) { return float3(m.albedoR, m.albedoG, m.albedoB); }
@@ -1476,21 +1479,39 @@ EmitterSample SampleEmitter(inout RNG rng)
 {
     EmitterSample es;
     es.valid = false;
-    for (uint i = 0; i < meshCount; i++)
+
+    if (emitterCount == 0)
+        return es;
+
+    // Power-weighted emitter selection: the power CDF lives at the start of
+    // g_emitterCdf (indices 0 .. emitterCount, i.e. emitterCount+1 entries).
+    // Sampling proportional to luma(radiance)*surfaceArea means bright/large
+    // lights are chosen more often, reducing variance with many lights.
+    uint pick = CdfSample(0, emitterCount + 1, NextFloat(rng));
+
+    // Walk the mesh list to find the pick-th emitter mesh.
+    uint count = 0;
+    for (uint j = 0; j < meshCount; j++)
     {
-        if (g_materials[i].isEmitter)
+        if (g_materials[j].isEmitter)
         {
-            es.emitterID = i;
-            es.valid = true;
-            break;
+            if (count == pick)
+            {
+                es.emitterID = j;
+                es.valid = true;
+                break;
+            }
+            count++;
         }
     }
     if (!es.valid)
         return es;
+
     GPUMaterial eMat = g_materials[es.emitterID];
     es.radiance = MatRadiance(eMat);
     uint numTris = eMat.indexCount / 3;
     float u = NextFloat(rng);
+    // emitterCdfOffset already accounts for the power CDF block at the front.
     uint triIdx = min(CdfSample(eMat.emitterCdfOffset, numTris + 1, u), numTris - 1);
     uint base = eMat.indexOffset + triIdx * 3;
     uint i0 = g_indices.Load((base + 0) * 4);
@@ -1504,7 +1525,8 @@ EmitterSample SampleEmitter(inout RNG rng)
     float sr1 = sqrt(r1);
     es.position = (1.0 - sr1) * p0 + sr1 * (1.0 - r2) * p1 + sr1 * r2 * p2;
     es.normal = normalize(cross(p1 - p0, p2 - p0));
-    es.pdfArea = 1.0 / eMat.surfaceArea;
+    // pdfArea = P(select this emitter) / surfaceArea = emitterSelectionProb / surfaceArea
+    es.pdfArea = eMat.emitterSelectionProb / eMat.surfaceArea;
     return es;
 }
 
@@ -1518,7 +1540,9 @@ float EmitterPdfSolidAngle(GPUMaterial emitMat, float3 hitPos, float3 shadingPos
     float cosL = abs(dot(emitNormal, -d / dist));
     if (cosL < 1e-8)
         return 0.0;
-    return (1.0 / emitMat.surfaceArea) * dist2 / cosL;
+    // Include the power-weighted emitter selection probability so this pdf
+    // matches exactly what SampleEmitter produces (needed for correct MIS).
+    return (emitMat.emitterSelectionProb / emitMat.surfaceArea) * dist2 / cosL;
 }
 
 float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
@@ -1758,12 +1782,40 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
     float2 uv = (float2(pixel) + jitter) / float2(dims);
     uv.y = 1.0 - uv.y;
 
+    float3 dir = normalize(
+        camLowerLeftCorner + uv.x * camHorizontal + uv.y * camVertical - camPos);
+
     RayDesc ray;
     ray.Origin = camPos;
-    ray.Direction = normalize(
-        camLowerLeftCorner + uv.x * camHorizontal + uv.y * camVertical - camPos);
+    ray.Direction = dir;
     ray.TMin = 0.001;
     ray.TMax = 1e20;
+
+    if (lensRadius > 0.0)
+    {
+        // Thin-lens depth of field — mirrors perspective.cpp sampleRay()
+        // Reconstruct camera basis in world space from the image-plane vectors
+        float3 camFwd = normalize(camLowerLeftCorner + 0.5 * camHorizontal + 0.5 * camVertical - camPos);
+        float3 camRight = normalize(camHorizontal);
+        float3 camUp = normalize(camVertical);
+
+        // Focus point: walk along the pinhole ray until its projection onto
+        // the optical axis equals focalDistance (equivalent to z = focalDistance
+        // in camera space)
+        float ft = focalDistance / dot(dir, camFwd);
+        float3 focusPoint = camPos + dir * ft;
+
+        // Sample a uniformly distributed point on the circular aperture disk
+        // (squareToUniformDisk: r = sqrt(u1), theta = 2*pi*u2)
+        float u1 = NextFloat(rng);
+        float u2 = NextFloat(rng);
+        float r = sqrt(u1) * lensRadius;
+        float theta = 2.0 * M_PI * u2;
+        float3 lensOffset = (r * cos(theta)) * camRight + (r * sin(theta)) * camUp;
+
+        ray.Origin = camPos + lensOffset;
+        ray.Direction = normalize(focusPoint - ray.Origin);
+    }
 
     float3 Lo = float3(0, 0, 0);
     float3 throughput = float3(1, 1, 1);
@@ -2035,6 +2087,18 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
                 BuildONB(N, T, B);
                 g_hairH = 0.0;
             }
+
+            // Shadow terminator fix: interpolated/normal-mapped N can point away
+            // from the incoming ray even when the geometric normal Ng faces it.
+            // At those grazing pixels the BSDF sees wi_local.z <= 0 and returns
+            // black.  Fall back to the flat geometric normal for this hit so the
+            // BSDF gets a valid incoming direction.
+            if (dot(-ray.Direction, Ng) > 0.0 && dot(-ray.Direction, N) <= 0.0)
+            {
+                N = Ng;
+                BuildONB(N, T, B);
+            }
+
             float3 wi_local = ToLocal(-ray.Direction, T, B, N);
 
             // For Delta BSDFs, mirror and dielectric have their own branches. Next event estimation is

@@ -112,6 +112,9 @@ if(MSVC)
         __TBB_NO_IMPLICIT_LINKAGE
         NOMINMAX
     )
+    target_compile_options(nori-dxr PRIVATE /O2)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(nori-dxr PRIVATE -O3)
 endif()
 
 target_link_libraries(nori-dxr PRIVATE

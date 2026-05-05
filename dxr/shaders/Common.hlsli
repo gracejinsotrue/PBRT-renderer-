@@ -1,4 +1,4 @@
-// Common.hlsli — Resource bindings, structs, and constants shared by all
+// Common.hlsli. Resource bindings, structs, and constants shared by all
 // shader files.  Every .hlsli in this project should #include this first.
 
 #ifndef COMMON_HLSLI
@@ -27,10 +27,11 @@ cbuffer CameraParams : register(b0)
     float3 camVertical;
     uint frameCount;
 
-    // Number of participating-medium instances; per-volume data is in
-    // g_volumes (StructuredBuffer<GPUVolume>) below. Zero means no volumes.
+    // Number of participating-medium instances; per-volume data is in g_volumes (StructuredBuffer<GPUVolume>) below. Zero means no volumes.
     uint volumeCount;
-    uint cbpad0, cbpad1, cbpad2;
+    float lensRadius; // 0 = pinhole camera
+    float focalDistance;
+    uint cbpad2;
 };
 
 // ============================================================================
@@ -111,8 +112,6 @@ SamplerState g_envmapSampler : register(s1);
 //     and (optionally) an index into g_volumeDensities[] for heterogeneous
 //     density lookup.
 //   - The path tracer walks all volumes a ray crosses (see Volume.hlsl).
-//   - This is the "Option A" layout. Migrating to procedural-AABB BLAS
-//     ("Option B") replaces enumeration but keeps GPUVolume identical.
 
 #define VOLUME_FLAG_HETEROGENEOUS 0x1u
 #define VOLUME_INVALID_TEX 0xFFFFFFFFu

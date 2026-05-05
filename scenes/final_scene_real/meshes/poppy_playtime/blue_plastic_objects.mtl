@@ -1,0 +1,2578 @@
+# Blender 5.1.1 MTL File: 'holyshit3.blend'
+# www.blender.org
+
+newmtl BOOKS
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1000.000000
+d 1.000000
+illum 2
+map_Kd C:/BOOKS_diffuse.png
+map_Ns C:/BOOKS_specularGlossiness.png
+map_Bump -bm 1.000000 C:/BOOKS_normal.png
+
+newmtl Blue
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.036059 0.171203 0.774272
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Bread
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Bread_baseColor.png
+map_Bump -bm 0.510478 C:/Bread_normal.png
+
+newmtl Color_001
+Ns 4.870088
+Ka 1.000000 1.000000 1.000000
+Kd 0.886275 0.886275 0.886275
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Color_002
+Ns 4.870088
+Ka 1.000000 1.000000 1.000000
+Kd 0.776471 0.776471 0.776471
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Color_003
+Ns 4.870088
+Ka 1.000000 1.000000 1.000000
+Kd 0.666667 0.666667 0.666667
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Color_007
+Ns 4.870088
+Ka 1.000000 1.000000 1.000000
+Kd 0.227451 0.227451 0.227451
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Dice_1
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Dice_1_baseColor.jpeg
+map_Bump -bm 1.000000 C:/Dice_1_normal.png
+
+newmtl Dice_2
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Dice_2_baseColor.jpeg
+map_Bump -bm 1.000000 C:/Dice_2_normal.png
+
+newmtl Glass
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.603827 0.603827 0.603827
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.250000
+illum 9
+
+newmtl GraceMetaHumanCharacter_body_shader.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/body/body_bc.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/body/Body_Normal.png
+
+newmtl GraceMetaHumanCharacter_body_shader.002
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/body/body_bc.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/body/Body_Normal.png
+
+newmtl GraceMetaHumanCharacter_eyeRight_shader
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyes/baked_eyes_bc.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyes/Eyes_Normal.png
+
+newmtl GraceMetaHumanCharacter_eyeRight_shader.001
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 1
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyes/baked_eyes_bc.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyes/Eyes_Normal.png
+
+newmtl GraceMetaHumanCharacter_eyelashes_shader
+Ns 654.628113
+Ka 1.000000 1.000000 1.000000
+Kd 0.023648 0.004196 0.002037
+Ks 0.050000 0.050000 0.050000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyelashes/eyelash_baked_bc.png
+
+newmtl GraceMetaHumanCharacter_eyelashes_shader.001
+Ns 654.628113
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyelashes/eyelash_baked_bc.png
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyelashes/eyelash_baked_bc.png
+
+newmtl GraceMetaHumanCharacter_eyelashes_shader.002
+Ns 654.628113
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyelashes/eyelash_baked_bc.png
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyelashes/eyelash_baked_bc.png
+
+newmtl GraceMetaHumanCharacter_eyelashes_shader.003
+Ns 654.628113
+Ka 1.000000 1.000000 1.000000
+Kd 0.023648 0.004196 0.002037
+Ks 0.050000 0.050000 0.050000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyelashes/eyelash_baked_bc.png
+
+newmtl GraceMetaHumanCharacter_head_shader.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/head/baked_head_bc.png
+map_Bump -bm 0.750000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/head/baked_head_normal.png
+
+newmtl GraceMetaHumanCharacter_head_shader.002
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/head/baked_head_bc.png
+map_Bump -bm 0.750000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/head/baked_head_normal.png
+
+newmtl Green
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.160495 0.760547 0.081251
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl House_07_1_LOD0_1_1__0
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/House_07_1_LOD0_1_1__0_baseColor.png
+
+newmtl House_07_1_LOD0_1_1__0.002
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/House_07_1_LOD0_1_1__0_baseColor.png
+
+newmtl House_07_1_LOD0_1_1__0.003
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/House_07_1_LOD0_1_1__0_baseColor.png
+
+newmtl House_07_1_LOD0_1_1__0.004
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/House_07_1_LOD0_1_1__0_baseColor.png
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838
+Ns 44.457699
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt_bc.png
+map_Ks C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt_specular.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt_normal.png
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_bc.png
+map_Ks C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_specular.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_normal.png
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_bc.png
+map_Ks C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_specular.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_normal.png
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838.003
+Ns 44.457699
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt_bc.png
+map_Ks C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt_specular.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt_normal.png
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_2
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_2.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_2.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_2.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_4
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_4.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_4.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_4.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_7
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_7.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_7.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Shirt_838_7.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt.fbm/T_GLTF_MID_M_DG_bodyShapeC_Short_839_BaseColor.PNG
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt.fbm/T_GLTF_MID_M_DG_bodyShapeC_Short_839_Normal.PNG
+
+newmtl MID_M_DG_bodyShapeC_Short_839.001
+Ns 77.858719
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_bc.png
+map_Ks C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_specular.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_normal.png
+
+newmtl MID_M_DG_bodyShapeC_Short_839.002
+Ns 77.858719
+Ka 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_bc.png
+map_Ks C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_specular.png
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shorts_normal.png
+
+newmtl MID_M_DG_bodyShapeC_Short_839.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt.fbm/T_GLTF_MID_M_DG_bodyShapeC_Short_839_BaseColor.PNG
+map_Bump -bm 1.000000 C:/Users/gjin3/Downloads/gracefinal/gracefinal/clothes/shirt.fbm/T_GLTF_MID_M_DG_bodyShapeC_Short_839_Normal.PNG
+
+newmtl MID_M_DG_bodyShapeC_Short_839_3
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_3.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_3.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_3.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_5
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_5.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_5.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_5.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_6
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_6.001
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_6.002
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MID_M_DG_bodyShapeC_Short_839_6.003
+Ns 200.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MI_BuildingBlocks_Yellow
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.677137 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl MI_Cutout_Huggy01
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Cutout_Huggy01_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Cutout_Huggy01_normal.png
+
+newmtl MI_DomePlaster
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_DomePlaster_baseColor.png
+
+newmtl MI_Emissive_Red
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl MI_HangingCloud
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_HangingCloud_baseColor.png
+map_Bump -bm 1.000000 C:/MI_HangingCloud_normal.png
+
+newmtl MI_Huggyblocks
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Huggyblocks_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Huggyblocks_normal.png
+
+newmtl MI_MetalDetailTrimA
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_SteelTrimDusted_baseColor.png
+map_Bump -bm 1.000000 C:/MI_SteelTrimDusted_normal.png
+
+newmtl MI_MetalDetailTrimARusted
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_MetalDetailTrimARusted_baseColor.png
+map_Bump -bm 1.000000 C:/MI_MetalDetailTrimARusted_normal.png
+
+newmtl MI_Plaster_School_B_Dirty
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Plaster_School_B_Dirty_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Plaster_School_B_Dirty_normal.png
+
+newmtl MI_PlasticTrim_Blue
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_PlasticTrim_Blue_baseColor.png
+
+newmtl MI_PlasticTrim_Red
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Kd 0.505280 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl MI_PlaytimeSign
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_PlaytimeSign_baseColor.png
+map_Bump -bm 1.000000 C:/MI_PlaytimeSign_normal.png
+
+newmtl MI_PoppyTiles
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_PoppyTiles_baseColor.png
+map_Bump -bm 1.000000 C:/MI_PoppyTiles_normal.png
+
+newmtl MI_School_Floor
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_School_Floor_baseColor.png
+map_Bump -bm 1.000000 C:/MI_School_Floor_normal.png
+
+newmtl MI_Sign_Cafeteria
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Sign_Cafeteria_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Sign_Cafeteria_normal.png
+
+newmtl MI_Sign_Power
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Sign_Power_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Sign_Power_normal.png
+
+newmtl MI_Sign_Testing
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Sign_Testing_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Sign_Testing_normal.png
+
+newmtl MI_Sign_Theater
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_Sign_Theater_baseColor.png
+map_Bump -bm 1.000000 C:/MI_Sign_Theater_normal.png
+
+newmtl MI_SteelTrimDusted
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_SteelTrimDusted_baseColor.png
+map_Bump -bm 1.000000 C:/MI_SteelTrimDusted_normal.png
+
+newmtl MI_WoodPanels_Blue
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/MI_PlasticTrim_Blue_baseColor.png
+map_Bump -bm 1.000000 C:/MI_WoodPanels_Blue_normal.png
+
+newmtl M_GlassDithered
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Mat_0
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Mat_0_baseColor.png
+
+newmtl Mat_0.001
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Mat_0_baseColor.png
+
+newmtl Material
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/bedroom/textures/.004_diffuse.jpeg
+
+newmtl Material.001
+Ns 76.568604
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.104697
+illum 9
+
+newmtl Material.007
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.068557 0.355397 0.800007
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.227273
+illum 9
+
+newmtl Material.008
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Material_baseColor.png
+map_Bump -bm 1.000000 C:/Material_normal.png
+
+newmtl Material.013
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.020289 0.015996 0.174648
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.014
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.577581 0.013702 0.462077
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.015
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.016
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.017
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.018
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.019
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.020
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.021
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.022
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.023
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.024
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.025
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.026
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.027
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.028
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.029
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.030
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.304987 0.078187 0.366253
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.031
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.032
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.033
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.034
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.035
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.036
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.037
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.038
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.039
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.040
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.041
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.042
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.043
+Ns 198.429749
+Ka 1.000000 1.000000 1.000000
+Kd 0.305173 0.078523 0.365857
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.044
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Material_baseColor.png
+
+newmtl Material.045
+Ns 885.309875
+Ka 0.750000 0.750000 0.750000
+Kd 0.800007 0.145352 0.055851
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 3
+
+newmtl Material.046
+Ns 1000.000000
+Ka 0.550000 0.550000 0.550000
+Kd 0.066544 0.026838 0.532934
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl Material.047
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800007 0.180178 0.261552
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 8.799999
+d 1.000000
+illum 2
+
+newmtl Material.048
+Ns 250.000000
+Ka 0.868182 0.868182 0.868182
+Kd 0.800007 0.309052 0.080784
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl Material.049
+Ns 542.231445
+Ka 0.663636 0.663636 0.663636
+Kd 0.800007 0.004454 0.069957
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl Material.050
+Ns 55.867775
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material.053
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Material.001_baseColor.png
+
+newmtl Material.056
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Downloads/bedroom/textures/.004_diffuse.jpeg
+
+newmtl Material.057
+Ns 76.568604
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.104697
+illum 9
+
+newmtl Material.058
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.068557 0.355397 0.800007
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.227273
+illum 9
+
+newmtl Material.060
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Material.001_baseColor.jpeg
+map_Bump -bm 1.000000 C:/Material.001_normal.jpeg
+
+newmtl Material.061
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl Material.062
+Ns 76.568604
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.045606
+illum 9
+
+newmtl Material.063
+Ns 76.568604
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.104697
+illum 9
+
+newmtl Material_17
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 1.000000 1.000000 1.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Material_17_0
+Ns 11.455212
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Material_17_0_baseColor.jpeg
+map_Ke C:/Material_17_0_baseColor.jpeg
+
+newmtl Mdl_0_Mtl_S012_Alpha
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Mdl_0_Mtl_S012_Alpha_baseColor.png
+
+newmtl Mdl_0_Mtl_S012_Diffuse
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Mdl_0_Mtl_S012_Diffuse_baseColor.png
+
+newmtl Mdl_0_Mtl_S012_Diffuse_0
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Mdl_0_Mtl_S012_Diffuse_baseColor.png
+
+newmtl NICHO
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1000.000000
+d 1.000000
+illum 2
+map_Kd C:/NICHO_diffuse.jpeg
+
+newmtl Orange
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.319934 0.015479
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Plate1
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate1_baseColor.png
+
+newmtl Plate1.002
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate1_baseColor.png
+
+newmtl Plate1.003
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate1_baseColor.png
+
+newmtl Plate2
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate2_baseColor.png
+
+newmtl Plate2.001
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate2_baseColor.png
+
+newmtl Plate3
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate3_baseColor.png
+
+newmtl Plate3.001
+Ns 1.788855
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Plate3_baseColor.png
+
+newmtl Present
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Present_baseColor.png
+map_Bump -bm 1.000000 C:/Present_normal.png
+
+newmtl Present.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/gjin3/Desktop/nori-26sp/scenes/final_scene_real/textures/omori/cat.png
+
+newmtl Purple
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.061580 0.006208 0.410939
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Regular_0
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl Regular_0.001
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl SHKAFF_MAT
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1000.000000
+d 1.000000
+illum 2
+map_Kd C:/SHKAFF_MAT_diffuse.jpeg
+map_Ns C:/SHKAFF_MAT_specularGlossiness.png
+map_Bump -bm 1.000000 C:/SHKAFF_MAT_normal.png
+
+newmtl SHKAF_ALBEDO
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1000.000000
+d 1.000000
+illum 2
+map_Kd C:/SHKAF_ALBEDO_diffuse.jpeg
+map_Ns C:/SHKAF_ALBEDO_specularGlossiness.png
+map_Bump -bm 1.000000 C:/SHKAF_ALBEDO_normal.png
+
+newmtl Scene_-_Root
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Scene_-_Root_baseColor.png
+map_Bump -bm 1.000000 C:/Scene_-_Root_normal.png
+
+newmtl UhG81k
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/UhG81k_baseColor.jpeg
+map_Bump -bm 1.000000 C:/UhG81k_normal.png
+
+newmtl UhG81k.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/UhG81k_baseColor.jpeg
+map_Bump -bm 1.000000 C:/UhG81k_normal.png
+
+newmtl UhG81k.002
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/UhG81k_baseColor.jpeg
+map_Bump -bm 1.000000 C:/UhG81k_normal.png
+
+newmtl UhG81k.003
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/UhG81k_baseColor.jpeg
+map_Bump -bm 1.000000 C:/UhG81k_normal.png
+
+newmtl UhG81k.004
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/UhG81k_baseColor.jpeg
+map_Bump -bm 1.000000 C:/UhG81k_normal.png
+
+newmtl UhG81k.005
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/UhG81k_baseColor.jpeg
+map_Bump -bm 1.000000 C:/UhG81k_normal.png
+
+newmtl WoodLog_Plank
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/WoodLog_Plank_baseColor.jpeg
+
+newmtl WorldGridMaterial
+Ns 38.399990
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.211398
+illum 9
+
+newmtl WorldGridMaterial.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.005315 0.002587 0.001387
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/hair/hair_alpha.png
+
+newmtl WorldGridMaterial.002
+Ns 98.367767
+Ka 1.000000 1.000000 1.000000
+Kd 0.005315 0.002587 0.001387
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyebrows/eyebrows_alpha.png
+
+newmtl WorldGridMaterial.003
+Ns 98.367767
+Ka 1.000000 1.000000 1.000000
+Kd 0.005315 0.002587 0.001387
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/eyebrows/eyebrows_alpha.png
+
+newmtl WorldGridMaterial.004
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.005315 0.002587 0.001387
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_d C:/Users/gjin3/Downloads/gracefinal/gracefinal/hair/hair_alpha.png
+
+newmtl Yellow
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955974 0.767897 0.073501
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl aiStandardSurface1SG
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/aiStandardSurface1SG_baseColor.jpeg
+
+newmtl aiStandardSurface2SG
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.763910
+illum 9
+
+newmtl blinn1SG
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/blinn1SG_baseColor.jpeg
+map_Bump -bm 1.000000 C:/blinn1SG_normal.png
+
+newmtl floor_tiles_09.143
+Ns 12.363883
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_baseColor.png
+
+newmtl floor_tiles_09.143_0
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_0_baseColor.png
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_0_normal.png
+
+newmtl floor_tiles_09.143_1
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_1_baseColor.png
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_1_normal.png
+
+newmtl floor_tiles_09.143_10
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_10_baseColor.png
+
+newmtl floor_tiles_09.143_11
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_11_baseColor.jpeg
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_11_normal.png
+
+newmtl floor_tiles_09.143_12
+Ns 640.000000
+Ka 0.200000 0.200000 0.200000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd -o 0 -2 0 -s 3 3 1 C:/floor_tiles_09.143_12_baseColor.png
+map_Bump -o 0 -2 0 -s 3 3 1 -bm 1.000000 C:/floor_tiles_09.143_12_normal.png
+
+newmtl floor_tiles_09.143_13
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/floor_tiles_09.143_13_baseColor.jpeg
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_13_normal.jpeg
+
+newmtl floor_tiles_09.143_14
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_14_baseColor.jpeg
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_14_normal.jpeg
+
+newmtl floor_tiles_09.143_15
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd -s 2 2 1 C:/floor_tiles_09.143_15_baseColor.jpeg
+map_Bump -s 2 2 1 -bm 1.000000 C:/floor_tiles_09.143_15_normal.jpeg
+
+newmtl floor_tiles_09.143_16
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/floor_tiles_09.143_16_baseColor.png
+map_d C:/floor_tiles_09.143_16_baseColor.png
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_16_normal.png
+
+newmtl floor_tiles_09.143_17
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_17_baseColor.png
+
+newmtl floor_tiles_09.143_18
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/floor_tiles_09.143_18_baseColor.png
+map_d C:/floor_tiles_09.143_18_baseColor.png
+
+newmtl floor_tiles_09.143_19
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_19_baseColor.png
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_19_normal.png
+
+newmtl floor_tiles_09.143_2
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_2_baseColor.png
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_2_normal.png
+
+newmtl floor_tiles_09.143_20
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_20_baseColor.jpeg
+
+newmtl floor_tiles_09.143_3
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_3_baseColor.png
+
+newmtl floor_tiles_09.143_4
+Ns 4.870088
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_4_baseColor.jpeg
+
+newmtl floor_tiles_09.143_5
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl floor_tiles_09.143_6
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_6_baseColor.jpeg
+map_Bump -bm 1.000000 C:/floor_tiles_09.143_6_normal.png
+
+newmtl floor_tiles_09.143_7
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd -s 2 2 1 C:/floor_tiles_09.143_7_baseColor.jpeg
+map_Bump -s 2 2 1 -bm 1.000000 C:/floor_tiles_09.143_7_normal.jpeg
+
+newmtl floor_tiles_09.143_8
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_8_baseColor.png
+
+newmtl floor_tiles_09.143_9
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/floor_tiles_09.143_9_baseColor.png
+
+newmtl glass.001
+Ns 985.608643
+Ka 1.000000 1.000000 1.000000
+Kd 0.080752 0.080752 0.080752
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.250000
+illum 9
+
+newmtl initialShadingGroup
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+illum 2
+map_Kd C:/initialShadingGroup_baseColor.png
+map_Ke C:/initialShadingGroup_emissive.jpeg
+map_d C:/initialShadingGroup_baseColor.png
+map_Bump -bm 1.000000 C:/initialShadingGroup_normal.png
+
+newmtl lambert16SG
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/lambert16SG_baseColor.png
+map_Bump -bm 1.000000 C:/lambert16SG_normal.png
+
+newmtl lambert22
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/lambert22_baseColor.png
+
+newmtl lambert2SG
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/lambert2SG_baseColor.png
+map_Bump -bm 1.000000 C:/lambert2SG_normal.png
+
+newmtl material
+Ns 1000.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.603828 0.042311 0.031896
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl material.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/House_07_1_LOD0_1_1__0_baseColor.png
+
+newmtl material.003
+Ns 18.353212
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl material_0.001
+Ns 74.380157
+Ka 1.000000 1.000000 1.000000
+Kd 0.520996 0.174648 0.109462
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl material_1
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.000000 0.024681 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_10
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 1.000000 0.514761 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_11
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.804062 0.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_12
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.995296 1.000000 0.374940
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_13
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.168780 0.422020 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_14
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.315865 1.000000 0.269915
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_15
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/material_15_baseColor.jpeg
+
+newmtl material_16
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 1.000000 0.503562 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_17
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/material_17_baseColor.jpeg
+
+newmtl material_18
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.152532 1.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_19
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.846843 0.483854 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_2
+Ns 0.000000
+Ka 0.150000 0.150000 0.150000
+Kd 1.000000 0.188229 0.188229
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_20
+Ns 1000.000000
+Ka 0.781818 0.781818 0.781818
+Kd 0.629090 0.369105 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_21
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.883326 0.921211 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_22
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 1.000000 0.048196 0.048196
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_23
+Ns 0.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.617207 0.201556 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_24
+Ns 0.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.801923 0.035531 0.035531
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_25
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 1.000000 0.884335 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_26
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.991102 1.000000 0.871367
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_3
+Ns 0.000000
+Ka 0.150000 0.150000 0.150000
+Kd 1.000000 0.997940 0.439121
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 3
+
+newmtl material_4
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.000000 0.898220 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_5
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Kd 0.186130 1.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+
+newmtl material_6
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/material_6_baseColor.jpeg
+
+newmtl material_7
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/material_7_baseColor.jpeg
+
+newmtl material_8
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/material_8_baseColor.jpeg
+
+newmtl material_9
+Ns 1000.000000
+Ka 0.150000 0.150000 0.150000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd C:/material_9_baseColor.jpeg
+
+newmtl modern_wooden_cabinet
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/modern_wooden_cabinet_diff_4k.jpg
+map_Bump -bm 1.000000 C:/modern_wooden_cabinet_nor_gl_4k.jpg
+
+newmtl office_chairs02__0
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 0.129394 0.129394 0.129394
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl pasted__aiStandardSurface1
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/pasted__aiStandardSurface1_baseColor.png
+map_Bump -bm 1.000000 C:/pasted__aiStandardSurface1_normal.png
+
+newmtl pasted__aiStandardSurface2
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/pasted__aiStandardSurface2_baseColor.png
+map_Bump -bm 1.000000 C:/pasted__aiStandardSurface2_normal.png
+
+newmtl pasted__aiStandardSurface3
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/pasted__aiStandardSurface3_baseColor.png
+
+newmtl pasted__aiStandardSurface4
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/pasted__aiStandardSurface4_baseColor.png
+map_Bump -bm 1.000000 C:/pasted__aiStandardSurface4_normal.png
+
+newmtl pasted__aiStandardSurface5
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/pasted__aiStandardSurface5_baseColor.png
+map_Bump -bm 1.000000 C:/pasted__aiStandardSurface5_normal.png
+
+newmtl pasted__lambert20
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 6.201924 6.201924 6.201924
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl pasted__lambert21
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 0.016789 0.016789 0.016789
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 0.723812
+illum 9
+
+newmtl pasted__standardSurface2
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl piano
+Ns 0.031305
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/piano_baseColor.png
+
+newmtl rams
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 0.019951 0.019951 0.019951
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl tex_u1_v1
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/tex_u1_v1_baseColor.jpeg
+
+newmtl walls_exterior
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl white
+Ns 30.996521
+Ka 1.000000 1.000000 1.000000
+Kd 0.953172 0.944243 0.991102
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl white.001
+Ns 30.996521
+Ka 1.000000 1.000000 1.000000
+Kd 0.953172 0.944243 0.991102
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl white.002
+Ns 30.996521
+Ka 1.000000 1.000000 1.000000
+Kd 0.953172 0.944243 0.991102
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl white.003
+Ns 30.996521
+Ka 1.000000 1.000000 1.000000
+Kd 0.953172 0.944243 0.991102
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl white.004
+Ns 30.996521
+Ka 1.000000 1.000000 1.000000
+Kd 0.953172 0.944243 0.991102
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl white.005
+Ns 30.996521
+Ka 1.000000 1.000000 1.000000
+Kd 0.953172 0.944243 0.991102
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl yellow
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955973 0.450786 0.000304
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl yellow.001
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955973 0.450786 0.000304
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl yellow.002
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955973 0.450786 0.000304
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl yellow.003
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955973 0.450786 0.000304
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl yellow.004
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955973 0.450786 0.000304
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl yellow.005
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.955973 0.450786 0.000304
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2

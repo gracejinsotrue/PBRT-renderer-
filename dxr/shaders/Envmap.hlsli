@@ -1,5 +1,5 @@
 // Envmap.hlsli — Equirectangular environment map evaluation and importance
-// sampling via a 2D CDF (marginal over rows, conditional per row).
+// sampling via a 2D CDF
 //
 // Requires: Common.hlsli (resource bindings, M_PI)
 
@@ -68,7 +68,7 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
     uint rowBytes = (W + 1) * 4;
     uint x = EnvmapCdfSearch(g_envmapConditionalCdf, y * rowBytes, W + 1, u2);
 
-    // 3. Compute the direction at the pixel center.
+    // 3. compute the direction at the pixel center.
     float u = ((float)x + 0.5) / (float)W;
     float v = ((float)y + 0.5) / (float)H;
     float phi = 2.0 * M_PI * u;
@@ -82,7 +82,7 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
     // 4. compute radiance by reading the pixel directly via the sampler at the center UV.
     radiance = g_envmap.SampleLevel(g_envmapSampler, float2(u, v), 0).rgb;
 
-    // 5. pixel-space pdf via CDF differencing, then convert to solid-angle pdf where p_pixel = p_marginal(y) * p_conditional(x | y)
+    // 5. find pixel-space pdf via CDF differencing, then convert to solid-angle pdf where p_pixel = p_marginal(y) * p_conditional(x | y)
     float pMar = asfloat(g_envmapMarginalCdf.Load((y + 1) * 4)) -
                  asfloat(g_envmapMarginalCdf.Load(y * 4));
     float pCon = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + (x + 1) * 4)) -

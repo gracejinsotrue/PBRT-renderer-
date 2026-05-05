@@ -1,4 +1,4 @@
-// Emitter.hlsli — Emitter sampling and next-event estimation (NEE).
+// Emitter.hlsli. Emitter sampling and next-event estimation.
 // Covers area light sampling via CDF, surface NEE (MIS with BSDF),
 // envmap NEE (MIS with BSDF), and volume NEE (MIS with phase function).
 //
@@ -49,17 +49,37 @@ EmitterSample SampleEmitter(inout RNG rng)
 {
     EmitterSample es;
     es.valid = false;
+
+    // Count all emitter meshes in the scene
+    uint numEmitters = 0;
     for (uint i = 0; i < meshCount; i++)
-    {
         if (g_materials[i].isEmitter)
+            numEmitters++;
+
+    if (numEmitters == 0)
+        return es;
+
+    // Uniformly pick one emitter by index
+    uint pick = min((uint)(NextFloat(rng) * numEmitters), numEmitters - 1);
+
+    // walk meshes to find the picked emitter
+    uint count = 0;
+    for (uint j = 0; j < meshCount; j++)
+    {
+        if (g_materials[j].isEmitter)
         {
-            es.emitterID = i;
-            es.valid = true;
-            break;
+            if (count == pick)
+            {
+                es.emitterID = j;
+                es.valid = true;
+                break;
+            }
+            count++;
         }
     }
     if (!es.valid)
         return es;
+
     GPUMaterial eMat = g_materials[es.emitterID];
     es.radiance = MatRadiance(eMat);
     uint numTris = eMat.indexCount / 3;
@@ -77,7 +97,7 @@ EmitterSample SampleEmitter(inout RNG rng)
     float sr1 = sqrt(r1);
     es.position = (1.0 - sr1) * p0 + sr1 * (1.0 - r2) * p1 + sr1 * r2 * p2;
     es.normal = normalize(cross(p1 - p0, p2 - p0));
-    es.pdfArea = 1.0 / eMat.surfaceArea;
+    es.pdfArea = 1.0 / (eMat.surfaceArea * float(numEmitters));
     return es;
 }
 
@@ -95,7 +115,7 @@ float EmitterPdfSolidAngle(GPUMaterial emitMat, float3 hitPos, float3 shadingPos
 }
 
 // ============================================================================
-// Surface NEE — area lights
+// Surface NEE for area lights
 // ============================================================================
 
 float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
@@ -136,7 +156,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 }
 
 // ============================================================================
-// Surface NEE — environment map
+// Surface NEE for environment map
 // ============================================================================
 
 // Samples one direction from the envmap's importance distribution, shoots a
@@ -182,7 +202,7 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
 }
 
 // ============================================================================
-// Volume NEE — area lights
+// Volume NEE for area lights
 // ============================================================================
 
 // At a medium scatter point, explicitly sample a light direction and evaluate
@@ -218,11 +238,11 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
         return float3(0, 0, 0);
 
     // Phase function value in the light direction
-    // wo = ray travel direction (toward scatter point), wi = toward light
+    // wo = ray travel direction toward scatter point, wi = toward light
     float cosTheta = dot(wo, wi);
     float fp = HenyeyGreenstein(cosTheta, phaseG);
 
-    // Emitter pdf in solid angle, phase function pdf = fp (already solid angle)
+    // Emitter pdf in solid angle, phase function pdf = fp
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float pdfPhase = fp;
     float w = BalanceHeuristic(pdfEms, pdfPhase);
@@ -230,14 +250,14 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     // Transmittance along shadow ray through volume
     float3 volTr = VolumeTransmittance(scatterPos, wi, dist, rng);
 
-    // [Marschner] §5: estimator = σ_s · f_p · L / pdf_emitter, but σ_s is
-    // already folded into the throughput (as σ_s/σ_t), so we just need f_p · L.
+    // Marschner §5: estimator = σ_s · f_p · L / pdf_emitter, but σ_s is
+    // already folded into the throughput as σ_s/σ_t so we just need f_p · L.
     // The σ_s/σ_t throughput weight accounts for the scattering coefficient.
     return es.radiance * fp / max(pdfEms, 1e-20) * w * volTr;
 }
 
 // ============================================================================
-// Volume NEE — environment map
+// Volume NEE for environment map
 // ============================================================================
 
 float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)

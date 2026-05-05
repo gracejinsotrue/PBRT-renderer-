@@ -1,8 +1,6 @@
 // Disney.hlsli — Disney Principled BRDF (Burley 2012 / Disney 2015).
-// Multi-lobe model: diffuse (Burley + HK subsurface), GGX specular,
+// Multi-lobe model, diffuse (Burley + HK subsurface), GGX specular,
 // sheen, and GTR1 clearcoat.
-//
-// Requires: Common.hlsli, GeometryUtils.hlsli (Luminance, M_PI, M_INV_PI)
 
 #ifndef DISNEY_HLSLI
 #define DISNEY_HLSLI
@@ -51,8 +49,7 @@ float3 DisneyHKSubsurfaceEval(float3 wi, float3 wo, GPUMaterial mat)
     return MatAlbedo(mat) * M_INV_PI * ss;
 }
 
-// Blend the two diffuse lobes by the `subsurface` parameter (0 = pure
-// Burley, 1 = pure Hanrahan-Krueger)
+// Blend the two diffuse lobes by the `subsurface` parameter
 float3 DisneyDiffuseLobe(float3 wi, float3 wo, GPUMaterial mat)
 {
     float3 fBurley = DisneyDiffuseEval(wi, wo, mat);
@@ -242,7 +239,7 @@ float DisneyClearcoatEval(float3 wi, float3 wo, GPUMaterial mat)
     float VdotH = abs(dot(wi, wh));
     float F = 0.04 + (1.0 - 0.04) * pow(1.0 - VdotH, 5.0);
 
-    // Smith G with fixed alpha=0.25 (Disney's non-physical darkening).
+    // Smith G with fixed alpha=0.25
     // Using the GGX G1 helper since it's just Smith masking. the alpha value is what Disney's paper specifies here.
     float Gv = DisneyGGX_G1(wi.z, 0.25);
     float Gl = DisneyGGX_G1(wo.z, 0.25);

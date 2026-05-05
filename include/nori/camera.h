@@ -12,20 +12,21 @@ NORI_NAMESPACE_BEGIN
 
 /**
  * \brief Generic camera interface
- * 
+ *
  * This class provides an abstract interface to cameras in Nori and
  * exposes the ability to sample their response function. By default, only
  * a perspective camera implementation exists, but you may choose to
- * implement other types (e.g. an environment camera, or a physically-based 
+ * implement other types (e.g. an environment camera, or a physically-based
  * camera model that simulates the behavior actual lenses)
  */
-class Camera : public NoriObject {
+class Camera : public NoriObject
+{
 public:
     /**
      * \brief Importance sample a ray according to the camera's response function
      *
      * \param ray
-     *    A ray data structure to be filled with a position 
+     *    A ray data structure to be filled with a position
      *    and direction value
      *
      * \param samplePosition
@@ -42,8 +43,8 @@ public:
      *    function and the sampling density.
      */
     virtual Color3f sampleRay(Ray3f &ray,
-        const Point2f &samplePosition,
-        const Point2f &apertureSample) const = 0;
+                              const Point2f &samplePosition,
+                              const Point2f &apertureSample) const = 0;
 
     /// Return the size of the output image in pixels
     const Vector2i &getOutputSize() const { return m_outputSize; }
@@ -51,11 +52,16 @@ public:
     /// Return the camera's reconstruction filter in image space
     const ReconstructionFilter *getReconstructionFilter() const { return m_rfilter; }
 
+    /// Thin-lens DoF parameters (zero lensRadius = pinhole)
+    virtual float getLensRadius() const { return 0.0f; }
+    virtual float getFocalDistance() const { return 1.0f; }
+
     /**
-     * \brief Return the type of object (i.e. Mesh/Camera/etc.) 
+     * \brief Return the type of object (i.e. Mesh/Camera/etc.)
      * provided by this instance
      * */
     EClassType getClassType() const { return ECamera; }
+
 protected:
     Vector2i m_outputSize;
     ReconstructionFilter *m_rfilter;

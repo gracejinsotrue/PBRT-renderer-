@@ -34,14 +34,12 @@ struct CameraConstants
     // Number of participating-medium instances. Per-volume data is uploaded
     // separately as a StructuredBuffer<GPUVolume>; see m_volumeBuffer.
     uint32_t volumeCount;
-    uint32_t cbpad0, cbpad1, cbpad2;
+    float lensRadius; // 0 = pinhole
+    float focalDistance;
+    uint32_t emitterCount; // number of emitter meshes
 };
 
-// Mirror of the HLSL GPUVolume — must stay byte-identical (80 bytes, 16-byte
-// aligned). Each float3 is followed by an explicit pad word so the layout
-// is robust against HLSL packing rules (DXC may force 16-byte alignment for
-// consecutive float3s in a StructuredBuffer; padding makes the answer the
-// same under either rule).
+// Mirror of the HLSL GPUVolume struct used for ray marching in the presence of participating media.
 struct GPUVolume
 {
     float vMin[3];             // 0..11
@@ -74,12 +72,12 @@ struct GPUMaterial
     float alpha;
     uint32_t isEmitter;
     float radiance[3];
-    uint32_t indexOffset;       // first index,in elements, in global index buffer
-    uint32_t vertexOffset;      // first vertex, in elements, in global normal/pos buffer
-    uint32_t indexCount;        // number of indices for this mesh
-    uint32_t vertexCount;       // number of vertices for this mesh
-    float surfaceArea;          // total mesh surface area
-    uint32_t emitterCdfOffset;  // first entry index in emitter CDF buffer
+    uint32_t indexOffset;        // first index,in elements, in global index buffer
+    uint32_t vertexOffset;       // first vertex, in elements, in global normal/pos buffer
+    uint32_t indexCount;         // number of indices for this mesh
+    uint32_t vertexCount;        // number of vertices for this mesh
+    float surfaceArea;           // total mesh surface area
+    uint32_t emitterCdfOffset;   // first entry index in emitter CDF buffer
     uint32_t albedoTexIndex;     // texture index or 0xFFFFFFFF if none
     uint32_t normalTexIndex;     // texture index or 0xFFFFFFFF if none
     uint32_t roughnessTexIndex;  // texture index or 0xFFFFFFFF if none
@@ -89,7 +87,7 @@ struct GPUMaterial
 
     uint32_t alphaTexIndex; // texture index for alpha masking
 
-    // Disney BRDF parameters (Burley 2012). Read only when type == 4.
+    // Disney BRDF parameters from Burley 2012
     // baseColor is stored in the `albedo` field above to share texture
     // plumbing with other BSDFs.
     float roughness;
@@ -102,7 +100,8 @@ struct GPUMaterial
     float clearcoat;
     float clearcoatGloss;
     float anisotropic;
-    float betaN; // azimuthal roughness β_N (hair only, Chiang Eq. 8)
+    float betaN;                // azimuthal roughness β_N (hair only, Chiang Eq. 8)
+    float emitterSelectionProb; // power-weighted probability of selecting this emitter (0 for non-emitters)
 };
 
 static_assert(sizeof(GPUMaterial) % 4 == 0,
@@ -181,6 +180,7 @@ private:
     ComPtr<ID3D12Resource> m_globalTexCoordBuffer; // ByteAddressBuffer — all UVs (float2 per vertex)
     ComPtr<ID3D12Resource> m_globalTangentBuffer;  // ByteAddressBuffer — all fiber tangents (float3 per vertex, hair only)
     uint32_t m_meshCount = 0;
+    uint32_t m_emitterCount = 0;
     uint32_t m_frameCount = 0;
 
     // Texture resources
@@ -204,7 +204,7 @@ private:
     ComPtr<ID3D12Resource> m_envmapMarginalCdf;    // (H + 1) floats
     ComPtr<ID3D12Resource> m_envmapConditionalCdf; // H * (W + 1) floats
 
-    // Participating-medium volumes (Option A: flat structured buffer).
+    // Participating-medium volumes
     // m_volumes is the CPU-side definition; m_volumeBuffer is the GPU-visible
     // StructuredBuffer<GPUVolume>. Heterogeneous volumes that load a density
     // file each push a Texture3D into m_volumeTextures and reference it by

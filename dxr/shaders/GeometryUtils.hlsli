@@ -115,7 +115,7 @@ float3 GetInterpolatedTangent(uint instanceID, uint primitiveID, float2 bary)
 // Texture LOD helpers
 // ============================================================================
 
-// Approximate UV footprint of one screen pixel at the hit point.
+// approximate UV footprint of one screen pixel at the hit point.
 float ComputeUVFootprint(uint materialID, uint primitiveID, float hitT, uint2 dims)
 {
     GPUMaterial mat = g_materials[materialID];

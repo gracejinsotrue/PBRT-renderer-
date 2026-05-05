@@ -167,6 +167,23 @@ void DXRApp::OnKeyDown(UINT8 key)
     m_keys[key] = true;
     if (key == 'P')
         SaveSnapshot();
+    if (key == 'L')
+    {
+        float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
+        float cp = cosf(m_camPitch), sp = sinf(m_camPitch);
+        float fwd[3] = {sy * cp, sp, cy * cp};
+        // target = origin + forward (1 unit ahead)
+        float tx = m_camPos[0] + fwd[0];
+        float ty = m_camPos[1] + fwd[1];
+        float tz = m_camPos[2] + fwd[2];
+        printf("[camera] pos=(%.4f, %.4f, %.4f)  yaw=%.2f deg  pitch=%.2f deg\n",
+               m_camPos[0], m_camPos[1], m_camPos[2],
+               m_camYaw * 180.0f / 3.14159f, m_camPitch * 180.0f / 3.14159f);
+        printf("[camera] scene.xml lookat snippet:\n");
+        printf("  <lookat origin=\"%.4f, %.4f, %.4f\"\n", m_camPos[0], m_camPos[1], m_camPos[2]);
+        printf("          target=\"%.4f, %.4f, %.4f\"\n", tx, ty, tz);
+        printf("          up=\"0, 1, 0\"/>\n");
+    }
 }
 
 void DXRApp::OnKeyUp(UINT8 key)
@@ -733,6 +750,65 @@ void DXRApp::CreateSceneBuffers()
         allCdfData.insert(allCdfData.end(), cdf.begin(), cdf.end());
         printf("[scene] Emitter %u: CDF has %zu entries, totalArea=%.4f\n",
                i, cdf.size(), materials[i].surfaceArea);
+    }
+
+    // Build a power-weighted inter-emitter CDF and prepend it to allCdfData.
+    // Power = luma(radiance) * surfaceArea. Sampling proportional to power
+    // means bright/large lights are chosen more often, dramatically reducing
+    // variance (graininess) when many lights are present instead of picking
+    // uniformly at random (which would give each light probability 1/N).
+    {
+        std::vector<float> powers;
+        std::vector<uint32_t> emitterIndices;
+        for (uint32_t i = 0; i < m_meshCount; i++)
+        {
+            if (!materials[i].isEmitter)
+                continue;
+            float r = materials[i].radiance[0];
+            float g = materials[i].radiance[1];
+            float b = materials[i].radiance[2];
+            float luma = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+            powers.push_back(luma * materials[i].surfaceArea);
+            emitterIndices.push_back(i);
+        }
+        m_emitterCount = (uint32_t)powers.size();
+
+        // Build normalized power CDF with (m_emitterCount + 1) entries.
+        std::vector<float> powerCdf(m_emitterCount + 1);
+        powerCdf[0] = 0.0f;
+        for (uint32_t k = 0; k < m_emitterCount; k++)
+            powerCdf[k + 1] = powerCdf[k] + powers[k];
+        float totalPower = powerCdf[m_emitterCount];
+        if (totalPower > 0.0f)
+        {
+            float inv = 1.0f / totalPower;
+            for (uint32_t k = 1; k <= m_emitterCount; k++)
+                powerCdf[k] *= inv;
+        }
+        else
+        {
+            // Fallback to uniform if all emitters report zero power.
+            for (uint32_t k = 0; k <= m_emitterCount; k++)
+                powerCdf[k] = float(k) / float(std::max(m_emitterCount, 1u));
+        }
+        powerCdf[m_emitterCount] = 1.0f; // clamp
+
+        // Store per-emitter selection probability in GPUMaterial so the
+        // shader can compute the correct pdf without re-traversing the CDF.
+        for (uint32_t k = 0; k < m_emitterCount; k++)
+            materials[emitterIndices[k]].emitterSelectionProb = powerCdf[k + 1] - powerCdf[k];
+
+        // Shift all existing per-emitter triangle CDF offsets past the
+        // power CDF block that we are about to prepend.
+        uint32_t shift = m_emitterCount + 1;
+        for (uint32_t i = 0; i < m_meshCount; i++)
+            if (materials[i].isEmitter)
+                materials[i].emitterCdfOffset += shift;
+
+        // Prepend the power CDF so it lives at indices [0 .. m_emitterCount].
+        allCdfData.insert(allCdfData.begin(), powerCdf.begin(), powerCdf.end());
+
+        printf("[scene] Power CDF: %u emitters, totalPower=%.4f\n", m_emitterCount, totalPower);
     }
 
     // Upload material structured buffer
@@ -1706,7 +1782,10 @@ void DXRApp::SetupCamera()
     }
 
     m_camera.meshCount = m_meshCount;
+    m_camera.emitterCount = m_emitterCount;
     m_camera.frameCount = 0;
+    m_camera.lensRadius = cam->getLensRadius();
+    m_camera.focalDistance = cam->getFocalDistance();
     m_cameraDirty = true;
 
     m_lastFrameTime = std::chrono::high_resolution_clock::now();
