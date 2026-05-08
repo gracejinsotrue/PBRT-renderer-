@@ -346,17 +346,17 @@ void DXRApp::SaveSnapshotEXR()
     b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     b.Transition.pResource = m_accumResource.Get();
     b.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    b.Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
     b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &b);
 
     D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
     dst.pResource = readback.Get();
     dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    dst.PlacedFootprint.Footprint.Format   = DXGI_FORMAT_R32G32B32A32_FLOAT;
-    dst.PlacedFootprint.Footprint.Width    = (UINT)desc.Width;
-    dst.PlacedFootprint.Footprint.Height   = desc.Height;
-    dst.PlacedFootprint.Footprint.Depth    = 1;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    dst.PlacedFootprint.Footprint.Width = (UINT)desc.Width;
+    dst.PlacedFootprint.Footprint.Height = desc.Height;
+    dst.PlacedFootprint.Footprint.Depth = 1;
     dst.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
 
     src.pResource = m_accumResource.Get();
@@ -881,7 +881,6 @@ void DXRApp::CreateSceneBuffers()
         }
         else
         {
-            // Fallback to uniform if all emitters report zero power.
             for (uint32_t k = 0; k <= m_emitterCount; k++)
                 powerCdf[k] = float(k) / float(std::max(m_emitterCount, 1u));
         }
