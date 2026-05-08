@@ -20,6 +20,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define TINYEXR_USE_MINIZ 0
+#define TINYEXR_USE_STB_ZLIB 1
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr.h"
+
 // TODO: probably split some of this code into other files amazing
 using namespace nori;
 
@@ -167,6 +174,8 @@ void DXRApp::OnKeyDown(UINT8 key)
     m_keys[key] = true;
     if (key == 'P')
         SaveSnapshot();
+    if (key == 'O')
+        SaveSnapshotEXR();
     if (key == 'L')
     {
         float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
@@ -315,6 +324,91 @@ void DXRApp::SaveSnapshot()
     }
 
     readback->Unmap(0, nullptr);
+}
+
+void DXRApp::SaveSnapshotEXR()
+{
+    WaitForGpu(m_frameIndex);
+
+    D3D12_RESOURCE_DESC desc = m_accumResource->GetDesc();
+    // R32G32B32A32_FLOAT: 16 bytes per pixel, row pitch aligned to 256
+    UINT64 rowPitch = ((desc.Width * 16 + 255) & ~255ULL);
+    UINT64 totalSize = rowPitch * desc.Height;
+
+    auto readback = CreateBuffer(totalSize, D3D12_RESOURCE_FLAG_NONE,
+                                 D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
+
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    // Transition accum from UAV to COPY_SOURCE
+    D3D12_RESOURCE_BARRIER b{};
+    b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    b.Transition.pResource = m_accumResource.Get();
+    b.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    b.Transition.StateAfter  = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(1, &b);
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = readback.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Footprint.Format   = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    dst.PlacedFootprint.Footprint.Width    = (UINT)desc.Width;
+    dst.PlacedFootprint.Footprint.Height   = desc.Height;
+    dst.PlacedFootprint.Footprint.Depth    = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+
+    src.pResource = m_accumResource.Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    // Transition back to UAV
+    std::swap(b.Transition.StateBefore, b.Transition.StateAfter);
+    m_commandList->ResourceBarrier(1, &b);
+
+    FlushCommandQueue();
+
+    const float *data;
+    readback->Map(0, nullptr, (void **)&data);
+
+    const UINT W = (UINT)desc.Width;
+    const UINT H = desc.Height;
+    const UINT pixelCount = W * H;
+
+    // Interleaved RGB float buffer for SaveEXR
+    std::vector<float> rgb(pixelCount * 3);
+    for (UINT y = 0; y < H; y++)
+    {
+        // rowPitch is in bytes; data pointer is float*, so divide by 4
+        const float *row = data + y * (rowPitch / sizeof(float));
+        for (UINT x = 0; x < W; x++)
+        {
+            float r = row[x * 4 + 0];
+            float g = row[x * 4 + 1];
+            float b = row[x * 4 + 2];
+            float w = row[x * 4 + 3];
+            float inv = (w > 0.0f) ? (1.0f / w) : 0.0f;
+            UINT idx = y * W + x;
+            rgb[idx * 3 + 0] = r * inv;
+            rgb[idx * 3 + 1] = g * inv;
+            rgb[idx * 3 + 2] = b * inv;
+        }
+    }
+
+    readback->Unmap(0, nullptr);
+
+    char filename[256];
+    snprintf(filename, sizeof(filename), "snapshot_%u.exr", m_frameCount);
+
+    const char *err = nullptr;
+    // components=3 (RGB), save_as_fp16=0 (keep full float32)
+    int ret = SaveEXR(rgb.data(), (int)W, (int)H, 3, 0, filename, &err);
+    if (ret != TINYEXR_SUCCESS)
+        printf("[snapshot] EXR save failed: %s\n", err ? err : "unknown error");
+    else
+        printf("[snapshot] Saved %s (%u samples, HDR linear)\n", filename, m_frameCount);
 }
 
 void DXRApp::OnRender()

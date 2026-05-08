@@ -115,7 +115,7 @@ SamplerState g_volumeSampler : register(s2);
 
 static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
-static const int MAX_BOUNCES = 16;
+static const int MAX_BOUNCES = 32;
 
 // TODO remove later:
 //  When set to 1, the raygen shader replaces normal path tracing with a

@@ -4,16 +4,16 @@
     
 
 <camera type="perspective">
-    <float name="fov" value="60"/>
+    <float name="fov" value="55"/>
     <float name="lensRadius" value="0.011"/>
     <float name="focalDistance" value="1.65"/>
     <transform name="toWorld">
-        <lookat target="-0.235, 0.65, 0.319"
-                origin="-0.894, 0.838, 2.192"
+        <lookat target="-0.09, 0.65, 0.368"
+                origin="-0.925, 0.833, 2.128"
                 up="0, 1, 0"/>
     </transform>
-    <integer name="height" value="700"/>
-    <integer name="width" value="1400"/>
+    <integer name="height" value="850"/>
+    <integer name="width" value="1920"/>
 </camera>
 	<sampler type="independent">
 		<!-- <integer name="sampleCount" value="256"/> -->
@@ -2591,7 +2591,7 @@
 	<mesh type="obj">
 		<string name="filename" value="meshes/circus/pomni/clothes_blue.obj"/>
 		<bsdf type="disney">
-			<color name="baseColor" value="0.55 0.78 0.92"/>
+			<color name="baseColor" value="0.10 0.40 0.80"/>
 			<float name="roughness" value="0.75"/>
 			<float name="specular"  value="0.2"/>
 			<float name="metallic"  value="0.0"/>
@@ -2624,7 +2624,7 @@
 	<mesh type="obj">
 		<string name="filename" value="meshes/circus/pomni/hat_blue.obj"/>
 		<bsdf type="disney">
-			<color name="baseColor" value="0.55 0.78 0.92"/>
+			<color name="baseColor" value="0.10 0.40 0.80"/>
 			<float name="roughness" value="0.75"/>
 			<float name="specular"  value="0.2"/>
 			<float name="metallic"  value="0.0"/>
@@ -2657,7 +2657,7 @@
 	<mesh type="obj">
 		<string name="filename" value="meshes/circus/pomni/pomni_eyeball_blue.obj"/>
 		<bsdf type="disney">
-			<color name="baseColor" value="0.55 0.78 0.92"/>
+			<color name="baseColor" value="0.10 0.40 0.80"/>
 			<float name="roughness" value="0.05"/>
 			<float name="specular"  value="0.9"/>
 			<float name="metallic"  value="0.0"/>
@@ -2813,6 +2813,28 @@
 
 		
 		<mesh type="obj">
+		<string name="filename" value="meshes/foreground_fish/fishes_most_left.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/goldfish/lambert16SG_baseColor.png"/>
+			<string name="normalTexture"    value="textures/goldfish/lambert16SG_normal.png"/>
+			<string name="roughnessTexture" value="textures/goldfish/lambert16SG_metallicRoughness.png"/>
+			<string name="metallicTexture"  value="textures/goldfish/lambert16SG_metallicRoughness.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.3"/>
+			<float name="sheen"          value="0.1"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.1"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.7"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+		
+		<mesh type="obj">
 		<string name="filename" value="meshes/foreground_fish/fishes_right.obj"/>
 		<bsdf type="disney">
 			<color name="baseColor" value="1.0 1.0 1.0"/>
@@ -2862,14 +2884,14 @@
 	     to taste.  To reposition, shift both boundsMin and boundsMax
 	     by the same offset, e.g. +3 on all Y to push the cloud higher.
 	     ============================================================ -->
-	<!-- <medium type="heterogeneous">
+	<medium type="heterogeneous">
 		<float name="sigmaA" value="0.003"/>
 		<float name="sigmaS" value="15.0"/>
 		<float name="g" value="0.75"/>
 		<string name="volume" value="meshes/clouds/volumes/cloud.vol"/>
 		<point name="boundsMin" value="-0.35,  0.10,  0.51"/>
 		<point name="boundsMax" value=" 1.02,  1.69,  2.00"/>
-	</medium> -->
+	</medium>
 
 
 
@@ -2943,4 +2965,183 @@
 <color name="radiance" value="10.0 5.0 4.0"/>
 </emitter>
 </mesh>  -->
+
+	<!-- ============================================================
+	     TETO
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="meshes/fother_teto/teto.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/other_teto/material_0_baseColor.jpeg"/>
+			<string name="normalTexture"    value="textures/other_teto/material_0_normal.jpeg"/>
+			<string name="roughnessTexture" value="textures/other_teto/material_0_metallicRoughness.png"/>
+			<string name="metallicTexture"  value="textures/other_teto/material_0_metallicRoughness.png"/>
+			<float name="roughness"      value="0.6"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     BIG GOLDFISH
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="meshes/big_fish/fish.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/big_goldfish/Material.005_baseColor.png"/>
+			<string name="normalTexture"    value="textures/big_goldfish/Material.005_normal.png"/>
+			<string name="roughnessTexture" value="textures/big_goldfish/Material.005_metallicRoughness.png"/>
+			<string name="metallicTexture"  value="textures/big_goldfish/Material.005_metallicRoughness.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.5"/>
+			<float name="specularTint"   value="0.3"/>
+			<float name="sheen"          value="0.1"/>
+			<float name="sheenTint"      value="0.5"/>
+			<float name="subsurface"     value="0.2"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     TETOCAT FIGURINE
+	     ============================================================ -->
+	<!-- <mesh type="obj">
+		<string name="filename" value="meshes/figurine/tetocat/head.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/tetocat/cara_baseColor.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/figurine/tetocat/shirt_details.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/tetocat/Material.003_baseColor.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.3"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/figurine/tetocat/hair.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.839 0.271 0.314"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.0"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/figurine/tetocat/tetobody.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.0"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/figurine/tetocat/headphones.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.741 0.329 0.443"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.0"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh> -->
+
+	<!-- ============================================================
+	     CS5630
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="meshes/cs5630/cs5630.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.18 0.35 0.72"/>
+			<float name="roughness"      value="0.35"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.6"/>
+			<float name="specularTint"   value="0.5"/>
+			<float name="sheen"          value="0.3"/>
+			<float name="sheenTint"      value="0.7"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.6"/>
+			<float name="clearcoatGloss" value="0.85"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- ============================================================
+	     AJAX BUST
+	     ============================================================ -->
+	<mesh type="obj">
+		<string name="filename" value="meshes/cs5630/ajax.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.9 0.88 0.84"/>
+			<float name="roughness"      value="1.0"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.1"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.05"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
 </scene>

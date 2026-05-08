@@ -133,6 +133,7 @@ public:
     void OnMouseMove(int x, int y);
 
     void SaveSnapshot();
+    void SaveSnapshotEXR();
 
     UINT GetWidth() const { return m_width; }
     UINT GetHeight() const { return m_height; }
