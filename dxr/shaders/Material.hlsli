@@ -1,8 +1,8 @@
-// Material.hlsli — Material dispatch layer.
+// Material.hlsli
+// Material dispatch layer.
 // Routes material type IDs to the correct BSDF implementation.
 //
-// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli,
-//           Microfacet.hlsli, Disney.hlsli, Hair.hlsli
+// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli, Microfacet.hlsli, Disney.hlsli, Hair.hlsli
 
 #ifndef MATERIAL_HLSLI
 #define MATERIAL_HLSLI
@@ -23,12 +23,9 @@ bool MaterialIsDelta(GPUMaterial mat)
     return mat.type == 1 || mat.type == 2;
 }
 
-// ============================================================================
 // Eval / Pdf / Sample
-// ============================================================================
 //
-// `h` is the hair fiber offset in [-1,1].  For non-hair materials it is
-// unused, so pass 0.0.  This replaces the old `g_hairH` mutable global.
+// `h` is the hair fiber offset in [-1,1].  For non-hair materials it is unused, so pass 0.0.
 
 float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
 {

@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Ablation: same as cmp_sheen_fabric.xml but sheen=0 to isolate the sheen lobe effect. -->
+<scene>
+    <string name="envmap" value="textures/sunset.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="0, 0, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="512"/>
+        <integer name="width" value="512"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="1024"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="sphere.obj"/>
+        <bsdf type="disney">
+            <color name="baseColor" value="0.588 0.310 0.639"/>
+            <float name="roughness" value="0.85"/>
+            <float name="metallic" value="0.0"/>
+            <float name="specular" value="0.05"/>
+            <float name="specularTint" value="0.0"/>
+            <float name="sheen" value="0.0"/>
+            <float name="sheenTint" value="0.5"/>
+            <float name="subsurface" value="0.0"/>
+            <float name="clearcoat" value="0.0"/>
+            <float name="clearcoatGloss" value="0.5"/>
+            <float name="anisotropic" value="0.0"/>
+        </bsdf>
+    </mesh>
+</scene>

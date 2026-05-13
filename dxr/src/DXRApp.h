@@ -37,6 +37,9 @@ struct CameraConstants
     float lensRadius; // 0 = pinhole
     float focalDistance;
     uint32_t emitterCount; // number of emitter meshes
+    float envmapScale;     // multiplied on every envmap sample (controls IBL brightness)
+    float evCompensation;  // display EV stops: averaged *= pow(2, ev) before Reinhard
+    float _cbPad2[2];      // pad to 16-byte boundary
 };
 
 // Mirror of the HLSL GPUVolume struct used for ray marching in the presence of participating media.
@@ -118,7 +121,7 @@ struct MeshGPUData
 class DXRApp
 {
 public:
-    DXRApp(const std::string &scenePath);
+    DXRApp(const std::string &scenePath, bool headless = false);
     ~DXRApp();
 
     void OnInit();
@@ -138,6 +141,8 @@ public:
     UINT GetWidth() const { return m_width; }
     UINT GetHeight() const { return m_height; }
     const wchar_t *GetTitle() const { return m_title.c_str(); }
+    uint32_t GetFrameCount() const { return m_frameCount; }
+    uint32_t GetTargetSamples() const { return m_targetSamples; }
 
 private:
     static constexpr UINT FrameCount = 2;
@@ -146,6 +151,7 @@ private:
     UINT m_width;
     UINT m_height;
     std::wstring m_title;
+    bool m_headless = false;
 
     // Nori scene
     std::string m_scenePath;
@@ -183,6 +189,7 @@ private:
     uint32_t m_meshCount = 0;
     uint32_t m_emitterCount = 0;
     uint32_t m_frameCount = 0;
+    uint32_t m_targetSamples = 0; // auto-save EXR and exit when reached (0 = disabled)
 
     // Texture resources
     std::vector<ComPtr<ID3D12Resource>> m_textures;

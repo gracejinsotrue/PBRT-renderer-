@@ -4,17 +4,12 @@
 #ifndef COMMON_HLSLI
 #define COMMON_HLSLI
 
-// ============================================================================
 // Global resources
-// ============================================================================
 
 RaytracingAccelerationStructure g_scene : register(t0);
 RWTexture2D<float4> g_output : register(u0);
 RWTexture2D<float4> g_accum : register(u1);
-
-// ============================================================================
 // Constant buffer
-// ============================================================================
 
 cbuffer CameraParams : register(b0)
 {
@@ -27,16 +22,13 @@ cbuffer CameraParams : register(b0)
     float3 camVertical;
     uint frameCount;
 
-    // Number of participating-medium instances; per-volume data is in g_volumes (StructuredBuffer<GPUVolume>) below. Zero means no volumes.
     uint volumeCount;
-    float lensRadius; // 0 = pinhole camera
+    float lensRadius;
     float focalDistance;
     uint cbpad2;
 };
 
-// ============================================================================
 // Material structure
-// ============================================================================
 
 struct GPUMaterial
 {
@@ -77,9 +69,7 @@ struct GPUMaterial
 float3 MatAlbedo(GPUMaterial m) { return float3(m.albedoR, m.albedoG, m.albedoB); }
 float3 MatRadiance(GPUMaterial m) { return float3(m.radianceR, m.radianceG, m.radianceB); }
 
-// ============================================================================
 // Structured / byte-address buffers
-// ============================================================================
 
 StructuredBuffer<GPUMaterial> g_materials : register(t1);
 ByteAddressBuffer g_normals : register(t2);
@@ -102,16 +92,11 @@ Texture2D g_textures[] : register(t11);
 SamplerState g_sampler : register(s0);
 SamplerState g_envmapSampler : register(s1);
 
-// ============================================================================
 // Participating-medium volumes
-// ============================================================================
 //
-// Multi-volume design:
-//   - g_volumes is a flat array of GPUVolume records, one per medium instance.
-//   - Each record carries its own AABB, scattering coefficients, phase param,
-//     and (optionally) an index into g_volumeDensities[] for heterogeneous
-//     density lookup.
-//   - The path tracer walks all volumes a ray crosses (see Volume.hlsl).
+//   1. g_volumes is a flat array of GPUVolume records, one per medium instance.
+//   2. Each record carries its own AABB, scattering coefficients, phase param, and optionally an index into g_volumeDensities[] for heterogeneous    density lookup.
+//   3. The path tracer walks all volumes a ray crosses (see Volume.hlsl).
 
 #define VOLUME_FLAG_HETEROGENEOUS 0x1u
 #define VOLUME_INVALID_TEX 0xFFFFFFFFu
@@ -137,17 +122,13 @@ StructuredBuffer<GPUVolume> g_volumes : register(t0, space1);
 Texture3D<float> g_volumeDensities[] : register(t1, space1);
 SamplerState g_volumeSampler : register(s2);
 
-// ============================================================================
 // Constants
-// ============================================================================
 
 static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
 static const int MAX_BOUNCES = 32;
 
-// ============================================================================
 // Ray payloads
-// ============================================================================
 
 struct HitPayload
 {

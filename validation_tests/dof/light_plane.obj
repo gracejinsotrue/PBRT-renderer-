@@ -1,0 +1,8 @@
+# Simple quad light plane above cube
+# Positioned at y=3, extending from x=-2 to 2, z=-2 to 2
+v -2 3 -2
+v 2 3 -2
+v 2 3 2
+v -2 3 2
+f 1 2 3
+f 1 3 4

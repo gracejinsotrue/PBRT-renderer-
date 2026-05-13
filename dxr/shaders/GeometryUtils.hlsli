@@ -1,8 +1,9 @@
-// GeometryUtils.hlsli — Vertex buffer accessors, coordinate frame helpers,
-// sampling primitives, and Fresnel computation.  Pure math/geometry utilities
-// shared across BSDFs, emitter sampling, and the integrator.
+// GeometryUtils.hlsli.
+// for Vertex buffer accessors, coordinate frame helpers,
+// sampling primitives, and Fresnel computation.
+// Pure math/geometry utilities shared across BSDFs, emitter sampling, and the integrator.
 //
-// Requires: Common.hlsli, RNG.hlsli (for NextFloat in sampling helpers)
+// Requires: Common.hlsli, RNG.hlsli
 
 #ifndef GEOMETRY_UTILS_HLSLI
 #define GEOMETRY_UTILS_HLSLI

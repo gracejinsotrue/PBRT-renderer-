@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- White furnace IBL energy conservation test.
+     A perfectly white diffuse sphere (albedo=1.0) under a constant white envmap
+     (every direction emits L=1). By definition the sphere must be invisible against
+     the background — every pixel should equal 1.0 if:
+       (a) the CDF importance sampling integrates to the correct solid angle, and
+       (b) the envmap PDF is normalised correctly (no over/under-counting).
+     Run:  nori-dxr sphere_furnace_ibl.xml  -> snapshot_512.exr -> rename snapshot_furnace_ibl_512.exr
+     Then: python ..\compare_exr.py snapshot_furnace_ibl_512.exr ref_furnace_ibl.exr --out diff_furnace_ibl -->
+<scene>
+    <string name="envmap" value="../hair_furnace_test/textures/white_furnace.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="3, 2, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="512"/>
+        <integer name="width" value="512"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="../blender_default_sphere.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="1.0 1.0 1.0"/>
+        </bsdf>
+    </mesh>
+</scene>

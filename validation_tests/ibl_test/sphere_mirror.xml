@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Mirror sphere IBL validation.
+     Every pixel reflects one specific envmap direction, so this tests per-direction
+     UV correctness rather than the averaged result of the diffuse test.
+     Also exercises MIS for the specular/mirror BSDF code path.
+     Run:  nori-dxr sphere_mirror.xml   -> snapshot_512.exr -> rename snapshot_mirror_512.exr
+     Then: python ..\compare_exr.py snapshot_mirror_512.exr ref_mirror.exr --out diff_mirror -->
+<scene>
+    <string name="envmap" value="textures/sunset.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="3, 2, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="512"/>
+        <integer name="width" value="512"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="../blender_default_sphere.obj"/>
+        <bsdf type="mirror"/>
+    </mesh>
+</scene>

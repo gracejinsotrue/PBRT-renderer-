@@ -1,9 +1,7 @@
-// Microfacet.hlsli — Beckmann microfacet BRDF with Smith G1 masking.
-// Walter et al. 2007 formulation, mixture-sampled with cosine-hemisphere
-// for the diffuse component.
+// Microfacet.hlsli
+// Beckmann microfacet BRDF with Smith G1 masking.
 //
-// Requires: Common.hlsli, GeometryUtils.hlsli (FresnelDielectric,
-//           CosineSampleHemisphere, M_PI/M_INV_PI), RNG.hlsli
+// Requires: Common.hlsli, GeometryUtils.hlsli (FresnelDielectric, CosineSampleHemisphere, M_PI/M_INV_PI), RNG.hlsli
 
 #ifndef MICROFACET_HLSLI
 #define MICROFACET_HLSLI

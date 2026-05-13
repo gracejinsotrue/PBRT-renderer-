@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Pure Lambertian (type=0 in GPU, plain diffuse BSDF) under white envmap.
+     Integral over the sphere MUST equal baseColor = (1,1,1) exactly.
+     If our analyzer reports anything other than ~1.0 here, the bias is in the
+     INTEGRATOR (envmap sampling / MIS / cosine handling), not in Disney's
+     Burley formula. -->
+<scene>
+    <string name="envmap" value="../hair_furnace_test/textures/white_furnace.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="0, 0, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="256"/>
+        <integer name="width" value="256"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="sphere.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="1.0 1.0 1.0"/>
+        </bsdf>
+    </mesh>
+</scene>

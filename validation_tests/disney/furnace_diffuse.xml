@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Burley diffuse only. White envmap. Reference = Mitsuba 'principled' with
+     identical params. The MEAN luminance on the sphere should match Mitsuba's.
+     Note: Burley is not perfectly energy-conserving at high roughness, but
+     both renderers should reproduce the SAME deviation. -->
+<scene>
+    <string name="envmap" value="../hair_furnace_test/textures/white_furnace.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="0, 0, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="256"/>
+        <integer name="width" value="256"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="sphere.obj"/>
+        <bsdf type="disney">
+            <color name="baseColor" value="1.0 1.0 1.0"/>
+            <float name="roughness" value="0.5"/>
+            <float name="metallic" value="0.0"/>
+            <float name="specular" value="0.0"/>
+            <float name="specularTint" value="0.0"/>
+            <float name="sheen" value="0.0"/>
+            <float name="sheenTint" value="0.0"/>
+            <float name="subsurface" value="0.0"/>
+            <float name="clearcoat" value="0.0"/>
+            <float name="clearcoatGloss" value="0.0"/>
+            <float name="anisotropic" value="0.0"/>
+        </bsdf>
+    </mesh>
+</scene>

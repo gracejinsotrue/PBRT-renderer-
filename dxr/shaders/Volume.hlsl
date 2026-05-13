@@ -1,13 +1,9 @@
-// Volume.hlsl — Multi-instance participating media.
+// Volume.hlsl for Multi-instance participating media.
 //
-// All volume math takes a GPUVolume parameter so the same code works for the
-// current "loop over a flat structured buffer" enumeration and a future
-// procedural-AABB BLAS path. SampleVolumeFreeFlight and MultiVolumeTransmittance
-// are the only two entry points the path tracer needs.
+// All volume math takes a GPUVolume parameter so the same code works for the current "loop over a flat structured buffer" enumeration and a future
+// procedural-AABB BLAS path. SampleVolumeFreeFlight and MultiVolumeTransmittance are the only two entry points the path tracer needs.
 
-// ---------------------------------------------------------------------------
 // Ray / AABB
-// ---------------------------------------------------------------------------
 
 bool RayAABBIntersect(float3 origin, float3 dir,
                       float3 bmin, float3 bmax,
@@ -23,9 +19,7 @@ bool RayAABBIntersect(float3 origin, float3 dir,
     return tFar >= max(tNear, 0.0);
 }
 
-// ---------------------------------------------------------------------------
-// Phase function — Henyey-Greenstein [PBRT4 Eq. 11.24-25]
-// ---------------------------------------------------------------------------
+// Phase function from Henyey-Greenstein [PBRT4 Eq. 11.24-25]
 
 float HenyeyGreenstein(float cosTheta, float g)
 {
@@ -63,9 +57,7 @@ float3 SampleHG(float3 wo, float g, inout RNG rng, out float pdf)
     return normalize(wi);
 }
 
-// ---------------------------------------------------------------------------
 // Free-flight in a homogeneous medium: p(s) = σ_t exp(-σ_t s)
-// ---------------------------------------------------------------------------
 
 float SampleFreeFlightHomogeneous(float sigmaT, inout RNG rng)
 {
@@ -73,9 +65,7 @@ float SampleFreeFlightHomogeneous(float sigmaT, inout RNG rng)
     return -log(xi) / sigmaT;
 }
 
-// ---------------------------------------------------------------------------
 // Per-volume helpers
-// ---------------------------------------------------------------------------
 
 bool VolumeIsHeterogeneous(GPUVolume v)
 {
@@ -88,9 +78,7 @@ float3 VolumeSigmaT(GPUVolume v)
     return v.sigmaA + v.sigmaS;
 }
 
-// Scalar majorant used for free-flight stepping. Picking max across
-// channels gives an upper bound on per-channel extinction, so distance
-// sampling under this majorant is conservative for every channel.
+// Scalar majorant used for free-flight stepping. Picking max across channels gives an upper bound on per-channel extinction, so distance sampling under this majorant is conservative for every channel.
 float VolumeSigmaTMax(GPUVolume v)
 {
     float3 s = VolumeSigmaT(v);
@@ -98,7 +86,7 @@ float VolumeSigmaTMax(GPUVolume v)
 }
 
 // Sample the density field of a single volume at a world-space point.
-// For homogeneous volumes, density is implicitly 1 (σ_t already absolute).
+// For homogeneous volumes, density is implicitly 1 because σ_t already absolute
 // For heterogeneous volumes, density ∈ [0,1] modulates σ_t = σ_max · density(x).
 float SampleVolumeDensity(GPUVolume v, float3 worldPos)
 {
@@ -109,15 +97,11 @@ float SampleVolumeDensity(GPUVolume v, float3 worldPos)
     return g_volumeDensities[v.densityTexIndex].SampleLevel(g_volumeSampler, uvw, 0);
 }
 
-// ---------------------------------------------------------------------------
-// Tracked majorants — local μ + brick boundary distance
-// ---------------------------------------------------------------------------
+// Tracked majorants = local μ + brick boundary distance
 //
 // The brick-max-density mip stores, per coarse voxel, the maximum dense
 // density inside that voxel's BRICK_SIZE^3 region. So the local majorant
-// μ_local within a brick is brick_max · σ_t_volume_max — a tighter bound
-// than the global μ wherever density is sparse, which makes free-flight
-// step further per iteration.
+// μ_local within a brick is brick_max · σ_t_volume_max
 //
 // Returns:
 //   localMu     – valid majorant for σ_t throughout the current brick.
@@ -137,7 +121,7 @@ void SampleLocalMajorant(GPUVolume v, float3 pos, float3 dir,
         return;
     }
 
-    // Brick grid resolution = majorant texture dimensions.
+    // majorant texture dimensions.
     Texture3D<float> mtex = g_volumeDensities[v.majorantTexIndex];
     uint mW, mH, mD, mLevels;
     mtex.GetDimensions(0, mW, mH, mD, mLevels);
@@ -153,12 +137,9 @@ void SampleLocalMajorant(GPUVolume v, float3 pos, float3 dir,
     float densityBrickMax = mtex.Load(int4(brickCoord, 0));
     localMu = densityBrickMax * globalMu;
 
-    // Distance to the next brick boundary along the ray. For each axis,
-    // pick the boundary in front of `pos` (depends on dir sign), then take
-    // the minimum across axes.
+    // Distance to the next brick boundary along the ray. For each axis, pick the boundary in front of `pos`, whichc depends on dir sign, then take the minimum across axes.
     float3 distVec;
-    [unroll]
-    for (int i = 0; i < 3; i++)
+    [unroll] for (int i = 0; i < 3; i++)
     {
         if (abs(dir[i]) < 1e-20)
         {
@@ -169,23 +150,19 @@ void SampleLocalMajorant(GPUVolume v, float3 pos, float3 dir,
             float nextEdge = float(brickCoord[i]) + (dir[i] > 0.0 ? 1.0 : 0.0);
             float worldEdge = v.vMin[i] + nextEdge * brickWorldSize[i];
             float d = (worldEdge - pos[i]) / dir[i];
-            // pos may be exactly on a boundary; force a small forward step
-            // to guarantee progress (prevents zero-distance loops).
             distVec[i] = max(d, 1e-5);
         }
     }
     boundaryDist = min(distVec.x, min(distVec.y, distVec.z));
 }
 
-// ---------------------------------------------------------------------------
 // Volume segment enumeration along a ray
-// ---------------------------------------------------------------------------
 //
 // Walks all g_volumes, intersects each AABB with [0, tMax], and returns the
 // overlapping intervals sorted by tNear. Capped at MAX_VOLUME_SEGMENTS.
 //
 // Limitations:
-//   - Volumes that overlap in space are walked sequentially without combined
+//    Volumes that overlap in space are walked sequentially without combined
 //     null-collision majorants. This is correct for non-overlapping setups
 //     and a stable approximation otherwise. A combined-majorant pass can
 //     replace the per-segment loop later without changing call sites.
@@ -203,8 +180,7 @@ uint EnumerateVolumeSegments(float3 origin, float3 dir, float tMax,
                              out VolumeSegment segments[MAX_VOLUME_SEGMENTS])
 {
     uint count = 0;
-    [loop]
-    for (uint i = 0; i < volumeCount && count < MAX_VOLUME_SEGMENTS; i++)
+    [loop] for (uint i = 0; i < volumeCount && count < MAX_VOLUME_SEGMENTS; i++)
     {
         GPUVolume v = g_volumes[i];
         float tN, tF;
@@ -217,10 +193,10 @@ uint EnumerateVolumeSegments(float3 origin, float3 dir, float tMax,
 
         // Insertion sort by tNear.
         uint pos = count;
-        [loop]
-        for (; pos > 0; pos--)
+        [loop] for (; pos > 0; pos--)
         {
-            if (segments[pos - 1].tNear <= tN) break;
+            if (segments[pos - 1].tNear <= tN)
+                break;
             segments[pos] = segments[pos - 1];
         }
         segments[pos].volumeIndex = i;
@@ -231,24 +207,21 @@ uint EnumerateVolumeSegments(float3 origin, float3 dir, float tMax,
     return count;
 }
 
-// ---------------------------------------------------------------------------
-// Null-collision free-flight (replaces plain delta tracking)
-// ---------------------------------------------------------------------------
+// Null-collision free-flight, in place of plain delta tracking)
 //
 // Picks a hero wavelength = the volume's max-σ_t channel, which makes the
-// scalar real-collision probability collapse to density(x) (matching the
-// majorant μ = max_c σ_t,c). At each step we either:
+// scalar real-collision probability collapse to density(x) At each step we either:
 //
-//   - Treat as real scatter (prob = density(x)). Per-channel weight gets
+//   1. Treat as real scatter (prob = density(x)). Per-channel weight gets
 //     a factor σ_t,c(x) / (μ · p_e) = σ_t_volume,c / μ.
-//   - Treat as null collision. Per-channel weight gets a factor
+//   2. Treat as null collision. Per-channel weight gets a factor
 //     σ_n,c(x) / (μ · (1 - p_e)) = (μ - density·σ_t_volume,c) / (μ · (1 - density)).
 //     This is the term that lets dim-extinction channels "catch up" so the
 //     accumulated weight matches per-channel transmittance through the
 //     segment, even when free-flight was sampled with the scalar majorant.
 //
-// Accumulates into `weight` (inout). Returns true with tScatter on real
-// scatter; false (and no scatter) if the ray exits [tNear, tFar].
+// Accumulates into `weight`. Returns true with tScatter on real
+// scatter; false and no scatter if the ray exits [tNear, tFar].
 //
 // Reference: Novák et al, "Monte Carlo methods for volumetric light
 // transport"; PBRT v4 §15.1.
@@ -262,8 +235,7 @@ bool NullCollisionFreeFlight(GPUVolume v, float3 origin, float3 dir,
     float globalMu = VolumeSigmaTMax(v);
     float3 sigmaT_v = VolumeSigmaT(v);
     float t = tNear;
-    [loop]
-    for (uint step = 0; step < 512; step++)
+    [loop] for (uint step = 0; step < 512; step++)
     {
         float3 pos = origin + t * dir;
 
@@ -273,8 +245,7 @@ bool NullCollisionFreeFlight(GPUVolume v, float3 origin, float3 dir,
         float localMu, boundaryDist;
         SampleLocalMajorant(v, pos, dir, localMu, boundaryDist);
 
-        // Empty-brick fast path: no extinction here, just walk to the
-        // brick boundary with no weight change.
+        // Empty-brick fast path means no extinction here, just walk to the brick boundary with no weight change.
         if (localMu < 1e-8)
         {
             t += boundaryDist;
@@ -291,7 +262,7 @@ bool NullCollisionFreeFlight(GPUVolume v, float3 origin, float3 dir,
         float dt = -log(xi) / localMu;
 
         // If the step exits the brick first, advance to the boundary and
-        // re-sample with the next brick's μ. No weight change here — the
+        // re-sample with the next brick's μ. No weight change here, the
         // sampled "no collision in this brick" outcome is already weighted
         // implicitly by exp(-localMu · dist) via the exponential pdf.
         if (dt > boundaryDist)
@@ -317,13 +288,11 @@ bool NullCollisionFreeFlight(GPUVolume v, float3 origin, float3 dir,
         float density = SampleVolumeDensity(v, newPos);
 
         // pReal = σ_t,h(x) / localMu = density · σ_t_volume,h / localMu
-        //       = density · globalMu  / localMu = density / density_brick_max.
-        // Clamped so floating-point density >= density_brick_max forces a
-        // real scatter (otherwise the null-weight denominator goes to zero).
+        //       = density · globalMu  / localMu = density / density_brick_max
         float pReal = saturate((density * globalMu) / max(localMu, 1e-20));
         if (pReal >= 1.0 - 1e-6 || NextFloat(rng) < pReal)
         {
-            // Real scatter. Weight collapses to σ_t_volume,c / globalMu —
+            // We actually scatter, and weight is σ_t_volume,c / globalMu —
             // independent of localMu, so the local-μ sampling doesn't bias
             // per-channel weights at scatter sites.
             weight *= sigmaT_v / max(globalMu, 1e-20);
@@ -342,18 +311,10 @@ bool NullCollisionFreeFlight(GPUVolume v, float3 origin, float3 dir,
     return false;
 }
 
-// ---------------------------------------------------------------------------
-// Ratio tracking (replaces deterministic ray-march transmittance)
-// ---------------------------------------------------------------------------
+// Ratio tracking
 //
-// Stochastic, unbiased per-channel transmittance estimator. At each step
-// we treat every collision as null and accumulate σ_n,c / μ. The expected
-// product over a segment is exp(-∫σ_t,c ds), giving the correct per-channel
-// transmittance. Variance is moderate; for the path-tracer's many-sample
-// integration it's not a problem in practice.
-//
-// Same call signature as the old RayMarchTransmittance, except this needs
-// an RNG (it's stochastic) and there's no fixed step count.
+// This is a stochastic, unbiased per-channel transmittance estimator. At each step
+// we treat every collision as null and accumulate σ_n,c / μ. The expected product over a segment is exp(-∫σ_t,c ds), giving the correct per-channel transmittance
 
 float3 RatioTracking(GPUVolume v, float3 origin, float3 dir,
                      float tNear, float tFar, inout RNG rng)
@@ -361,14 +322,13 @@ float3 RatioTracking(GPUVolume v, float3 origin, float3 dir,
     float3 sigmaT_v = VolumeSigmaT(v);
     float3 tr = float3(1, 1, 1);
     float t = tNear;
-    [loop]
-    for (uint step = 0; step < 512; step++)
+    [loop] for (uint step = 0; step < 512; step++)
     {
         float3 pos = origin + t * dir;
         float localMu, boundaryDist;
         SampleLocalMajorant(v, pos, dir, localMu, boundaryDist);
 
-        // Empty brick — transmittance through it is 1, just walk to exit.
+        // Empty brick, transmittance through it is 1, just walk to exit.
         if (localMu < 1e-8)
         {
             t += boundaryDist;
@@ -380,11 +340,7 @@ float3 RatioTracking(GPUVolume v, float3 origin, float3 dir,
         float xi = max(NextFloat(rng), 1e-10);
         float dt = -log(xi) / localMu;
 
-        // Step exits brick: no event sampled in this brick. The implicit
-        // exp(-localMu · dist) weighting is correct for the hero channel,
-        // and matches our null-collision treatment (no per-step weight on
-        // exit — small per-channel bias for tracked majorants in exchange
-        // for big perf wins on sparse volumes).
+        // Step exits brick: no event sampled in this brick
         if (dt > boundaryDist)
         {
             t += boundaryDist;
@@ -397,7 +353,7 @@ float3 RatioTracking(GPUVolume v, float3 origin, float3 dir,
         if (t >= tFar)
             return tr;
 
-        // Null collision: accumulate (localMu - σ_t,c) / localMu per channel.
+        // Null collision case where we accumulate (localMu - σ_t,c) / localMu per channel.
         float3 newPos = origin + t * dir;
         float density = SampleVolumeDensity(v, newPos);
         float3 sigmaN_c = localMu - density * sigmaT_v;
@@ -408,18 +364,13 @@ float3 RatioTracking(GPUVolume v, float3 origin, float3 dir,
     return tr;
 }
 
-// ---------------------------------------------------------------------------
-// Multi-volume entry points (used by Shaders.hlsl)
-// ---------------------------------------------------------------------------
+// Multi-volume entry points, used by Shaders.hlsl
 
 // Sample a free-flight scatter event across all volumes the ray crosses.
 // `weight` (inout, init to 1) accumulates the per-channel null-collision
-// weights that correct for sampling at the scalar majorant — so:
-//   - Pass-through case: `weight` ends as the per-channel transmittance
-//     through every volume the ray crossed (caller multiplies into throughput).
-//   - Real-scatter case: `weight` includes the σ_t_volume,c / μ factor at
-//     the scatter site; the bounce loop combines it with σ_s,c / σ_t_volume,c
-//     to get the per-channel single-scattering albedo.
+// weights that correct for sampling at the scalar majorant, so:
+//   - Pass-through case, where `weight` ends as the per-channel transmittance through every volume the ray crossed, and the caller multiplies into throughput
+//   - Real-scatter case: `weight` includes the σ_t_volume,c / μ factor at the scatter site; the bounce loop combines it with σ_s,c / σ_t_volume,c to get the per-channel single-scattering albedo.
 bool SampleVolumeFreeFlight(float3 origin, float3 dir, float tMax,
                             inout RNG rng,
                             inout float3 weight,
@@ -436,20 +387,13 @@ bool SampleVolumeFreeFlight(float3 origin, float3 dir, float tMax,
     if (count == 0)
         return false;
 
-    [loop]
-    for (uint k = 0; k < count; k++)
+    [loop] for (uint k = 0; k < count; k++)
     {
         VolumeSegment seg = segments[k];
         GPUVolume v = g_volumes[seg.volumeIndex];
         float mu = VolumeSigmaTMax(v);
         if (mu < 1e-8)
             continue;
-
-        // Unified null-collision path. Homogeneous volumes have density=1
-        // everywhere, so the inner loop scatters on its first iteration
-        // (real-collision prob = 1) — equivalent to the old direct
-        // exponential sample, but with the σ_t_volume,c / μ weight
-        // applied per channel.
         float tHit;
         bool scattered = NullCollisionFreeFlight(
             v, origin, dir, seg.tNear, seg.tFar, rng, weight, tHit);
@@ -463,10 +407,8 @@ bool SampleVolumeFreeFlight(float3 origin, float3 dir, float tMax,
     return false;
 }
 
-// Combined RGB transmittance through all volumes along [0, tMax]. Per
-// segment: heterogeneous uses ratio tracking (stochastic, unbiased);
-// homogeneous uses the exact analytic Beer-Lambert form (deterministic and
-// cheaper — no benefit to sampling when σ_t is constant).
+// Combined RGB transmittance through all volumes along [0, tMax]. This is per segment, where heterogeneous uses stochastic and unbiased ratio tracking.;
+// homogeneous uses the exact analytic Beer-Lambert form
 float3 MultiVolumeTransmittance(float3 origin, float3 dir, float tMax,
                                 inout RNG rng)
 {
@@ -479,8 +421,7 @@ float3 MultiVolumeTransmittance(float3 origin, float3 dir, float tMax,
         return float3(1, 1, 1);
 
     float3 tr = float3(1, 1, 1);
-    [loop]
-    for (uint k = 0; k < count; k++)
+    [loop] for (uint k = 0; k < count; k++)
     {
         VolumeSegment seg = segments[k];
         GPUVolume v = g_volumes[seg.volumeIndex];
@@ -498,7 +439,7 @@ float3 MultiVolumeTransmittance(float3 origin, float3 dir, float tMax,
             segTr = exp(-sigmaT * (seg.tFar - seg.tNear));
         }
         tr *= segTr;
-        // Stop only when every channel is below the noise floor.
+        // stop only when every channel is below the noise floor.
         if (max(tr.r, max(tr.g, tr.b)) < 1e-6)
             return float3(0, 0, 0);
     }

@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  White Furnace Test Scene — Hair BCSDF energy conservation check.
+
+  Paths are relative to this file (validation_tests/hair_furnace_test/).
+  The white_furnace.hdr is in textures/ next to this file;
+  generate it with:  python make_white_furnace.py  (from the repo root).
+
+  Uses the native .hair strand geometry (HairMesh tessellator) so that
+  the full h-parameter path (UV-encoded tube offset) is exercised,
+  matching exactly what the production render does.
+
+  Expected result:
+    Every pixel should converge to ≈ 1.0.
+    - Background pixels sample the white env directly  → 1.0
+    - Hair pixels: if the Chiang BCSDF is energy-conserving, every
+      scattered bounce also returns 1.0, so hair ≈ 1.0 too.
+    - Mean < 0.97  →  energy leaking (residual lobe under-weighted in HairAp)
+    - Mean > 1.03  →  energy created  (normalization bug in HairMp / HairNp)
+-->
+<scene>
+    <integrator type="path_mis"/>
+
+    <!-- Look from directly above (+Y down). Strands run along Z; with Y-up
+         the DXR camera's "up-in-image" axis becomes Z, making strands vertical.
+         Centroid=(-14.71, -0.42, 4.78). Z-span=124, X-span=92.
+         Distance 130 frames the full Z-extent at fov=55. -->
+    <camera type="perspective">
+        <float name="fov" value="55"/>
+        <transform name="toWorld">
+            <lookat target="-14.714, -0.419, 4.775"
+                    origin="-14.714, 199.581, 4.775"
+                    up="0, 0, 1"/>
+        </transform>
+        <integer name="height" value="480"/>
+        <integer name="width" value="640"/>
+    </camera>
+
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <!--
+      Native .hair strand mesh (tessellated into tube geometry by HairMesh).
+      color=(1,1,1) sets sigma_a=0 — no absorption anywhere.
+      sides=6 matches the default tessellation.
+      maxStrands limits geometry load for a quick test; remove for full mesh.
+    -->
+    <mesh type="hair">
+        <string name="filename" value="../meshes/wWavy.hair"/>
+        <integer name="sides" value="6"/>
+        <float name="radiusScale" value="1.0"/>
+        <integer name="maxStrands" value="5000"/>
+        <bsdf type="hair_bsdf">
+            <color name="color" value="1.0 1.0 1.0"/>
+            <float name="beta_m" value="0.2"/>
+            <float name="beta_n" value="0.3"/>
+            <float name="alpha" value="2.0"/>
+            <float name="eta" value="1.55"/>
+        </bsdf>
+    </mesh>
+</scene>

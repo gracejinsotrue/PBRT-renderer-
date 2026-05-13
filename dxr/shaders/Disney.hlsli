@@ -1,13 +1,11 @@
-// Disney.hlsli — Disney Principled BRDF (Burley 2012 / Disney 2015).
-// Multi-lobe model, diffuse (Burley + HK subsurface), GGX specular,
-// sheen, and GTR1 clearcoat.
+// Disney.hlsli
+// Disney Principled BRDF (Burley 2012 / Disney 2015).
+// Multi-lobe model, diffuse (Burley + HK subsurface), GGX specular, sheen, and GTR1 clearcoat.
 
 #ifndef DISNEY_HLSLI
 #define DISNEY_HLSLI
 
-// ============================================================================
 // Diffuse lobes
-// ============================================================================
 
 float3 DisneyDiffuseEval(float3 wi, float3 wo, GPUMaterial mat)
 {
@@ -26,10 +24,8 @@ float3 DisneyDiffuseEval(float3 wi, float3 wo, GPUMaterial mat)
     return MatAlbedo(mat) * M_INV_PI * FV * FL;
 }
 
-// Hanrahan-Krueger subsurface-approximation diffuse term from Disney 2012
-// When `subsurface > 0`, Disney blends this with the Burley lobe to fake
-// SSS. (the todo here would be to change into real SSS if time provides)
-// this also is the lobe a real BSSRDF would eventually replace
+// Hanrahan-Krueger subsurface-approximation diffuse term from Disney 2012. When `subsurface > 0`, Disney blends this with the Burley lobe to fake
+// SSS. the todo here would be to change into real SSS if time provides. this also is the lobe a real BSSRDF would eventually replace
 float3 DisneyHKSubsurfaceEval(float3 wi, float3 wo, GPUMaterial mat)
 {
     if (wi.z <= 0.0 || wo.z <= 0.0)
@@ -42,14 +38,13 @@ float3 DisneyHKSubsurfaceEval(float3 wi, float3 wo, GPUMaterial mat)
     float FSS_V = 1.0 + (FSS90 - 1.0) * pow(1.0 - wi.z, 5.0);
     float FSS_L = 1.0 + (FSS90 - 1.0) * pow(1.0 - wo.z, 5.0);
 
-    // cosV + cosL both are > 0 here, but could be tiny at extreme angles, we'd get NaN fireflies if not careful!
     float cosSum = max(wi.z + wo.z, 1e-4);
     float ss = 1.25 * (FSS_V * FSS_L * (1.0 / cosSum - 0.5) + 0.5);
 
     return MatAlbedo(mat) * M_INV_PI * ss;
 }
 
-// Blend the two diffuse lobes by the `subsurface` parameter
+// blend the two diffuse lobes by the `subsurface` parameter
 float3 DisneyDiffuseLobe(float3 wi, float3 wo, GPUMaterial mat)
 {
     float3 fBurley = DisneyDiffuseEval(wi, wo, mat);
@@ -57,9 +52,7 @@ float3 DisneyDiffuseLobe(float3 wi, float3 wo, GPUMaterial mat)
     return lerp(fBurley, fSS, mat.subsurface);
 }
 
-// ============================================================================
 // GGX specular
-// ============================================================================
 
 // GGX microfacet which was taught in lecture but also that Disney requires
 //
@@ -153,9 +146,7 @@ float DisneySpecularPdf(float3 wi, float3 wo, GPUMaterial mat)
     return DisneyGGX_PdfWo(wi, wo, alpha);
 }
 
-// ============================================================================
 // Sheen
-// ============================================================================
 
 float3 DisneySheenEval(float3 wi, float3 wo, GPUMaterial mat)
 {
@@ -174,9 +165,7 @@ float3 DisneySheenEval(float3 wi, float3 wo, GPUMaterial mat)
     return mat.sheen * Csheen * fresnel;
 }
 
-// ============================================================================
 // Clearcoat (GTR1)
-// ============================================================================
 
 float DisneyGTR1_D(float NdotH, float alpha)
 {
@@ -235,7 +224,7 @@ float DisneyClearcoatEval(float3 wi, float3 wo, GPUMaterial mat)
     float alpha = DisneyClearcoatAlpha(mat);
     float D = DisneyGTR1_D(wh.z, alpha);
 
-    // Schlick Fresnel with fixed F0 = 0.04 (dielectric, IOR ~1.5)
+    // Schlick Fresnel with fixed F0 = 0.04
     float VdotH = abs(dot(wi, wh));
     float F = 0.04 + (1.0 - 0.04) * pow(1.0 - VdotH, 5.0);
 
@@ -256,9 +245,7 @@ float DisneyClearcoatPdf(float3 wi, float3 wo, GPUMaterial mat)
     return DisneyGTR1_PdfWo(wi, wo, alpha);
 }
 
-// ============================================================================
 // Lobe sampling probabilities
-// ============================================================================
 
 // Disney heuristic for picking which lobe to sample from:
 //   w_diffuse   = 1 - metallic

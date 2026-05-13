@@ -1,4 +1,5 @@
-// Hair.hlsli — Hair BCSDF (Chiang et al. 2016 / PBRT 4th ed. Section 9.9)
+// Hair.hlsli
+// Implements Hair BCSDF (Chiang et al. 2016 / PBRT 4th ed. Section 9.9)
 //
 // References throughout:
 //   [PBRT]   Section 9.9 "Scattering from Hair"
@@ -9,8 +10,7 @@
 // Azimuthal angle:    φ = atan2(ω.z, ω.y)
 // pMax = 3: lobes R(p=0), TT(p=1), TRT(p=2), residual(p=3)
 //
-// Requires: Common.hlsli, GeometryUtils.hlsli (FresnelDielectric, Luminance,
-//           M_PI), RNG.hlsli
+// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli
 
 #ifndef HAIR_HLSLI
 #define HAIR_HLSLI
@@ -51,8 +51,7 @@ float HairLogI0(float x)
 // Longitudinal scattering
 // ============================================================================
 
-// Longitudinal scattering function Mp (from d'Eon et al. 2011).
-// [PBRT] Eq. 9.49, [Chiang] Section 3.1
+// Longitudinal scattering function Mp
 float HairMp(float cosTheta_i, float cosTheta_o, float sinTheta_i,
              float sinTheta_o, float v)
 {
@@ -71,7 +70,6 @@ float HairMp(float cosTheta_i, float cosTheta_o, float sinTheta_i,
 // ============================================================================
 
 // Logistic distribution and its trimmed/sampled variants.
-// [Chiang] Section 3.3, Appendix A
 float HairLogistic(float x, float s)
 {
     float ex = exp(-abs(x) / s);
@@ -123,8 +121,7 @@ float HairNp(float phi, int p, float s, float gamma_o, float gamma_t)
 // ============================================================================
 
 // Convert hair color to absorption coefficient σ_a.
-// [Chiang] Eq. 9:  least-squares fit relating multiple-scattering
-// albedo C and azimuthal roughness β_N to single-fiber σ_a.
+// [Chiang] Eq. 9:  least-squares fit relating multiple-scattering albedo C and azimuthal roughness β_N to single-fiber σ_a.
 float3 HairSigmaAFromColor(float3 C, float betaN)
 {
     float denom = 5.969 - 0.215 * betaN + 2.532 * betaN * betaN - 10.73 * betaN * betaN * betaN + 5.574 * betaN * betaN * betaN * betaN + 0.245 * betaN * betaN * betaN * betaN * betaN;
@@ -135,8 +132,7 @@ float3 HairSigmaAFromColor(float3 C, float betaN)
     return sigma_a;
 }
 
-// Precompute per-lobe roughness v[p] from β_M.
-// [PBRT] "HairBxDF constructor implementation", [Chiang] Eq. 7
+// compute per-lobe roughness v[p] from β_M.
 struct HairLobeParams
 {
     float v[4];          // longitudinal roughness variance per lobe
@@ -150,21 +146,21 @@ HairLobeParams HairComputeParams(GPUMaterial mat)
 {
     HairLobeParams p;
 
-    // Longitudinal roughness: Chiang Eq. 7
+    // Longitudinal roughness
     float bm = mat.roughness;
     float v0 = 0.726 * bm + 0.812 * bm * bm + 3.7 * pow(bm, 20.0);
     v0 = v0 * v0;
     p.v[0] = v0;
-    p.v[1] = 0.25 * v0; // TT lobe: sharper, refraction focuses
-    p.v[2] = 4.0 * v0;  // TRT: broader, multiple reflections spread
+    p.v[1] = 0.25 * v0; // TT lobe
+    p.v[2] = 4.0 * v0;  // TRT
     p.v[3] = p.v[2];
 
-    // Azimuthal roughness from Chiang Eq. 8
+    // Azimuthal roughness from Chiang
     float bn = mat.betaN;
     float SqrtPiOver8 = 0.626657069;
     p.s = SqrtPiOver8 * (0.265 * bn + 1.194 * bn * bn + 5.372 * pow(bn, 22.0));
 
-    // Cuticle scale tilt from PBRT Section 9.9.6
+    // for cuticle scale tilt
     float alphaRad = mat.alpha * M_PI / 180.0;
     p.sin2kAlpha[0] = sin(alphaRad);
     p.cos2kAlpha[0] = sqrt(max(0.0, 1.0 - p.sin2kAlpha[0] * p.sin2kAlpha[0]));
@@ -180,16 +176,13 @@ HairLobeParams HairComputeParams(GPUMaterial mat)
     return p;
 }
 
-// ============================================================================
 // Attenuation
-// ============================================================================
 
 // Compute attenuation Ap for all lobes
-// [PBRT] Section 9.9.4, [Chiang] Eq. 6 for 4th lobe residual
 void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
             float3 sigma_a, out float3 ap[4])
 {
-    // Modified IOR for normal-plane refraction from [PBRT] Section 9.9.4
+    // Modified IOR for normal-plane refraction
     float etap = sqrt(max(0.0, eta * eta - sinTheta_o * sinTheta_o)) / max(cosTheta_o, 1e-6);
     float sinGamma_t = clamp(h / etap, -1.0, 1.0);
     float cosGamma_t = sqrt(max(0.0, 1.0 - sinGamma_t * sinGamma_t));
@@ -198,26 +191,23 @@ void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
     float sinTheta_t = sinTheta_o / eta;
     float cosTheta_t = sqrt(max(0.0, 1.0 - sinTheta_t * sinTheta_t));
 
-    // Single-segment transmittance from Beer's law, PBRT Eq. 9.50
+    // Single-segment transmittance from Beer's law
     float3 T = exp(-sigma_a * (2.0 * cosGamma_t / max(cosTheta_t, 1e-6)));
 
     // Fresnel at entry
     float cosGamma_o = sqrt(max(0.0, 1.0 - h * h));
     float f = FresnelDielectric(cosTheta_o * cosGamma_o, 1.0, eta);
 
-    // Lobe attenuations: [PBRT] Section 9.9.4
+    // Lobe attenuations
     ap[0] = float3(f, f, f);           // R: surface reflection
     ap[1] = (1.0 - f) * (1.0 - f) * T; // TT: two transmissions
     ap[2] = ap[1] * T * f;             // TRT: +reflection +segment
-    // Residual (Chiang Eq. 6) for geometric series for all p >= 3
     float3 tfProduct = T * f;
     float3 denom = max(float3(1, 1, 1) - tfProduct, float3(1e-10, 1e-10, 1e-10));
     ap[3] = ap[2] * f * T / denom;
 }
 
-// ============================================================================
 // Cuticle scale tilt
-// ============================================================================
 
 // Apply cuticle scale tilt for lobe p.
 // [PBRT] Section 9.9.6: p=0 rotates by -2α, p=1 by +α, p=2 by +4α
@@ -252,15 +242,13 @@ void HairScaleTilt(int p, float sinTheta_o, float cosTheta_o,
 // Eval / Pdf / Sample
 // ============================================================================
 
-// Full hair BCSDF evaluation. [PBRT] Section 9.9.6, Eq. 9.48
+// Full hair BCSDF evaluation.
 // wi, wo are in the hair local frame (tangent=x, normal=z).
 // h is the fiber offset ∈ [-1,1] from the tessellator.
 float3 HairBCSDF_Eval(float3 wi, float3 wo, GPUMaterial mat, float h)
 {
     // No hemisphere check here! hair BCSDF is valid for all directions.
     // Light enters/exits from any angle around the fiber.
-
-    // Hair coordinate angles: [PBRT] Section 9.9.1
     // Our wi = view direction = PBRT's "outgoing" (subscript _o)
     // Our wo = light direction = PBRT's "incident" (subscript _i)
     float sinTheta_o = wi.x;
@@ -276,18 +264,17 @@ float3 HairBCSDF_Eval(float3 wi, float3 wo, GPUMaterial mat, float h)
 
     float eta = mat.intIOR;
 
-    // Refracted azimuthal angle γ_t: [PBRT] Section 9.9.4
+    // Refracted azimuthal angle γ_t
     float etap = sqrt(max(0.0, eta * eta - sinTheta_o * sinTheta_o)) / max(cosTheta_o, 1e-6);
     float gamma_t = asin(clamp(h / etap, -1.0, 1.0));
 
-    // Precompute all lobe parameters
     HairLobeParams lp = HairComputeParams(mat);
 
     // Attenuation
     float3 ap[4];
     HairAp(cosTheta_o, sinTheta_o, h, eta, lp.sigma_a, ap);
 
-    // Sum over lobes: [PBRT] "Evaluate hair BSDF"
+    // Sum over lobes
     float3 fsum = float3(0, 0, 0);
     for (int p = 0; p < HAIR_PMAX; p++)
     {
@@ -301,12 +288,10 @@ float3 HairBCSDF_Eval(float3 wi, float3 wo, GPUMaterial mat, float h)
         fsum += mp * ap[p] * np;
     }
 
-    // Residual lobe: isotropic azimuthal (1/2π). [Chiang] Section 3.4
+    // Residual lobe: isotropic azimuthal (1/2π)
     fsum += HairMp(cosTheta_i, cosTheta_o, sinTheta_i, sinTheta_o, lp.v[HAIR_PMAX]) * ap[HAIR_PMAX] / (2.0 * M_PI);
 
-    // [PBRT] Eq. 9.48: divide by |cos θ_i| to cancel the cosθ factor
-    // that the rendering equation/integrator multiplies by. In our convention,
-    // wo = light direction (PBRT's incident), so wo.z = cos angle with tube normal.
+    // divide by |cos θ_i| to cancel the cosθ factor that the rendering equation/integrator multiplies by.
     float absCosTheta = abs(wo.z);
     if (absCosTheta > 1e-6)
         fsum /= absCosTheta;
@@ -314,12 +299,9 @@ float3 HairBCSDF_Eval(float3 wi, float3 wo, GPUMaterial mat, float h)
     return fsum;
 }
 
-// Hair PDF. [PBRT] Section 9.9.7
+// Hair PDF
 float HairBCSDF_Pdf(float3 wi, float3 wo, GPUMaterial mat, float h)
 {
-    // No hemisphere check — hair BCSDF works for all directions.
-
-    // Our wi = view (PBRT _o), our wo = light (PBRT _i)
     float sinTheta_o = wi.x;
     float cosTheta_o = sqrt(max(0.0, 1.0 - sinTheta_o * sinTheta_o));
     float phi_o = atan2(wi.z, wi.y);
@@ -359,14 +341,13 @@ float HairBCSDF_Pdf(float3 wi, float3 wo, GPUMaterial mat, float h)
 
         pdf += HairMp(cosTheta_i, cosThetap_o, sinTheta_i, sinThetap_o, lp.v[p]) * apLum[p] * invSum * HairNp(phi, p, lp.s, gamma_o, gamma_t);
     }
-    // Residual lobe for uniform azimuthal
+    // residual lobe for uniform azimuthal
     pdf += HairMp(cosTheta_i, cosTheta_o, sinTheta_i, sinTheta_o, lp.v[HAIR_PMAX]) * apLum[HAIR_PMAX] * invSum * (1.0 / (2.0 * M_PI));
 
     return pdf;
 }
 
-// Hair BCSDF sampling. Returns f * cosθ / pdf (MC throughput weight).
-// [PBRT] Section 9.9.7
+// Hair BCSDF sampling, returns f * cosθ / pdf
 float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
                         out float3 wo, out float pdf)
 {
@@ -380,11 +361,11 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
 
     HairLobeParams lp = HairComputeParams(mat);
 
-    // Attenuation for lobe selection
+    // attenuation for lobe selection
     float3 ap[4];
     HairAp(cosTheta_o, sinTheta_o, h, eta, lp.sigma_a, ap);
 
-    // Discrete lobe probabilities from Ap luminance
+    // discrete lobe probabilities from Ap luminance
     float apPDF[4];
     float sumLum = 0.0;
     for (int i = 0; i <= HAIR_PMAX; i++)
@@ -396,7 +377,6 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
     for (int j = 0; j <= HAIR_PMAX; j++)
         apPDF[j] *= invSum;
 
-    // Choose lobe p: [PBRT] "Determine which term to sample"
     float u0 = NextFloat(rng);
     int p = 0;
     float cdf = apPDF[0];
@@ -405,7 +385,7 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
         p++;
         cdf += apPDF[p];
     }
-    // Remap u0 for reuse
+    // Remap u0 because we need to reuse it
     float lobeStart = cdf - apPDF[p];
     u0 = clamp((u0 - lobeStart) / max(apPDF[p], 1e-10), 0.0, 1.0);
 
@@ -415,7 +395,7 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
                   lp.sin2kAlpha, lp.cos2kAlpha,
                   sinThetap_o, cosThetap_o);
 
-    // Sample Mp for θ_i: [PBRT] "Sample Mp to compute θ_i"
+    // Sample Mp for θ_i
     float u1 = NextFloat(rng);
     float u2 = NextFloat(rng);
     float cosTheta = 1.0 + lp.v[p] * log(max(u1, 1e-5) + (1.0 - u1) * exp(-2.0 / lp.v[p]));
@@ -424,7 +404,7 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
     float sinTheta_i = -cosTheta * sinThetap_o + sinTheta * cosPhi_sample * cosThetap_o;
     float cosTheta_i = sqrt(max(0.0, 1.0 - sinTheta_i * sinTheta_i));
 
-    // Sample Np for φ: [PBRT] "Sample Np to compute φ"
+    // Sample Np for φ
     float u3 = NextFloat(rng);
     float dphi;
     if (p < HAIR_PMAX)
@@ -433,15 +413,13 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
     else
         dphi = 2.0 * M_PI * u3;
 
-    // Construct sampled direction: [PBRT] "Compute wi from sampled angles"
+    // Construct sampled direction
     float phi_i = phi_o + dphi;
     wo = float3(sinTheta_i,
                 cosTheta_i * cos(phi_i),
                 cosTheta_i * sin(phi_i));
 
-    // No hemisphere check — hair scatters in all directions around fiber.
-
-    // Compute combined PDF across all lobes
+    // hair scatters in all directions around fiber. Compute combined PDF across all lobes
     pdf = HairBCSDF_Pdf(wi, wo, mat, h);
     if (pdf <= 0.0)
         return float3(0, 0, 0);
@@ -449,9 +427,7 @@ float3 HairBCSDF_Sample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
     // Evaluate full BCSDF at sampled direction
     float3 f = HairBCSDF_Eval(wi, wo, mat, h);
 
-    // Return f * |cosθ| / pdf. Since HairBCSDF_Eval already divides by |cosθ|
-    // (PBRT Eq. 9.48), multiplying by |cosθ| here cancels it, giving the
-    // correct MC weight where the integrator's cosθ factor is handled.
+    // Return f * |cosθ| / pdf. Since HairBCSDF_Eval already divides by |cosθ|, multiplying by |cosθ| here cancels it, giving the correct MC weight where the integrator's cosθ factor is handled
     return f * abs(wo.z) / pdf;
 }
 

@@ -1,7 +1,6 @@
-// Envmap.hlsli — Equirectangular environment map evaluation and importance
-// sampling via a 2D CDF
+// Envmap.hlsli. Equirectangular environment map evaluation and importance sampling via a 2D CDF
 //
-// Requires: Common.hlsli (resource bindings, M_PI)
+// Requires: Common.hlsli for resource bindings.
 
 #ifndef ENVMAP_HLSLI
 #define ENVMAP_HLSLI
@@ -25,7 +24,7 @@ float3 EvalEnvmap(float3 dir)
 }
 
 // ============================================================================
-// CDF search (shared by sampling and pdf lookup)
+// CDF search, shared by sampling and pdf lookup
 // ============================================================================
 
 // Binary search over a monotonic CDF stored in a ByteAddressBuffer.
@@ -98,8 +97,7 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
 // PDF query
 // ============================================================================
 
-// Compute the solid-angle pdf that SampleEnvmap would have produced for the
-// given world-space direction.  Used for MIS weights when the BSDF/path
+// Compute the solid-angle pdf that SampleEnvmap would have produced for the given world-space direction.  Used for MIS weights when the BSDF/path
 // sampler picks a direction that happens to hit the envmap.
 float EnvmapPdfDirection(float3 dir)
 {

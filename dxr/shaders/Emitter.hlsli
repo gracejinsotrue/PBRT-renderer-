@@ -1,9 +1,7 @@
 // Emitter.hlsli. Emitter sampling and next-event estimation.
-// Covers area light sampling via CDF, surface NEE (MIS with BSDF),
-// envmap NEE (MIS with BSDF), and volume NEE (MIS with phase function).
+// Covers area light sampling via CDF, surface NEE which is MIS with BSDF, envmap NEE which is MIS with BSDF, and volume NEE which is MIS with phase function.
 //
-// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli,
-//           Material.hlsli, Envmap.hlsli, Volume.hlsl
+// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli, Material.hlsli, Envmap.hlsli, Volume.hlsl
 
 #ifndef EMITTER_HLSLI
 #define EMITTER_HLSLI
@@ -15,10 +13,7 @@
 #include "Volume.hlsl"
 #include "Material.hlsli"
 
-// ============================================================================
 // Emitter triangle sampling
-// ============================================================================
-
 uint CdfSample(uint cdfOffset, uint numEntries, float u)
 {
     uint lo = 0;
@@ -159,9 +154,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 // Surface NEE for environment map
 // ============================================================================
 
-// Samples one direction from the envmap's importance distribution, shoots a
-// shadow ray, evaluates the BSDF in that direction, and MIS-weights against
-// the BSDF pdf.
+// Samples one direction from the envmap's importance distribution, shoots a shadow ray, evaluates the BSDF in that direction, and MIS-weights against the BSDF pdf.
 float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
                                 float3 wi_local, GPUMaterial mat, float h, inout RNG rng)
 {

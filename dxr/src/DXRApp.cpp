@@ -9,6 +9,7 @@
 #include <nori/emitter.h>
 #include <nori/medium.h>
 #include <nori/dpdf.h>
+#include <nori/sampler.h>
 #include <filesystem/resolver.h>
 
 #include <algorithm>
@@ -59,8 +60,8 @@ std::wstring DXRApp::GetExeDirectory()
     std::wstring dir(path);
     return dir.substr(0, dir.find_last_of(L"\\/") + 1);
 }
-DXRApp::DXRApp(const std::string &scenePath)
-    : m_scenePath(scenePath), m_title(L"nori-dxr")
+DXRApp::DXRApp(const std::string &scenePath, bool headless)
+    : m_scenePath(scenePath), m_title(L"nori-dxr"), m_headless(headless)
 {
     LoadNoriScene();
     auto outputSize = m_noriScene->getCamera()->getOutputSize();
@@ -83,14 +84,19 @@ void DXRApp::LoadNoriScene()
 
     m_noriScene = static_cast<Scene *>(root);
     printf("[nori] Scene loaded: %zu meshes\n", m_noriScene->getMeshes().size());
+
+    if (m_noriScene->getSampler())
+        m_targetSamples = (uint32_t)m_noriScene->getSampler()->getSampleCount();
 }
 
 void DXRApp::OnInit()
 {
     CreateDevice();
     CreateCommandQueue();
-    CreateSwapChain();
-    CreateRTVHeap();
+    if (!m_headless) {
+        CreateSwapChain();
+        CreateRTVHeap();
+    }
     CreateCommandAllocatorsAndList();
     CreateFence();
     CreateAccelerationStructure();
@@ -304,8 +310,12 @@ void DXRApp::SaveSnapshot()
     uint8_t *data;
     readback->Map(0, nullptr, (void **)&data);
 
-    char filename[256];
-    snprintf(filename, sizeof(filename), "snapshot_%u.ppm", m_frameCount);
+    // Save next to the scene XML so snapshots always go to the test folder
+    std::string snapshotDir = filesystem::path(m_scenePath).parent_path().str();
+    if (!snapshotDir.empty())
+        snapshotDir += "/";
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u.ppm", snapshotDir.c_str(), m_frameCount);
 
     FILE *f = fopen(filename, "wb");
     if (f)
@@ -399,8 +409,12 @@ void DXRApp::SaveSnapshotEXR()
 
     readback->Unmap(0, nullptr);
 
-    char filename[256];
-    snprintf(filename, sizeof(filename), "snapshot_%u.exr", m_frameCount);
+    // Save next to the scene XML so snapshots always go to the test folder
+    std::string snapshotDir = filesystem::path(m_scenePath).parent_path().str();
+    if (!snapshotDir.empty())
+        snapshotDir += "/";
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u.exr", snapshotDir.c_str(), m_frameCount);
 
     const char *err = nullptr;
     // components=3 (RGB), save_as_fp16=0 (keep full float32)
@@ -416,16 +430,38 @@ void DXRApp::OnRender()
     PopulateCommandList();
     ID3D12CommandList *cmdLists[] = {m_commandList.Get()};
     m_commandQueue->ExecuteCommandLists(1, cmdLists);
-    ThrowIfFailed(m_swapChain->Present(1, 0), "Present");
-    const UINT64 cv = m_fenceValues[m_frameIndex];
-    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), cv), "Signal");
-    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
-    if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
-    {
-        ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), "Fence");
-        WaitForSingleObject(m_fenceEvent, INFINITE);
+
+    if (!m_headless) {
+        ThrowIfFailed(m_swapChain->Present(1, 0), "Present");
+        const UINT64 cv = m_fenceValues[m_frameIndex];
+        ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), cv), "Signal");
+        m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+        if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
+        {
+            ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), "Fence");
+            WaitForSingleObject(m_fenceEvent, INFINITE);
+        }
+        m_fenceValues[m_frameIndex] = cv + 1;
+    } else {
+        // Headless: just signal fence and wait
+        const UINT64 cv = m_fenceValues[m_frameIndex];
+        ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), cv), "Signal");
+        if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
+        {
+            ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), "Fence");
+            WaitForSingleObject(m_fenceEvent, INFINITE);
+        }
+        m_fenceValues[m_frameIndex] = cv + 1;
     }
-    m_fenceValues[m_frameIndex] = cv + 1;
+
+    // Auto-save EXR and exit when the configured sample count is reached
+    if (m_targetSamples > 0 && m_frameCount >= m_targetSamples)
+    {
+        SaveSnapshotEXR();
+        if (!m_headless) {
+            PostQuitMessage(0);
+        }
+    }
 }
 
 void DXRApp::OnDestroy()
@@ -1770,12 +1806,11 @@ void DXRApp::CreateTextures()
 
     m_textureCount = (uint32_t)m_textures.size();
 
-    // Load the HDR environment map on the same command list so its upload and barrier transition flush together with the material textures.
-    // TODO: this path is currently hardcoded, if I have time i need to wire through the scene XML so different scenes can specify their own HDR and parameters like intensity/rotation.
+    // Load the HDR environment map — path comes from the scene XML <string name="envmap" value="..."/>.
+    // Default is "textures/white_furnace.hdr" if not specified.
     {
         filesystem::path hdrPath =
-            getFileResolver()->resolve("textures/sunset.hdr");
-        // getFileResolver()->resolve("textures/white_furnace.hdr");
+            getFileResolver()->resolve(m_noriScene->getEnvmap());
         LoadEnvmap(hdrPath.str());
     }
 
@@ -1876,6 +1911,8 @@ void DXRApp::SetupCamera()
 
     m_camera.meshCount = m_meshCount;
     m_camera.emitterCount = m_emitterCount;
+    m_camera.envmapScale = m_noriScene->getEnvmapScale();
+    m_camera.evCompensation = m_noriScene->getEvCompensation();
     m_camera.frameCount = 0;
     m_camera.lensRadius = cam->getLensRadius();
     m_camera.focalDistance = cam->getFocalDistance();
@@ -2366,18 +2403,23 @@ void DXRApp::PopulateCommandList()
 
     bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     bb[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    bb[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    bb[1].Transition.pResource = m_renderTargets[m_frameIndex].Get();
-    bb[1].Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-    bb[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-    bb[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    m_commandList->ResourceBarrier(2, bb);
 
-    m_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(), m_outputResource.Get());
+    if (!m_headless) {
+        bb[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        bb[1].Transition.pResource = m_renderTargets[m_frameIndex].Get();
+        bb[1].Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        bb[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+        bb[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        m_commandList->ResourceBarrier(2, bb);
 
-    bb[0].Transition.pResource = m_renderTargets[m_frameIndex].Get();
-    bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-    bb[0].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-    m_commandList->ResourceBarrier(1, &bb[0]);
+        m_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(), m_outputResource.Get());
+
+        bb[0].Transition.pResource = m_renderTargets[m_frameIndex].Get();
+        bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        bb[0].Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        m_commandList->ResourceBarrier(1, &bb[0]);
+    } else {
+        m_commandList->ResourceBarrier(1, &bb[0]);
+    }
     ThrowIfFailed(m_commandList->Close(), "Close");
 }

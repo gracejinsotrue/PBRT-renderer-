@@ -20,7 +20,10 @@ cbuffer CameraParams : register(b0)
     uint volumeCount;
     float lensRadius; // 0 = pinhole camera
     float focalDistance;
-    uint emitterCount; // number of emitter meshes; power CDF has (emitterCount+1) entries at g_emitterCdf offset 0
+    uint emitterCount;    // number of emitter meshes; power CDF has (emitterCount+1) entries at g_emitterCdf offset 0
+    float envmapScale;    // IBL brightness multiplier, set via <float name="envmapScale" .../> in scene XML
+    float evCompensation; // display EV stops: averaged *= pow(2, ev) before Reinhard
+    float2 _cbPad2;       // pad to 16-byte boundary
 };
 
 struct GPUMaterial
@@ -116,6 +119,10 @@ SamplerState g_volumeSampler : register(s2);
 static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
 static const int MAX_BOUNCES = 32;
+// With luminance-proportional importance sampling, radiance/pdf is bounded and
+// firefly clamping is not needed for correctness. The clamp is intentionally
+// disabled (set to FLT_MAX) so the Monte Carlo estimator is unbiased.
+static const float kFireflyClamp = 3.402823466e+38; // FLT_MAX — effectively disabled
 
 // TODO remove later:
 //  When set to 1, the raygen shader replaces normal path tracing with a
@@ -322,7 +329,7 @@ float3 EvalEnvmap(float3 dir)
         phi += 2.0 * M_PI;
     float theta = acos(clamp(d.y, -1.0, 1.0));
     float2 uv = float2(phi / (2.0 * M_PI), theta / M_PI);
-    return g_envmap.SampleLevel(g_envmapSampler, uv, 0).rgb;
+    return g_envmap.SampleLevel(g_envmapSampler, uv, 0).rgb * envmapScale;
 }
 
 // Binary search over a monotonic CDF in a ByteAddressBuffer.
@@ -345,10 +352,15 @@ uint EnvmapCdfSearch(ByteAddressBuffer buf, uint byteOffset, uint numEntries, fl
 // Sample a direction from the environment map proportional to radiance x sin(theta).
 // u1, u2 are independent uniform samples in [0, 1).
 // Outputs:
-//   dir      - world-space unit direction toward the sampled pixel center
+//   dir      - world-space unit direction toward the sampled position WITHIN the pixel
 //   radiance - envmap radiance along dir
 //   pdf      - probability density in solid-angle per steradian
-// todo: the direction is built from the pixel cente; jittering should be added later
+//
+// Pixel-center sampling biases the estimator when the envmap is coarse (validated:
+// 2x2 white envmap gives +6% on Lambertian; 128x64 fixes it). We recover the
+// leftover entropy from u1/u2 after the CDF search and jitter within the chosen
+// pixel, so the actual sampled distribution matches the continuous-pixel pdf the
+// caller assumes.
 void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out float pdf)
 {
     uint W, H;
@@ -357,13 +369,25 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
     // 1. pick a row via the marginal CDF (H + 1 entries).
     uint y = EnvmapCdfSearch(g_envmapMarginalCdf, 0, H + 1, u1);
 
+    // Recover within-row jitter v ∈ [0,1) from u1's position inside the row's CDF cell.
+    float marg_y0 = asfloat(g_envmapMarginalCdf.Load(y * 4));
+    float marg_y1 = asfloat(g_envmapMarginalCdf.Load((y + 1) * 4));
+    float pMar = marg_y1 - marg_y0;
+    float jitter_v = (pMar > 1e-20) ? saturate((u1 - marg_y0) / pMar) : 0.5;
+
     // 2. pick a column within that row via the conditional CDF, where row y starts at float offset y * (W + 1), meaning byte offset y*(W+1)*4.
     uint rowBytes = (W + 1) * 4;
     uint x = EnvmapCdfSearch(g_envmapConditionalCdf, y * rowBytes, W + 1, u2);
 
-    // 3. Compute the direction at the pixel center.
-    float u = ((float)x + 0.5) / (float)W;
-    float v = ((float)y + 0.5) / (float)H;
+    // Recover within-column jitter u ∈ [0,1) from u2's position inside the column's CDF cell.
+    float cond_x0 = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + x * 4));
+    float cond_x1 = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + (x + 1) * 4));
+    float pCon = cond_x1 - cond_x0;
+    float jitter_u = (pCon > 1e-20) ? saturate((u2 - cond_x0) / pCon) : 0.5;
+
+    // 3. Compute the direction at the JITTERED sub-pixel position.
+    float u = ((float)x + jitter_u) / (float)W;
+    float v = ((float)y + jitter_v) / (float)H;
     float phi = 2.0 * M_PI * u;
     float theta = M_PI * v;
     float sinTheta = sin(theta);
@@ -372,17 +396,13 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
                  cosTheta,
                  sinTheta * sin(phi));
 
-    // 4. compute radiance by reading the pixel directly via the sampler at the center UV.
-    radiance = g_envmap.SampleLevel(g_envmapSampler, float2(u, v), 0).rgb;
+    // 4. compute radiance by sampling the envmap texture at the jittered UV (bilinear).
+    radiance = g_envmap.SampleLevel(g_envmapSampler, float2(u, v), 0).rgb * envmapScale;
 
-    // 5. pixel-space pdf via CDF differencing, then convert to solid-angle pdf where p_pixel = p_marginal(y) * p_conditional(x | y)
-    float pMar = asfloat(g_envmapMarginalCdf.Load((y + 1) * 4)) -
-                 asfloat(g_envmapMarginalCdf.Load(y * 4));
-    float pCon = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + (x + 1) * 4)) -
-                 asfloat(g_envmapConditionalCdf.Load(y * rowBytes + x * 4));
+    // 5. pixel-space pdf p_pixel = p_marginal(y) * p_conditional(x | y).
     float pPixel = pMar * pCon;
 
-    // do the jacobian where : pixel-space -> direction-space, where p_omega = p_pixel * (W * H) / (2 * pi^2 * sin(theta)).
+    // jacobian pixel-space -> direction-space: p_omega = p_pixel * (W * H) / (2 * pi^2 * sin(theta)).
     float denom = 2.0 * M_PI * M_PI * max(sinTheta, 1e-8);
     pdf = pPixel * (float)(W * H) / denom;
 }
@@ -1552,10 +1572,19 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     float3 wi_world = toLight / dist;
     float cosTheta = dot(N, wi_world);
     float cosLight = dot(es.normal, -wi_world);
-    if (cosTheta <= 0.0 || cosLight <= 0.0)
+    // Hair scatters from all directions around the fiber — don't clamp to upper hemisphere.
+    bool isHair = (mat.type == 5);
+    if ((!isHair && cosTheta <= 0.0) || cosLight <= 0.0)
         return float3(0, 0, 0);
+    float absCosTheta = isHair ? abs(cosTheta) : cosTheta;
 
-    float3 shadowOrigin = OffsetRayOrigin(hitPos, Ng, N);
+    // For hair, shadow rays may go to the back side of the fiber.
+    // Offset toward the light direction to avoid self-intersection.
+    bool isHairShadow = (mat.type == 5);
+    float3 shadowNg = isHairShadow
+                          ? (dot(wi_world, Ng) >= 0.0 ? Ng : -Ng)
+                          : Ng;
+    float3 shadowOrigin = OffsetRayOrigin(hitPos, shadowNg, shadowNg);
     RayDesc shadowRay;
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wi_world;
@@ -1578,7 +1607,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float w = BalanceHeuristic(pdfEms, pdfBsdf);
     float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, dist, rng);
-    return es.radiance * f * cosTheta / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
+    return es.radiance * f * absCosTheta / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
 }
 
 // Envmap next-event estimation, which samples one direction from the envmap's importance distribution, shoots a shadow ray evaluates the BSDF in that direction, and
@@ -1595,10 +1624,19 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
         return float3(0, 0, 0);
 
     float cosTheta = dot(N, wi_world);
-    if (cosTheta <= 0.0)
+    // Hair scatters from all directions around the fiber — don't clamp to upper hemisphere.
+    bool isHair = (mat.type == 5);
+    if (!isHair && cosTheta <= 0.0)
         return float3(0, 0, 0);
+    float absCosTheta = isHair ? abs(cosTheta) : cosTheta;
 
-    float3 shadowOrigin = OffsetRayOrigin(hitPos, Ng, N);
+    // For hair, shadow rays may go to the back side of the fiber.
+    // Offset toward the light direction to avoid self-intersection.
+    bool isHairEnvShadow = (mat.type == 5);
+    float3 envShadowNg = isHairEnvShadow
+                             ? (dot(wi_world, Ng) >= 0.0 ? Ng : -Ng)
+                             : Ng;
+    float3 shadowOrigin = OffsetRayOrigin(hitPos, envShadowNg, envShadowNg);
     RayDesc shadowRay;
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wi_world;
@@ -1622,7 +1660,11 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
 
     float w = BalanceHeuristic(pdfEnv, pdfBsdf);
     float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
-    return Lenv * f * cosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
+    float3 contrib = Lenv * f * absCosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
+    float contribLum = dot(contrib, float3(0.2126, 0.7152, 0.0722));
+    if (contribLum > kFireflyClamp)
+        contrib *= kFireflyClamp / contribLum;
+    return contrib;
 }
 
 // Volume NEE
@@ -1901,6 +1943,10 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
         else if (!payload.hit)
         {
             float3 env = float3(payload.envR, payload.envG, payload.envB);
+            // Clamp to suppress fireflies from bright HDRI sun disks on high-variance paths.
+            float envLum = dot(env, float3(0.2126, 0.7152, 0.0722));
+            if (envLum > kFireflyClamp)
+                env *= kFireflyClamp / envLum;
             if (lastBsdfPdf == 0.0)
             {
                 Lo += throughput * env;
@@ -2171,8 +2217,15 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
                 if (bsdfPdf <= 0.0 || all(weight == 0.0))
                     break;
 
-                ray.Origin = OffsetRayOrigin(hitPos, Ng, N);
-                ray.Direction = ToWorld(wo_local, T, B, N);
+                float3 wo_world = ToWorld(wo_local, T, B, N);
+                // For hair, TT/TRT lobes scatter *through* the fiber (dot(wo,Ng)<0).
+                // Offsetting toward +Ng would put the origin on the wrong side and
+                // cause immediate self-intersection. Always offset toward the outgoing side.
+                float3 offsetNg = (mat.type == 5)
+                                      ? (dot(wo_world, Ng) >= 0.0 ? Ng : -Ng)
+                                      : Ng;
+                ray.Origin = OffsetRayOrigin(hitPos, offsetNg, offsetNg);
+                ray.Direction = wo_world;
                 ray.TMin = 0.0;
                 ray.TMax = 1e20;
 
@@ -2203,8 +2256,15 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
     g_accum[pixel] = accum;
 
     float3 averaged = accum.xyz / accum.w;
-    averaged = averaged / (1.0 + averaged);
-    averaged = pow(averaged, 1.0 / 2.2);
+    averaged = averaged * pow(2.0, evCompensation); // exposure compensation in EV stops (0 = no change)
+
+    // ACES filmic tonemapper (Hill 2016 approximation).
+    // Preserves saturation and contrast in midtones better than Reinhard.
+    // Input is assumed to be in scene-linear AP1-ish space.
+    float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+    averaged = saturate((averaged * (a * averaged + b)) / (averaged * (c * averaged + d) + e));
+
+    averaged = pow(averaged, 1.0 / 2.2); // gamma 2.2
     g_output[pixel] = float4(averaged, 1.0);
 }
 

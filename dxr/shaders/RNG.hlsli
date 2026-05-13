@@ -1,5 +1,5 @@
-// RNG.hlsli — PCG-based random number generator for GPU path tracing.
-// Seeded per-pixel per-frame to ensure independent sample streams.
+// RNG.hlsli.
+// PCG-based random number generator for GPU path tracing.
 
 #ifndef RNG_HLSLI
 #define RNG_HLSLI

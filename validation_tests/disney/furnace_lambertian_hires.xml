@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Same as furnace_lambertian.xml but uses a 64x128 white HDR instead of 2x2.
+     If our Lambertian result drops from ~1.06 to ~1.00 with the finer envmap,
+     the bias is confirmed to be unjittered envmap NEE sampling. -->
+<scene>
+    <string name="envmap" value="textures/white_hires.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="0, 0, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="256"/>
+        <integer name="width" value="256"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="sphere.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="1.0 1.0 1.0"/>
+        </bsdf>
+    </mesh>
+</scene>
