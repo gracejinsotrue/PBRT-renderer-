@@ -103,6 +103,29 @@ public:
             m_N.resize(3, vertices.size());
             for (uint32_t i=0; i<vertices.size(); ++i)
                 m_N.col(i) = normals.at(vertices[i].n-1);
+        } else {
+            // No vn lines — compute angle-weighted smooth vertex normals.
+            m_N.resize(3, vertices.size());
+            m_N.setZero();
+            uint32_t numTris = (uint32_t) m_F.cols();
+            for (uint32_t t = 0; t < numTris; ++t) {
+                uint32_t i0 = m_F(0, t), i1 = m_F(1, t), i2 = m_F(2, t);
+                Vector3f e1 = m_V.col(i1) - m_V.col(i0);
+                Vector3f e2 = m_V.col(i2) - m_V.col(i0);
+                Vector3f faceN = e1.cross(e2); // magnitude = 2*area
+                // Angle weights at each corner
+                auto safeAngle = [](const Vector3f &a, const Vector3f &b) -> float {
+                    float d = a.normalized().dot(b.normalized());
+                    return std::acos(std::max(-1.0f, std::min(1.0f, d)));
+                };
+                m_N.col(i0) += faceN * safeAngle(e1, e2);
+                m_N.col(i1) += faceN * safeAngle(m_V.col(i0)-m_V.col(i1), m_V.col(i2)-m_V.col(i1));
+                m_N.col(i2) += faceN * safeAngle(m_V.col(i0)-m_V.col(i2), m_V.col(i1)-m_V.col(i2));
+            }
+            for (uint32_t i = 0; i < (uint32_t) vertices.size(); ++i) {
+                float len = m_N.col(i).norm();
+                if (len > 1e-8f) m_N.col(i) /= len;
+            }
         }
 
         if (!texcoords.empty()) {

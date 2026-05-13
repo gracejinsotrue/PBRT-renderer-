@@ -113,6 +113,15 @@ public:
 
     EClassType getClassType() const { return EScene; }
 
+    /// Return the environment map path specified in the scene XML (relative path)
+    const std::string &getEnvmap() const { return m_envmap; }
+
+    /// Return the env map intensity scale (default 1.0, set via <float name="envmapScale" .../> in scene XML)
+    float getEnvmapScale() const { return m_envmapScale; }
+
+    /// Return the display exposure in EV stops (default 0.0). Applied as pow(2,ev) before Reinhard tonemapping.
+    float getEvCompensation() const { return m_evCompensation; }
+
 private:
     std::vector<Mesh *> m_meshes;
     Integrator *m_integrator = nullptr;
@@ -120,6 +129,9 @@ private:
     Camera *m_camera = nullptr;
     Accel *m_accel = nullptr;
     Medium *m_medium = nullptr;
+    std::string m_envmap = "textures/white_furnace.hdr";
+    float m_envmapScale = 1.0f;
+    float m_evCompensation = 0.0f;
 };
 
 NORI_NAMESPACE_END

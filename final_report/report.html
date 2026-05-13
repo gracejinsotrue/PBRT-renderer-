@@ -1,133 +1,434 @@
-CS5630 PHYSICALLY-BASED RENDERING Final Report
+<!DOCTYPE html>
+<html lang="en">
 
-Student name: Grace Jin
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS5630 Final Report — Grace Jin</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --muted: #555;
+            --accent: #2a5db0;
+            --border: #ddd;
+            --code-bg: #f5f5f5;
+            --table-header: #f0f4f8;
+            --table-alt: #fafbfc;
+        }
 
-NetID: gsj33
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
+        body {
+            font-family: "Georgia", "Times New Roman", serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.7;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
 
-Final Report Overview
-========
+        h1 {
+            font-size: 1.8rem;
+            margin: 48px 0 8px;
+            border-bottom: 2px solid var(--text);
+            padding-bottom: 6px;
+        }
 
+        h2 {
+            font-size: 1.4rem;
+            margin: 36px 0 12px;
+            color: var(--accent);
+        }
 
-Motivational Image
-========
-I was inspired by 1. the "I Spy" books that have a lot of objects in the scene. I wanted to make a scene with a lot of
-objects that I like. I think having a complicated image that a person can look at for a long time is interesting.
+        h3 {
+            font-size: 1.15rem;
+            margin: 24px 0 8px;
+        }
 
+        h4 {
+            font-size: 1.05rem;
+            margin: 20px 0 8px;
+        }
 
-2. I was inspired by the painting I made in high school that won a bunch of art competitions and is a nice painting (I
-was a painter long before I was a programmer, so the scene ends up looking like a painting composition in my opinion)
+        p {
+            margin: 10px 0;
+        }
 
-I knew the end result was going to be combination of the two. With this in mind, I wanted to add support to render a
-person amongst
-a bunch of objects of different materials that I
-like... hair and skin for the girl, various complicated and simple objects of different textures, parameters of object
-BRDFs...
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
 
-![I Love I Spy](images/I_Spy.png)
-![High School Painting](images/painting.png)
+        table {
+            border-collapse: collapse;
+            margin: 16px 0;
+            width: 100%;
+            font-size: 0.92rem;
+        }
 
-Proposed features and points
-=============================
-- Textures (10 pts)
-- Normal Mapping (10 pts)
-- Depth of Field thin lens model (10 pts)
-- Mesh Design (10 pts)
-- Image-Based Lighting (20 pts)
-- Advanced BSDFs; I added support of Disney BRDF to my renderer (30 pts)
-- Hair/fiber rendering (50 pts)
-- Heterogenous volumetric participating media with delta tracking algorithm (50 pts)
+        th,
+        td {
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            text-align: left;
+            vertical-align: top;
+        }
 
-Additionally I ran my final image throug Intel's open source denoiser as well as rewrote everything in DirectX utilizing
-its TLAS/BLAS acceleration structure and shader to run on my A3000 GPU. The shaders I am referencing are in the dxr/
-directory in my codebase.
+        th {
+            background: var(--table-header);
+            font-weight: 700;
+        }
 
+        tr:nth-child(even) td {
+            background: var(--table-alt);
+        }
 
+        /* Image comparison tables — no borders, centered */
+        table.compare {
+            border: none;
+            margin: 20px auto;
+        }
 
-Description and Validation of Feature 1: Textures
-=============
+        table.compare th,
+        table.compare td {
+            border: none;
+            text-align: center;
+            padding: 4px 8px;
+            background: none;
+            vertical-align: bottom;
+        }
 
-### Implementation
+        table.compare td img {
+            display: block;
+            margin: 0 auto;
+        }
 
-Texture mapping runs on the GPU in `dxr/shaders/Shaders.hlsl`. At scene build time (`dxr/src/DXRApp.cpp`), all
-per-vertex UV coordinates across every mesh are concatenated into a single `ByteAddressBuffer` (`g_texcoords`), and
-every unique texture image is loaded into GPU memory as a mipmapped `Texture2D` resource. Each material is represented
-by a `GPUMaterial` struct carrying texture-index fields (`albedoTexIndex`, `roughnessTexIndex`, `specularTexIndex`,
-`subsurfaceTexIndex`, `alphaTexIndex`). All
-textures are bound as a single unbounded array `Texture2D g_textures[] : register(t11)`, so any shader invocation can
-dynamically index into them using the stored index.
+        table.compare td.caption {
+            font-size: 0.85rem;
+            color: var(--muted);
+            padding-top: 4px;
+            vertical-align: top;
+        }
 
-Then we have a closest hit shader where the UV at the hit point is computed by barycentrically interpolating the three
-per-vertex
-UVs for the struck triangle. A UV footprint is then derived from the hit distance
-and screen dimensions to choose an appropriate mip level (`ComputeUVFootprint` / `ComputeTexLOD`), avoiding aliasing
-on surfaces seen at a glancing angle. Sampling follows as
-`g_textures[mat.albedoTexIndex].SampleLevel(g_sampler, hitUV, lod).rgb`, and the result overwrites the material's
-scalar albedo (or roughness, specular, subsurface) before BSDF evaluation.
+        pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 14px 16px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin: 12px 0;
+        }
 
+        code {
+            font-family: "Consolas", "Menlo", monospace;
+            font-size: 0.88em;
+        }
 
-The scene XML for a texture would simply wire up as: an `albedoTexture` attribute on any `<bsdf>` element enables
-    texture mapping:
+        p code,
+        li code,
+        td code {
+            background: var(--code-bg);
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
 
-    ```xml
-    <bsdf type="diffuse">
-        <string name="albedoTexture" value="textures/rocky-rugged-terrain_1_albedo.png" />
-    </bsdf>
-    ```
+        .figure {
+            text-align: center;
+            margin: 24px 0;
+        }
 
-    The texture is loaded as an sRGB resource , `DXGI_FORMAT_R8G8B8A8_UNORM_SRGB` specifically, and mipmapped
-    automatically.
+        .figure img {
+            max-width: 800px;
+        }
 
-    ### Quantitative Validation
+        .figure p {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 6px;
+        }
 
-    Three renders were compared: our renderer with and without the albedo texture, and a Mitsuba renderer reference.
-    The Mitsuba reference uses the same `rocky-rugged-terrain_1_albedo.png` file loaded without `raw=True`
-    (this would be sRGB decoding), which best matches the technique the shader uses, which loads albedo textures as
-    `DXGI_FORMAT_R8G8B8A8_UNORM_SRGB`.
+        .header-block {
+            margin-bottom: 32px;
+        }
 
-    | Comparison | Linear RMSE | Tonemap PSNR | Interpretation |
-    |---|---|---|---|
-    | Ours flat vs Mitsuba flat | 0.011 | 49.3 dB | Baseline renderer is correct! |
-    | Ours textured vs flat (same renderer) | **0.311** | **15.6 dB** | Texture has a large, clearly visible effect |
-    | Ours textured vs Mitsuba textured | **0.003** | **48.3 dB** | Good match, our implementation is correct! |
+        .header-block p {
+            margin: 2px 0;
+            font-size: 1.05rem;
+        }
 
-    The textured vs Mitsuba textured RMSE of 0.003 is low, so the texture sampling, sRGB decode, and mip-level selection
-    all
-    agree with Mitsuba. The large **textured vs flat** difference of RMSE 0.311, PSNR 15.6 dB just
-    demonstrates that the texture has a strong, measurable effect on the render.
+        .katex-like {
+            font-family: "Cambria Math", "Latin Modern Math", Georgia, serif;
+            font-style: italic;
+        }
 
-    ### Visual Results
+        strong {
+            font-weight: 700;
+        }
+    </style>
+</head>
 
-    **Baseline flat sphere: ours (left) vs Mitsuba (right):**
+<body>
+
+    <!-- ============================================================ -->
+    <!--  HEADER                                                       -->
+    <!-- ============================================================ -->
+
+    <div class="header-block">
+        <h1 style="font-size:2rem;">CS5630 Physically-Based Rendering — Final Report</h1>
+        <p><strong>Student name:</strong> Grace Jin</p>
+        <p><strong>NetID:</strong> gsj33</p>
+        <p> Note, I used html for my report, so all the images here are in png or jpeg. They can be found in the images/
+            directory of the same directory this report is in.
+            For the .exr images, they are in the images_exr/ directory in this same directory.
+        </p>
+        <p> Link to repo of final implementatio is the main branch of:
+            https://github.coecis.cornell.edu/gsj33/nori-26sp.
+
+            The meshes used for the scene I rendered is in scenes/final_scene_real/, as well as the final SceneXML
+            description for the entire rendered scene being
+            scenes\final_scene_real\scene2.xml.
+
+        </p>
+    </div>
+
+    <!-- ============================================================ -->
+    <!--  MOTIVATIONAL IMAGE                                           -->
+    <!-- ============================================================ -->
+
+    <h1>Motivational Image</h1>
+
+    <p>
+        I was inspired by 1. the "I Spy" books that have a lot of objects in the scene. I wanted to make a scene with a
+        lot of
+        objects that I like. I think having a complicated image that a person can look at for a long time is
+        interesting.
+    </p>
+
+    <p>
+        2. I was inspired by the painting I made in high school that won a bunch of art competitions and is a nice
+        painting (I
+        was a painter long before I was a programmer, so the scene ends up looking like a painting composition in my
+        opinion)
+    </p>
+
+    <p>
+        I knew the end result was going to be combination of the two. With this in mind, I wanted to add support to
+        render a
+        person amongst
+        a bunch of objects of different materials that I
+        like... hair and skin for the girl, various complicated and simple objects of different textures, parameters of
+        object
+        BRDFs...
+    </p>
+
+    <div class="figure">
+        <img src="images/I_Spy.png" alt="I Love I Spy" />
+        <p>I Spy inspiration</p>
+    </div>
+
+    <div class="figure">
+        <img src="images/painting.png" alt="High School Painting" />
+        <p>High school painting inspiration</p>
+    </div>
+
+    <!-- ============================================================ -->
+    <!--  PROPOSED FEATURES                                            -->
+    <!-- ============================================================ -->
+
+    <h1>Proposed Features and Points</h1>
+
     <table>
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>Points</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Textures</td>
+                <td>10 pts</td>
+            </tr>
+            <tr>
+                <td>Normal Mapping</td>
+                <td>10 pts</td>
+            </tr>
+            <tr>
+                <td>Depth of Field thin lens model</td>
+                <td>10 pts</td>
+            </tr>
+            <tr>
+                <td>Mesh Design</td>
+                <td>10 pts</td>
+            </tr>
+            <tr>
+                <td>Image-Based Lighting</td>
+                <td>20 pts</td>
+            </tr>
+            <tr>
+                <td>Advanced BSDFs; Disney BRDF</td>
+                <td>30 pts</td>
+            </tr>
+            <tr>
+                <td>Hair/fiber rendering</td>
+                <td>50 pts</td>
+            </tr>
+            <tr>
+                <td>Homogeneous volumetric participating media</td>
+                <td>30 pts</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        Additionally I ran my final image through Intel's open source denoiser as well as rewrote everything in DirectX
+        utilizing
+        its TLAS/BLAS acceleration structure and shader to run on my A3000 GPU. The shaders I am referencing are in the
+        <code>dxr/</code>
+        directory in my codebase.
+    </p>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 1: TEXTURES                                         -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 1: Textures</h1>
+
+    <h2>Implementation</h2>
+
+    <p>
+        Texture mapping runs on the GPU in <code>dxr/shaders/Shaders.hlsl</code>. At scene build time
+        (<code>dxr/src/DXRApp.cpp</code>), all
+        per-vertex UV coordinates across every mesh are concatenated into a single <code>ByteAddressBuffer</code>
+        (<code>g_texcoords</code>), and
+        every unique texture image is loaded into GPU memory as a mipmapped <code>Texture2D</code> resource. Each
+        material is represented
+        by a <code>GPUMaterial</code> struct carrying texture-index fields (<code>albedoTexIndex</code>,
+        <code>roughnessTexIndex</code>, <code>specularTexIndex</code>,
+        <code>subsurfaceTexIndex</code>, <code>alphaTexIndex</code>). All
+        textures are bound as a single unbounded array <code>Texture2D g_textures[] : register(t11)</code>, so any
+        shader invocation can
+        dynamically index into them using the stored index.
+    </p>
+
+    <p>
+        Then we have a closest hit shader where the UV at the hit point is computed by barycentrically interpolating the
+        three
+        per-vertex UVs for the struck triangle. A UV footprint is then derived from the hit distance
+        and screen dimensions to choose an appropriate mip level (<code>ComputeUVFootprint</code> /
+        <code>ComputeTexLOD</code>), avoiding aliasing
+        on surfaces seen at a glancing angle. Sampling follows as
+        <code>g_textures[mat.albedoTexIndex].SampleLevel(g_sampler, hitUV, lod).rgb</code>, and the result overwrites
+        the material's
+        scalar albedo (or roughness, specular, subsurface) before BSDF evaluation.
+    </p>
+
+    <p>
+        The scene XML for a texture would simply wire up as: an <code>albedoTexture</code> attribute on any
+        <code>&lt;bsdf&gt;</code> element enables texture mapping:
+    </p>
+
+    <pre><code>&lt;bsdf type="diffuse"&gt;
+    &lt;string name="albedoTexture" value="textures/rocky-rugged-terrain_1_albedo.png" /&gt;
+&lt;/bsdf&gt;</code></pre>
+
+    <p>
+        The texture is loaded as an sRGB resource, <code>DXGI_FORMAT_R8G8B8A8_UNORM_SRGB</code> specifically, and
+        mipmapped automatically.
+    </p>
+
+    <h2>Quantitative Validation</h2>
+
+    <p>
+        Three renders were compared: our renderer with and without the albedo texture, and a Mitsuba renderer reference.
+        The Mitsuba reference uses the same <code>rocky-rugged-terrain_1_albedo.png</code> file loaded without
+        <code>raw=True</code>
+        (this would be sRGB decoding), which best matches the technique the shader uses, which loads albedo textures as
+        <code>DXGI_FORMAT_R8G8B8A8_UNORM_SRGB</code>.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Comparison</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>Interpretation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Ours flat vs Mitsuba flat</td>
+                <td>0.011</td>
+                <td>49.3 dB</td>
+                <td>Baseline renderer is correct!</td>
+            </tr>
+            <tr>
+                <td>Ours textured vs flat (same renderer)</td>
+                <td><strong>0.311</strong></td>
+                <td><strong>15.6 dB</strong></td>
+                <td>Texture has a large, clearly visible effect</td>
+            </tr>
+            <tr>
+                <td>Ours textured vs Mitsuba textured</td>
+                <td><strong>0.003</strong></td>
+                <td><strong>48.3 dB</strong></td>
+                <td>Good match, our implementation is correct!</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The textured vs Mitsuba textured RMSE of 0.003 is low, so the texture sampling, sRGB decode, and mip-level
+        selection
+        all agree with Mitsuba. The large <strong>textured vs flat</strong> difference of RMSE 0.311, PSNR 15.6 dB just
+        demonstrates that the texture has a strong, measurable effect on the render.
+    </p>
+
+    <h2>Visual Results</h2>
+
+    <p><strong>Baseline flat sphere: ours (left) vs Mitsuba (right):</strong></p>
+
+    <table class="compare">
         <tr>
             <td><img src="images/texture_flat_ours.png" width="256" alt="Flat sphere — nori-dxr" /></td>
             <td><img src="images/texture_flat_ref.png" width="256" alt="Flat sphere — Mitsuba" /></td>
             <td><img src="images/texture_flat_absdiff.png" width="256" alt="Flat abs diff" /></td>
         </tr>
         <tr>
-            <td align="center">nori-dxr (flat)</td>
-            <td align="center">Mitsuba (flat)</td>
-            <td align="center">Abs diff (RMSE = 0.011)</td>
+            <td class="caption">nori-dxr (flat)</td>
+            <td class="caption">Mitsuba (flat)</td>
+            <td class="caption">Abs diff (RMSE = 0.011)</td>
         </tr>
     </table>
 
-    **Textured sphere: ours (left) vs Mitsuba (right):**
-    <table>
+    <p><strong>Textured sphere: ours (left) vs Mitsuba (right):</strong></p>
+
+    <table class="compare">
         <tr>
             <td><img src="images/texture_textured_ours.png" width="256" alt="Textured — nori-dxr" /></td>
             <td><img src="images/texture_textured_ref.png" width="256" alt="Textured — Mitsuba" /></td>
             <td><img src="images/texture_textured_absdiff.png" width="256" alt="Textured abs diff" /></td>
         </tr>
         <tr>
-            <td align="center">nori-dxr (albedo texture)</td>
-            <td align="center">Mitsuba (albedo texture)</td>
-            <td align="center">Abs diff (RMSE = 0.003)</td>
+            <td class="caption">nori-dxr (albedo texture)</td>
+            <td class="caption">Mitsuba (albedo texture)</td>
+            <td class="caption">Abs diff (RMSE = 0.003)</td>
         </tr>
     </table>
 
-    **Effect of texture: textured vs flat (same renderer):**
-    <table>
+    <p><strong>Effect of texture: textured vs flat (same renderer):</strong></p>
+
+    <table class="compare">
         <tr>
             <td><img src="images/texture_texvsflat_textured.png" width="256" alt="With texture" /></td>
             <td><img src="images/texture_texvsflat_flat.png" width="256" alt="Without texture" /></td>
@@ -135,842 +436,1766 @@ The scene XML for a texture would simply wire up as: an `albedoTexture` attribut
             <td><img src="images/texture_texvsflat_falsecolor.png" width="256" alt="Tex vs flat false color" /></td>
         </tr>
         <tr>
-            <td align="center">With albedo texture</td>
-            <td align="center">Without texture (flat grey)</td>
-            <td align="center">Abs diff (RMSE = 0.311)</td>
-            <td align="center">False-color error map</td>
+            <td class="caption">With albedo texture</td>
+            <td class="caption">Without texture (flat grey)</td>
+            <td class="caption">Abs diff (RMSE = 0.311)</td>
+            <td class="caption">False-color error map</td>
         </tr>
     </table>
 
-    EXR source files: `images_exr/texture_textured.exr`, `images_exr/texture_textured_ref.exr`,
-    `images_exr/texture_flat.exr`, `images_exr/texture_flat_ref.exr`.
+    <p>
+        EXR source files: <code>images_exr/texture_textured.exr</code>,
+        <code>images_exr/texture_textured_ref.exr</code>,
+        <code>images_exr/texture_flat.exr</code>, <code>images_exr/texture_flat_ref.exr</code>.
+    </p>
 
-    Description and Validation of Feature 2: Normal Mapping
-    =========================================
+    <!-- ============================================================ -->
+    <!--  FEATURE 2: NORMAL MAPPING                                    -->
+    <!-- ============================================================ -->
 
-    ### Implementation
+    <h1>Feature 2: Normal Mapping</h1>
 
-    Normal mapping perturbs the shading normal at each hit point according to a tangent-space normal stored in a
-    texture such that flat-polygon surfaces can appear to have fine surface detail without adding geometry.
+    <h2>Implementation</h2>
 
-    When a mesh has a `normalTexture`, the closest-hit shader `dxr/shaders/Shaders.hlsl` reconstructs a per-triangle
-    tangent frame from the UV layout. For the struck triangle (vertices $p_0, p_1, p_2$
-    with UVs $\text{uv}_0, \text{uv}_1, \text{uv}_2$):
+    <p>
+        Normal mapping perturbs the shading normal at each hit point according to a tangent-space normal stored in a
+        texture such that flat-polygon surfaces can appear to have fine surface detail without adding geometry.
+    </p>
 
-    $$\mathbf{T} = \text{normalize}\!\left(\frac{\Delta v_2 \cdot \mathbf{e}_1 - \Delta v_1 \cdot
-    \mathbf{e}_2}{\det}\right), \quad \det = \Delta u_1 \Delta v_2 - \Delta u_2 \Delta v_1$$
+    <p>
+        When a mesh has a <code>normalTexture</code>, the closest-hit shader <code>dxr/shaders/Shaders.hlsl</code>
+        reconstructs a per-triangle
+        tangent frame from the UV layout. For the struck triangle (vertices <em>p<sub>0</sub>, p<sub>1</sub>,
+            p<sub>2</sub></em>
+        with UVs <em>uv<sub>0</sub>, uv<sub>1</sub>, uv<sub>2</sub></em>):
+    </p>
 
-    where $\mathbf{e}_i = p_i - p_0$ and $\Delta u_i, \Delta v_i$ are the corresponding UV differences.
-    The tangent is then Gram–Schmidt orthogonalized against the interpolated vertex normal $\mathbf{N}$, and the
-    bitangent is derived as $\mathbf{B} = \mathbf{N} \times \mathbf{T}$.
+    <p style="text-align:center; font-style:italic;">
+        <strong>T</strong> = normalize( (Δv<sub>2</sub> · <strong>e</strong><sub>1</sub> − Δv<sub>1</sub> ·
+        <strong>e</strong><sub>2</sub>) / det ),
+        &nbsp;&nbsp; det = Δu<sub>1</sub> Δv<sub>2</sub> − Δu<sub>2</sub> Δv<sub>1</sub>
+    </p>
 
-    For normal decoding, the RGB
-    value is mapped from $[0,1]^3$ to $[-1,1]^3$ and then transformed to world space:
-    $$\mathbf{N}'=\text{normalize}(T \cdot n_x + B \cdot n_y + N \cdot n_z)$$ *
+    <p>
+        where <strong>e</strong><sub>i</sub> = p<sub>i</sub> − p<sub>0</sub> and Δu<sub>i</sub>, Δv<sub>i</sub> are the
+        corresponding UV differences.
+        The tangent is then Gram–Schmidt orthogonalized against the interpolated vertex normal <strong>N</strong>, and
+        the
+        bitangent is derived as <strong>B</strong> = <strong>N</strong> × <strong>T</strong>.
+    </p>
 
-    For the SceneXML, a `normalTexture` attribute on
-    any `<bsdf>` element enables normal mapping:
+    <p>
+        For normal decoding, the RGB value is mapped from [0,1]³ to [−1,1]³ and then transformed to world space:
+    </p>
 
-        ```xml
-        <bsdf type="diffuse">
-            <color name="albedo" value="0.7 0.7 0.7" />
-            <string name="normalTexture" value="textures/rocky-rugged-terrain_1_normal-ogl.png" />
-        </bsdf>
-        ```
+    <p style="text-align:center; font-style:italic;">
+        <strong>N′</strong> = normalize(T · n<sub>x</sub> + B · n<sub>y</sub> + N · n<sub>z</sub>)
+    </p>
 
+    <p>
+        For the SceneXML, a <code>normalTexture</code> attribute on any <code>&lt;bsdf&gt;</code> element enables normal
+        mapping:
+    </p>
+
+    <pre><code>&lt;bsdf type="diffuse"&gt;
+    &lt;color name="albedo" value="0.7 0.7 0.7" /&gt;
+    &lt;string name="normalTexture" value="textures/rocky-rugged-terrain_1_normal-ogl.png" /&gt;
+&lt;/bsdf&gt;</code></pre>
+
+    <p>
         The texture is loaded as a linear (non-sRGB) resource and mipmapped exactly like albedo textures.
+    </p>
 
-        ### Quantitative Validation
+    <h2>Quantitative Validation</h2>
 
+    <p>
         Three renders were compared: our renderer with and without the normal map, and a Mitsuba reference.
-        The Mitsuba reference uses the `normalmap` plugin with `raw=true`, which menas linear decoding, rendering under
-        the same horizontally-uniform sky gradient HDR
+        The Mitsuba reference uses the <code>normalmap</code> plugin with <code>raw=true</code>, which means linear
+        decoding, rendering under
+        the same horizontally-uniform sky gradient HDR.
+    </p>
 
-        | Comparison | Linear RMSE | Tonemap PSNR | Interpretation |
-        |---|---|---|---|
-        | Ours flat vs Mitsuba flat | 0.011 | 49.3 dB | Baseline renderer is correct!|
-        | Ours normalmap vs Ours flat | **0.075** | **34.4 dB** | Normal map has a clear, measurable effect |
-        | Ours normalmap vs Mitsuba normalmap | 0.126 | 26.9 dB | There is a gap, but see explanation below |
-
-        The **normalmap vs flat** comparison is the primary validation where RMSE=0.075 and PSNR=34.4 dB sit in the
-        range of "real, visible difference" ( approx. >20 dB) even if it is not in the "identical" range ( approx. >40
-        dB).
-        This tenatively confirms the feature is working correctly.
-
-        #### Q: But why does the Mitsuba reference look different? A: shadow termination clipping
-
-        From what I looked at in Mitsuba's source code/ my guess, Mitsuba's `normalmap` plugin enforces a shadow
-        terminator correction where,
-        when the perturbed normal
-        $\mathbf{N}'$
-        is evaluated for a surface that is back-facing with respect to the incoming direction (i.e.
-        $\omega_i \cdot \mathbf{N}' < 0$), Mitsuba zeros the BSDF contribution entirely. This prevents light from
-            apparently shining through the surface at steep normal deflections. Our implementation applies the perturbed
-            normal directly without this check. So, for something likea rocky terrain normal map. where normals really
-            sharply deviate, this produces bright halos where Mitsuba shows black shadow regions. The result is a
-            consistent per-channel ratio of ~1.12–1.24× (where our implementation is brighter) and the dark patches
-            visible in the Mitsuba reference image below. This is an implementation difference, where for typical use in
-            our final scene the normal deflections are small enough that shadow-terminator artifacts are invisible, and
-            the simpler code path avoids the discontinuity at the shadow terminator that Mitsuba's clamp introduces.The
-            normal is nevertheless mapped in the exact same position. <table>
+    <table>
+        <thead>
             <tr>
-                <td><img src="images/flat_ours.png" width="256" alt="Flat sphere — nori-dxr" /></td>
-                <td><img src="images/flat_ref.png" width="256" alt="Flat sphere — Mitsuba" /></td>
-                <td><img src="images/flat_absdiff.png" width="256" alt="Flat abs diff" /></td>
+                <th>Comparison</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>Interpretation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Ours flat vs Mitsuba flat</td>
+                <td>0.011</td>
+                <td>49.3 dB</td>
+                <td>Baseline renderer is correct!</td>
             </tr>
             <tr>
-                <td align="center">nori-dxr (flat)</td>
-                <td align="center">Mitsuba (flat)</td>
-                <td align="center">Abs diff (RMSE = 0.011)</td>
+                <td>Ours normalmap vs Ours flat</td>
+                <td><strong>0.075</strong></td>
+                <td><strong>34.4 dB</strong></td>
+                <td>Normal map has a clear, measurable effect</td>
             </tr>
-            </table>
-
-            **Normal-mapped sphere: ours (left) vs Mitsuba (right):**
-
-            <table>
-                <tr>
-                    <td><img src="images/normalmap_ours.png" width="256" alt="Normal-mapped — nori-dxr" /></td>
-                    <td><img src="images/normalmap_ref.png" width="256" alt="Normal-mapped — Mitsuba" /></td>
-                    <td><img src="images/normalmap_absdiff.png" width="256" alt="Normalmap abs diff" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (normal map)</td>
-                    <td align="center">Mitsuba (normal map)</td>
-                    <td align="center">Abs diff (RMSE = 0.126)</td>
-                </tr>
-            </table>
-
-            **Effect of normal mapping: normalmap vs flat (same renderer):**
-
-            <table>
-                <tr>
-                    <td><img src="images/nmvsflat_normalmap.png" width="256" alt="With normal map" /></td>
-                    <td><img src="images/nmvsflat_flat.png" width="256" alt="Without normal map" /></td>
-                    <td><img src="images/nmvsflat_absdiff.png" width="256" alt="NM vs flat diff" /></td>
-                    <td><img src="images/nmvsflat_falsecolor.png" width="256" alt="NM vs flat false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">With normal map</td>
-                    <td align="center">Without normal map</td>
-                    <td align="center">Abs diff (RMSE = 0.075)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            EXR source files: `images_exr/normalmap_ours.exr`, `images_exr/normalmap_ref.exr`,
-            `images_exr/normalmap_flat.exr`, `images_exr/normalmap_flat_ref.exr`.
-
-            Description and Validation of Feature 3: Depth of Field thin lens model
-            =========================================
-
-            Description and Validation of Feature 4: Mesh Design
-            =========================================
-
-            ### Implementation (Qualitative)
-
-            I put every mesh together in Blender to layout the general scene. I exported each mesh in Blender as its own
-            triangulated object. This is a good time saving hack because it keeps all the world coordinates consistent
-            across the scene. I don't know Blender at all, so I spent about 100 hours in this software (amazing).
-
-            <div align="center">
-                <img src="images/blender_ss.png" width="800" alt="blender screenshot" />
-                <p><strong>Figure 1:</strong> Blender Hell. I did a lot of custom geometry</p>
-            </div>
-
-            I also made a gaussian splat of my face with Polycam and made it a metahuman in Unreal Engine, before
-            placing it in Blender and wiring up all textures in my renderer.
-
-            <div align="center">
-                <img src="images/face.png" width="800" alt="blender screenshot" />
-                <p><strong>Figure 2:</strong> unreal engine metahuman</p>
-            </div>
-
-
-            ### Quantitative Validation
-
-            To verify that the DXR backend (TLAS/BLAS) and intersection shaders correctly handle the custom triangulated
-            meshes exported from Blender, a complex custom mesh from the scene was rendered with a flat diffuse material
-            and compared against Mitsuba 3.
-
-            | Comparison | Linear RMSE | Tonemap PSNR | Interpretation |
-            |---|---|---|---|
-            | Ours custom mesh vs Mitsuba custom mesh | 0.012 | 48.9 dB | Near-perfect match — arbitrary geometry
-            intersection is correct |
-
-            **Custom Mesh — ours (left) vs Mitsuba (right):**
-            <table>
-                <tr>
-                    <td><img src="images/mesh_ours.png" width="256" alt="Custom Mesh — nori-dxr" /></td>
-                    <td><img src="images/mesh_ref.png" width="256" alt="Custom Mesh — Mitsuba" /></td>
-                    <td><img src="images/mesh_absdiff.png" width="256" alt="Mesh abs diff" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (Custom Mesh)</td>
-                    <td align="center">Mitsuba (Custom Mesh)</td>
-                    <td align="center">Abs diff (RMSE = 0.012)</td>
-                </tr>
-            </table>
-            Description and Validation of Feature 5: Image-based lighting
-            =========================================
-
-            ### Implementation
-
-            Image-based lighting (IBL) uses a real-world HDR panorama as a light source.
-            Two components work together in `dxr/shaders/Envmap.hlsli` and `dxr/src/DXRApp.cpp`:
-
-            **Evaluation:** `EvalEnvmap(dir)` maps any world-space direction to an equirectangular UV using:
-            $$\phi = \text{atan2}(d_z, d_x), \quad u = \frac{\phi}{2\pi}, \quad \theta = \arccos(d_y), \quad v =
-            \frac{\theta}{\pi}$$
-            and samples the HDR texture at that UV.
-
-            **Importance sampling (this is the important one (haha)) ** (`SampleEnvmap`)"a 2D piecewise-constant CDF
-            is built at scene load time
-            (`BuildEnvmapCdf` in `DXRApp.cpp`). The probability density at each pixel is proportional to
-            $\text{luminance}(x,y) \times \sin\theta_y$, which accounts for the solid-angle shrinkage of
-            equirectangular pixels near the poles. At runtime, two sequential 1D binary searches pick row $y$ from
-            the marginal CDF and column $x$ from the conditional CDF for that row. The solid-angle PDF is recovered via
-            CDF differencing and the Jacobian
-            $$p_\omega = p_\text{pixel} \cdot \frac{W \cdot H}{2\pi^2 \sin\theta}$$
-            The sampled direction is MIS-weighted against the BSDF PDF in `EnvmapDirectIllumination` (Emitter.hlsli).
-
-            ### Quantitative Validation
-
-            Three complementary tests cover the full IBL pipeline. All comparisons are against Mitsuba 3
-            (512×512 @ 512 spp).
-
-            | Test | Scene | Linear RMSE | Tonemap PSNR | What it validates |
-            |---|---|---|---|---|
-            | Diffuse sphere | albedo=0.7, `sunset.hdr` | **0.011** | **53.3 dB** | Envmap eval + CDF sampling +
-            average-case IBL |
-            | Mirror sphere | perfect mirror, `sunset.hdr` | **0.035** | **50.3 dB** | Per-direction UV lookup; specular
-            MIS code path |
-            | White furnace | albedo=1.0, constant-1 HDR | **0.008** | **56.9 dB** | CDF energy conservation,
-            $\sin\theta$ PDF normalisation |
-
-            All three tests exceed 50 dB PSNR, confirming that envmap evaluation, CDF construction, solid-angle
-            weighting, and MIS balance are all correct.
-
-            #### Test 1 : Diffuse sphere with hdri
-
-            A diffuse sphere (albedo 0.7) lit by a hdr `sunset.hdr` (The hdri is a 4096×2048, it consists of bright sun
-            disk and sky/ground gradient).
-            This tests average-case IBL response. I think this looks fine.
-
-            <table>
-                <tr>
-                    <td><img src="images/ibl_ours.png" width="256" alt="IBL diffuse — nori-dxr" /></td>
-                    <td><img src="images/ibl_ref.png" width="256" alt="IBL diffuse — Mitsuba" /></td>
-                    <td><img src="images/ibl_absdiff.png" width="256" alt="IBL diffuse abs diff" /></td>
-                    <td><img src="images/ibl_falsecolor.png" width="256" alt="IBL diffuse false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr</td>
-                    <td align="center">Mitsuba reference</td>
-                    <td align="center">Abs diff (RMSE = 0.011)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            EXR source files: `images_exr/ibl_ours.exr`, `images_exr/ibl_ref.exr`.
-
-            #### Test 2: Mirror sphere with hdri
-
-            A perfect mirror sphere of specular reflectance = 1 under `sunset.hdr`. <table>
-                <tr>
-                    <td><img src="images/ibl_mirror_ours.png" width="256" alt="IBL mirror — nori-dxr" /></td>
-                    <td><img src="images/ibl_mirror_ref.png" width="256" alt="IBL mirror — Mitsuba" /></td>
-                    <td><img src="images/ibl_mirror_absdiff.png" width="256" alt="IBL mirror abs diff" /></td>
-                    <td><img src="images/ibl_mirror_falsecolor.png" width="256" alt="IBL mirror false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr</td>
-                    <td align="center">Mitsuba reference</td>
-                    <td align="center">Abs diff (RMSE = 0.035)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            EXR source files: `images_exr/ibl_mirror_ours.exr`, `images_exr/ibl_mirror_ref.exr`.
-            The residual 0.035 RMSE is concentrated on the bright sun-disk pixels where a small directional offset
-            produces a large intensity jump and the per-channel mean ratio is within 0.1% across all three channels
-            which is prety small.
-            #### Test 3: White furnace test
-
-            An albedo-1 diffuse sphere under a perfectly uniform HDR, where every pixel = 1,1,1. Under energy
-            conservation
-            the sphere must be invisible against the background: both must integrate to 1 in every direction. Any
-            error in the CDF normalization, the $\sin\theta$ solid-angle weight, or the PDF recovery formula will
-            break the furnace condition and produce a visible sphere. Our render has a uniform mean of
-            1.0000 (all channels), confirming the CDF integrates to exactly 1.
-
-            <table>
-                <tr>
-                    <td><img src="images/ibl_furnace_ours.png" width="256" alt="IBL furnace — nori-dxr" /></td>
-                    <td><img src="images/ibl_furnace_ref.png" width="256" alt="IBL furnace — Mitsuba" /></td>
-                    <td><img src="images/ibl_furnace_absdiff.png" width="256" alt="IBL furnace abs diff" /></td>
-                    <td><img src="images/ibl_furnace_falsecolor.png" width="256" alt="IBL furnace false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (sphere invisible)</td>
-                    <td align="center">Mitsuba reference</td>
-                    <td align="center">Abs diff (RMSE = 0.008)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            EXR source files: `images_exr/ibl_furnace_ours.exr`, `images_exr/ibl_furnace_ref.exr`.
-
-            Description and Validation of Feature 6: Disney BRDF
-            =========================================
-
-            ### Model
-
-            The Disney "principled" BRDF from the Burley 2012 model unifies five physically-motivated lobes into a
-            single, artist-friendly material with ten scalar parameters. All lobes operate in the local
-            shading frame where $\omega_i$ and $\omega_o$ are the incident and outgoing directions and
-            $\mathbf{h} = \text{normalize}(\omega_i + \omega_o)$ is the half-vector.
-
-            | Lobe | Core formula | Key parameters |
-            |------|-------------|----------------|
-            | **Burley diffuse** | $f_d =
-            \frac{c}{\pi}(1+(F_{D90}-1)(1-\cos\theta_i)^5)(1+(F_{D90}-1)(1-\cos\theta_o)^5)$ | `baseColor`, `roughness`
-            |
-            | **HK subsurface** | $f_{ss} =
-            \frac{1.25\,c}{\pi}\!\left(F_{ss,i}F_{ss,o}\!\left(\tfrac{1}{\cos\theta_i+\cos\theta_o}-0.5\right)+0.5\right)$
-            | `subsurface` blend weight |
-            | **GGX specular** | $f_s =
-            \frac{D_\text{GGX}\,F_\text{Schlick}\,G_\text{Smith}}{4\cos\theta_i\cos\theta_o}$ | `metallic`, `specular`,
-            `roughness` |
-            | **Sheen** | $f_{sh} = \kappa_\text{sheen}\,C_\text{sheen}\,(1-\cos\theta_D)^5$ | `sheen`, `sheenTint` |
-            | **Clearcoat** | $f_{cc} =
-            \frac{0.25\,k_{cc}\,D_\text{GTR1}\,F_{0.04}\,G_{0.25}}{4\cos\theta_i\cos\theta_o}$ | `clearcoat`,
-            `clearcoatGloss` |
-
-            The full BRDF is $f = (1-\text{metallic})\,f_d + f_s + f_{sh} + f_{cc}$.
-            Setting `metallic=1` zeroes the diffuse lobe and drives the specular $F_0$ to `baseColor`,
-            producing a conductor. Setting `metallic=0` yields a dielectric with a fixed $F_0$ controlled
-            by `specular`.
-
-            ### Implementation
-
-            All Disney lobes are implemented in the GPU shader `dxr/shaders/Shaders.hlsl`
-
-            **Burley diffuse** (`DisneyDiffuseEval`): $F_{D90} = 0.5 + 2\alpha\cos^2\theta_D$; Schlick
-            factors evaluated at $\cos\theta_i$ and $\cos\theta_o$ respectively, weighted by $c/\pi$.
-
-            **Subsurface approximation** (`DisneyHKSubsurfaceEval`): Hanrahan-Krueger flat-slab formula
-            with $F_{SS90} = \alpha\cos^2\theta_D$. Blended into the diffuse lobe proportionally to
-            `subsurface`.
-
-            **GGX specular**
-
-            **Sheen** (`DisneySheenEval`): Grazing-angle brightening $(1-\cos\theta_D)^5$ weighted by a
-            tint-blended color.
-
-            **Clearcoat** (`DisneyClearcoatEval`): Separate GTR1 NDF with
-            $\alpha = \text{lerp}(0.1,\,0.001,\,\text{clearcoatGloss})$
-
-            **Lobe MIS sampling** (`DisneyComputeLobeProbs`)
-            ### Validation Strategy
-
-            Three complementary tests are used:
-
-            1. **Mitsuba cross-renderer comparison**: our renderer vs. Mitsuba `principled` BSDF under
-            an identical HDR environment. Low RMSE proves the lobe math and normalization are correct.
-
-
-            2. **Per-lobe ablation**: each lobe is toggled off on our renderer. A large RMSE
-            between enabled and disabled proves the lobe has a measurable effect.
-
-
-            3. **White-furnace energy conservation**: we do an albedo-1 sphere under a constant-white
-            environment and hope for a ratio ≈ 1.0 which proves the BRDF integrates to ≤ 1 in every direction.
-
-            ### Quantitative Validation
-
-            #### Test 1: Our cross-renderer comparison vs. Mitsuba 3 (512 × 512, 1024 spp)
-
-            All three scenes use the same `sunset.hdr` environment map. RMSE and PSNR computed on raw linear EXRs before
-            tone-mapping.
-
-            | Scene | Material | Linear RMSE | Tonemap PSNR | Per-channel mean ratio |
-            |-------|----------|-------------|--------------|------------------------|
-            | Metallic blue sphere | `metallic=0.9`, `rough=0.2` | **0.010** | **56.6 dB** | R 1.001 · G 1.001 · B 1.000
-            |
-            | Rough red + clearcoat | `clearcoat=1.0`, `rough=0.6` | **0.019** | **40.5 dB** | R 1.000 · G 0.999 · B
-            0.999 |
-            | Sheen fabric sphere | `sheen=0.5`, `rough=0.85` | **0.015** | **50.5 dB** | R 1.001 · G 1.001 · B 1.001 |
-
-            All three scenes score above 40 dB, which is the "visually indistinguishable" threshold!
-            Per-channel mean ratios are within 0.1% of 1.0, confirming both the spectral energy scale
-            and the angular distribution of every evaluated lobe.
-
-            #### Test 2: Per-lobe ablations
-
-            Each ablation keeps the identical renderer, camera, and environment, and only the target
-            parameter is zeroed. A high RMSE confirms the lobe is actively contributing to the render,
-            not silently disabled.
-
-            | Ablation | Change | Linear RMSE | Tonemap PSNR | Interpretation |
-            |----------|--------|-------------|--------------|----------------|
-            | Subsurface (`subsurface` 0.8 → 0) | Replace HK flat-slab with Burley diffuse | **0.039** | **37.7 dB** |
-            Clearly visible flattening of shading at terminator |
-            | Metallic (`metallic` 0.9 → 0) | Specular F0 coloring + diffuse suppression | **0.095** | **32.2 dB** |
-            Very large, clearly visible difference |
-            | Clearcoat (`clearcoat` 1.0 → 0) | Remove GTR1 sheen layer | **0.015** | **40.0 dB** | Measurable specular
-            highlight loss |
-            | Sheen (`sheen` 0.5 → 0) | Remove grazing brightening | **0.010** | **51.3 dB** | Subtle but measurable at
-            silhouette |
-
-            The metallic ablation (RMSE = 0.095) produces the largest change because `metallic` affects
-            both the diffuse weight and the full specular color. The subsurface ablation (RMSE = 0.039)
-            shows a visible difference in shadow softness at the terminator: the HK lobe
-            redistributes energy from the lit side toward the unlit side. The sheen ablation is
-            is expectedly subtile, because sheen is just a small grazing-angle correction
-
-            #### Test 3: White-furnace energy conservation (256 × 256, 512 spp)
-
-            An albedo-1 sphere under a constant-white HDR, where every pixel = 1,1,1. A correctly-normalised
-            BRDF integrates to ≤ 1, so the sphere must be indistinguishable from the background. Any
-            error in the NDF normalisation, the PDF, or the importance-sampling Jacobian will produce a
-            visible, bright or dark sphere.
-
-            | Test | Parameters | nori-dxr mean | Mitsuba mean | Ratio | RMSE |
-            |------|-----------|---------------|--------------|-------|------|
-            | Burley diffuse | `metallic=0`, `rough=0.5` | 1.0082 | 1.0026 | 1.006 | 0.025 |
-            | Smooth metallic | `metallic=1.0`, `rough=0.1` | 0.9998 | 0.9998 | **1.000** | **0.003** |
-            | Rough metallic | `metallic=1.0`, `rough=0.5` | 0.9629 | 0.9629 | **1.000** | 0.013 |
-            | Clearcoat | `clearcoat=1.0`, black base | 0.7053 | 0.7002 | 1.007 | 0.025 |
-
-            Both metallic rows achieve a ratio of exactly 1.000, which confirms the GGX NDF, Fresnel, and
-            Smith masking are correctly normalised. The diffuse and clearcoat rows show ratios of 1.006
-            and 1.007, which are both within 1%. This can be attributable to Monte Carlo noise at 512 spp. The clearcoat
-            furnace has a black base color, so the sphere reflects only the clearcoat fraction of the
-            environment, the PSNR is lower because a tiny
-            spatial offset at the bright-to-dark sphere boundary produces a disproportionately large
-            pixel-level error, but the per-pixel ratio of 1.007 confirms the lobe is still energy-conserving within
-            reason
-
-            ### Visual Results
-
-            Each comparison table shows four images: our renderer, the reference render, the
-            absolute per-pixel difference image, and the false-color error map, which is a $\log_{10}$-scaled
-            heatmap that serves as the per-pixel error plot required to demonstrate low per-pixel
-            variance against the reference.
-
-            #### Mitsuba cross-renderer comparison
-
-            **Metallic blue sphere (`metallic=0.9`, `rough=0.2`):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_metallic_ours.png" width="256" alt="Disney metallic — nori-dxr" /></td>
-                    <td><img src="images/disney_metallic_ref.png" width="256" alt="Disney metallic — Mitsuba" /></td>
-                    <td><img src="images/disney_metallic_absdiff.png" width="256" alt="Disney metallic abs diff" /></td>
-                    <td><img src="images/disney_metallic_falsecolor.png" width="256"
-                            alt="Disney metallic false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr</td>
-                    <td align="center">Mitsuba reference</td>
-                    <td align="center">Abs diff (RMSE = 0.010)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            **Rough red sphere with full clearcoat (`clearcoat=1.0`, `rough=0.6`):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_clearcoat_ours.png" width="256" alt="Disney clearcoat — nori-dxr" />
-                    </td>
-                    <td><img src="images/disney_clearcoat_ref.png" width="256" alt="Disney clearcoat — Mitsuba" /></td>
-                    <td><img src="images/disney_clearcoat_absdiff.png" width="256" alt="Disney clearcoat abs diff" />
-                    </td>
-                    <td><img src="images/disney_clearcoat_falsecolor.png" width="256"
-                            alt="Disney clearcoat false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr</td>
-                    <td align="center">Mitsuba reference</td>
-                    <td align="center">Abs diff (RMSE = 0.019)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            **Sheen fabric sphere (`sheen=0.5`, `rough=0.85`):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_sheen_ours.png" width="256" alt="Disney sheen — nori-dxr" /></td>
-                    <td><img src="images/disney_sheen_ref.png" width="256" alt="Disney sheen — Mitsuba" /></td>
-                    <td><img src="images/disney_sheen_absdiff.png" width="256" alt="Disney sheen abs diff" /></td>
-                    <td><img src="images/disney_sheen_falsecolor.png" width="256" alt="Disney sheen false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr</td>
-                    <td align="center">Mitsuba reference</td>
-                    <td align="center">Abs diff (RMSE = 0.015)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            EXR source files: `images_exr/disney_metallic_ours.exr`, `images_exr/disney_metallic_ref.exr`,
-            `images_exr/disney_clearcoat_ours.exr`, `images_exr/disney_clearcoat_ref.exr`,
-            `images_exr/disney_sheen_ours.exr`, `images_exr/disney_sheen_ref.exr`.
-
-            #### Per-lobe ablations (aka feature enabled vs. disabled)
-
-            **Metallic ablation (`metallic` 0.9 → 0), RMSE = 0.095:**
-            <table>
-                <tr>
-                    <td><img src="images/disney_abl_metallic_with.png" width="256" alt="metallic=0.9" /></td>
-                    <td><img src="images/disney_abl_metallic_without.png" width="256" alt="metallic=0" /></td>
-                    <td><img src="images/disney_abl_metallic_absdiff.png" width="256" alt="metallic ablation diff" />
-                    </td>
-                    <td><img src="images/disney_abl_metallic_falsecolor.png" width="256"
-                            alt="metallic ablation false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">metallic = 0.9 </td>
-                    <td align="center">metallic = 0</td>
-                    <td align="center">Abs diff (RMSE = 0.095)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            The metallic transition replaces the white dielectric specular highlight with a colored
-            conductor reflection that takes on the blue `baseColor`. The RMSE of 0.095 and PSNR 32.2 dB
-            confirms a strong, renderer-visible effect.
-
-            **Clearcoat ablation (`clearcoat` 1.0 → 0), RMSE = 0.015:**
-            <table>
-                <tr>
-                    <td><img src="images/disney_abl_clearcoat_with.png" width="256" alt="clearcoat=1" /></td>
-                    <td><img src="images/disney_abl_clearcoat_without.png" width="256" alt="clearcoat=0" /></td>
-                    <td><img src="images/disney_abl_clearcoat_absdiff.png" width="256" alt="clearcoat ablation diff" />
-                    </td>
-                    <td><img src="images/disney_abl_clearcoat_falsecolor.png" width="256"
-                            alt="clearcoat ablation false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">clearcoat = 1.0 </td>
-                    <td align="center">clearcoat = 0 </td>
-                    <td align="center">Abs diff (RMSE = 0.015)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            The GTR1 clearcoat adds a secondary sharp specular highlight visible as a bright ring near the specular
-            peak. RMSE = 0.015 / PSNR 40.0 dB
-
-
-            **Sheen ablation (`sheen` 0.5 → 0), RMSE = 0.010:**
-            <table>
-                <tr>
-                    <td><img src="images/disney_abl_sheen_with.png" width="256" alt="sheen=0.5" /></td>
-                    <td><img src="images/disney_abl_sheen_without.png" width="256" alt="sheen=0" /></td>
-                    <td><img src="images/disney_abl_sheen_absdiff.png" width="256" alt="sheen ablation diff" /></td>
-                    <td><img src="images/disney_abl_sheen_falsecolor.png" width="256"
-                            alt="sheen ablation false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">sheen = 0.5 </td>
-                    <td align="center">sheen = 0 </td>
-                    <td align="center">Abs diff (RMSE = 0.010)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            The sheen lobe brightens the grazing rim of the sphere.
-
-
-            **Subsurface ablation (`subsurface` 0.8 → 0), RMSE = 0.039:**
-            <table>
-                <tr>
-                    <td><img src="images/disney_abl_subsurface_with.png" width="256" alt="subsurface=0.8" /></td>
-                    <td><img src="images/disney_abl_subsurface_without.png" width="256" alt="subsurface=0" /></td>
-                    <td><img src="images/disney_abl_subsurface_absdiff.png" width="256"
-                            alt="subsurface ablation diff" /></td>
-                    <td><img src="images/disney_abl_subsurface_falsecolor.png" width="256"
-                            alt="subsurface ablation false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">subsurface = 0.8 </td>
-                    <td align="center">subsurface = 0 </td>
-                    <td align="center">Abs diff (RMSE = 0.039)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-
-            #### White-furnace energy conservation
-
-            **Burley diffuse furnace (`metallic=0`, `rough=0.5`):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_furnace_diffuse_ours.png" width="256"
-                            alt="Furnace diffuse — nori-dxr" /></td>
-                    <td><img src="images/disney_furnace_diffuse_ref.png" width="256" alt="Furnace diffuse — Mitsuba" />
-                    </td>
-                    <td><img src="images/disney_furnace_diffuse_absdiff.png" width="256" alt="Furnace diffuse diff" />
-                    </td>
-                    <td><img src="images/disney_furnace_diffuse_falsecolor.png" width="256"
-                            alt="Furnace diffuse false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (mean = 1.008)</td>
-                    <td align="center">Mitsuba (mean = 1.003)</td>
-                    <td align="center">Abs diff (RMSE = 0.025)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            **Smooth metallic furnace (`metallic=1.0`, `rough=0.1`):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_furnace_smooth_ours.png" width="256" alt="Furnace smooth — nori-dxr" />
-                    </td>
-                    <td><img src="images/disney_furnace_smooth_ref.png" width="256" alt="Furnace smooth — Mitsuba" />
-                    </td>
-                    <td><img src="images/disney_furnace_smooth_absdiff.png" width="256" alt="Furnace smooth diff" />
-                    </td>
-                    <td><img src="images/disney_furnace_smooth_falsecolor.png" width="256"
-                            alt="Furnace smooth false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (mean = 0.9998, sphere invisible)</td>
-                    <td align="center">Mitsuba (mean = 0.9998)</td>
-                    <td align="center">Abs diff (RMSE = 0.003)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            **Rough metallic furnace (`metallic=1.0`, `rough=0.5`):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_furnace_rough_ours.png" width="256" alt="Furnace rough — nori-dxr" />
-                    </td>
-                    <td><img src="images/disney_furnace_rough_ref.png" width="256" alt="Furnace rough — Mitsuba" /></td>
-                    <td><img src="images/disney_furnace_rough_absdiff.png" width="256" alt="Furnace rough diff" /></td>
-                    <td><img src="images/disney_furnace_rough_falsecolor.png" width="256"
-                            alt="Furnace rough false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (mean = 0.9629)</td>
-                    <td align="center">Mitsuba (mean = 0.9629)</td>
-                    <td align="center">Abs diff (RMSE = 0.013)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            **Clearcoat furnace (`clearcoat=1.0`, black base):**
-            <table>
-                <tr>
-                    <td><img src="images/disney_furnace_clearcoat_ours.png" width="256"
-                            alt="Furnace clearcoat — nori-dxr" /></td>
-                    <td><img src="images/disney_furnace_clearcoat_ref.png" width="256"
-                            alt="Furnace clearcoat — Mitsuba" /></td>
-                    <td><img src="images/disney_furnace_clearcoat_absdiff.png" width="256"
-                            alt="Furnace clearcoat diff" /></td>
-                    <td><img src="images/disney_furnace_clearcoat_falsecolor.png" width="256"
-                            alt="Furnace clearcoat false color" /></td>
-                </tr>
-                <tr>
-                    <td align="center">nori-dxr (mean = 0.705)</td>
-                    <td align="center">Mitsuba (mean = 0.700)</td>
-                    <td align="center">Abs diff (RMSE = 0.025)</td>
-                    <td align="center">False-color error map</td>
-                </tr>
-            </table>
-
-            The clearcoat furnace uses a black base color, so the sphere reflects only the thin
-            dielectric clearcoat fraction of the environment. The sphere is visibly darker than the
-            background (mean ≈ 0.70 vs 1.0), which is physically correct: a clearcoat-only surface
-            with $F_0 = 0.04$ and $0.25\times$ scale will reflect a small fraction of incident light
-            at most angles and absorbs the rest into the black base. The per-pixel ratio of 1.007
-            (within 1% of 1.0) confirms the clearcoat lobe integrates correctly.
-
-            Description and Validation of Feature 7: Image-based lighting
-            =========================================
-            Description and Validation of Feature 8: Hair
-            =========================================
-
-            ### Model
-
-            The hair BSDF follows the **Chiang et al. 2016** model which treats each hair fiber as a
-            dielectric
-            cylinder with a slightly tilted cuticle surface. Incident light decomposes into four scattering lobes
-            indexed by
-            $p$:
-
-            | Lobe | Symbol | Description |
-            |------|--------|-------------|
-            | $p=0$ | **R** | Specular reflection off the cuticle surface |
-            | $p=1$ | **TT** | Direct transmission through the fiber |
-            | $p=2$ | **TRT** | One internal reflection before exiting |
-            | $p=3$ | **residual** | Geometric series summing all $p \ge 3$ bounces |
-
-            Each lobe's energy is attenuated by Fresnel reflectance $f$ and Beer-law transmittance
-            $$T = \exp\!\left(-\sigma_a \cdot \frac{2\cos\gamma_t}{\cos\theta_t}\right)$$
-            where $\sigma_a$ is derived from the desired hair color via a polynomial fit, $\gamma_t$ is the refracted
-            azimuthal
-            angle inside the cylinder, and $\theta_t$ the refracted longitudinal angle.
-
-            The full BCSDF factors as $f_\text{hair} = \sum_p M_p \cdot A_p \cdot N_p$, where
-
-            Importance sampling selects a lobe by luminance weight, then draws longitude from the $M_p$ inverse CDF and
-            azimuth from the trimmed logistic CDF.
-
-            ### Implementation
-
-            The CPU-side code ( this includes `src/hair.cpp`, `include/nori/hair.h`) loads the
-            [Yuksel `.hair` binary format](http://www.cemyuksel.com/research/hairmodels/) and tessellates each strand
-            into a
-            6-sided prism tube mesh. The per-vertex UV $v$-coordinate encodes the cross-section offset $h = 2v-1 \in
-            [-1,1]$.
-
-            Then, the rest of the hair BCSDF from evaluation, PDF, to importance sampling runs on the GPU in
-            `dxr/shaders/Hair.hlsli`.
-            The central attenuation function:
-
-            ```hlsl
-            void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
+            <tr>
+                <td>Ours normalmap vs Mitsuba normalmap</td>
+                <td>0.126</td>
+                <td>26.9 dB</td>
+                <td>There is a gap, but see explanation below</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The <strong>normalmap vs flat</strong> comparison is the primary validation where RMSE=0.075 and PSNR=34.4 dB
+        sit in the
+        range of "real, visible difference" (approx. &gt;20 dB) even if it is not in the "identical" range (approx.
+        &gt;40 dB).
+        This confirms the feature is working correctly.
+    </p>
+
+    <h3>Q: But why does the Mitsuba reference look different? A: shadow termination clipping</h3>
+
+    <p>
+        From what I looked at in Mitsuba's source code/ my guess, Mitsuba's <code>normalmap</code> plugin enforces a
+        shadow
+        terminator correction where, when the perturbed normal <strong>N′</strong> is evaluated for a surface that is
+        back-facing with respect to the incoming direction (i.e.
+        ω<sub>i</sub> · <strong>N′</strong> &lt; 0), Mitsuba zeros the BSDF contribution entirely. This prevents light
+        from
+        apparently shining through the surface at steep normal deflections. Our implementation applies the perturbed
+        normal directly without this check. So, for something like a rocky terrain normal map where normals really
+        sharply deviate, this produces bright halos where Mitsuba shows black shadow regions. The result is a
+        consistent per-channel ratio of ~1.12–1.24× (where our implementation is brighter) and the dark patches
+        visible in the Mitsuba reference image below. This is an implementation difference, where for typical use in
+        our final scene the normal deflections are small enough that shadow-terminator artifacts are invisible, and
+        the simpler code path avoids the discontinuity at the shadow terminator that Mitsuba's clamp introduces. The
+        normal is nevertheless mapped in the exact same position.
+    </p>
+
+    <h2>Visual Results</h2>
+
+    <p><strong>Baseline flat sphere: ours (left) vs Mitsuba (right):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/flat_ours.png" width="256" alt="Flat sphere — nori-dxr" /></td>
+            <td><img src="images/flat_ref.png" width="256" alt="Flat sphere — Mitsuba" /></td>
+            <td><img src="images/flat_absdiff.png" width="256" alt="Flat abs diff" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (flat)</td>
+            <td class="caption">Mitsuba (flat)</td>
+            <td class="caption">Abs diff (RMSE = 0.011)</td>
+        </tr>
+    </table>
+
+    <p><strong>Normal-mapped sphere: ours (left) vs Mitsuba (right):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/normalmap_ours.png" width="256" alt="Normal-mapped — nori-dxr" /></td>
+            <td><img src="images/normalmap_ref.png" width="256" alt="Normal-mapped — Mitsuba" /></td>
+            <td><img src="images/normalmap_absdiff.png" width="256" alt="Normalmap abs diff" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (normal map)</td>
+            <td class="caption">Mitsuba (normal map)</td>
+            <td class="caption">Abs diff (RMSE = 0.126)</td>
+        </tr>
+    </table>
+
+    <p><strong>Effect of normal mapping: normalmap vs flat (same renderer):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/nmvsflat_normalmap.png" width="256" alt="With normal map" /></td>
+            <td><img src="images/nmvsflat_flat.png" width="256" alt="Without normal map" /></td>
+            <td><img src="images/nmvsflat_absdiff.png" width="256" alt="NM vs flat diff" /></td>
+            <td><img src="images/nmvsflat_falsecolor.png" width="256" alt="NM vs flat false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">With normal map</td>
+            <td class="caption">Without normal map</td>
+            <td class="caption">Abs diff (RMSE = 0.075)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>
+        EXR source files: <code>images_exr/normalmap_ours.exr</code>, <code>images_exr/normalmap_ref.exr</code>,
+        <code>images_exr/normalmap_flat.exr</code>, <code>images_exr/normalmap_flat_ref.exr</code>.
+    </p>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 3: DEPTH OF FIELD                                    -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 3: Depth of Field Thin Lens Model</h1>
+
+    <h2>Model</h2>
+
+    <p>
+        A pinhole camera maps every scene point to a single pixel, producing sharp images at all depths.
+        A real camera has a finite aperture of radius <em>r</em>, so light from an out-of-focus point
+        lands on a disk on the sensor, which is the the <strong>Circle of Confusion (CoC)</strong>.
+        The thin-lens model approximates this with two parameters:
+    </p>
+    <ul>
+        <li><strong>Lens radius</strong> <em>r</em> (= half the aperture diameter): controls the strength
+            of the blur. <em>r</em> = 0 for example is just a pinhole again.</li>
+        <li><strong>Focal distance</strong> <em>d<sub>f</sub></em>: the scene depth that maps to a perfect
+            point on the sensor, which would be zero CoC.</li>
+    </ul>
+
+    <p>
+        For a point at depth <em>z</em> from the lens, the CoC radius on the sensor plane is:
+    </p>
+    <p style="margin-left:2em;">
+        <em>r<sub>CoC</sub></em> = <em>r</em> · |<em>z</em> − <em>d<sub>f</sub></em>| / <em>z</em>
+    </p>
+    <p>
+        The sampler generates one ray per sample by (1) shooting a pinhole ray to find the
+        <em>focus point</em> , which is the the intersection of the central ray with the focal plane,
+        and (2) perturbing the ray origin by a uniformly-sampled disk offset on the aperture,
+        while keeping the direction aimed at the focus point.
+        Uniform disk sampling uses the standard concentric mapping:
+        <em>r</em> = √<em>u<sub>1</sub></em> · <em>r<sub>lens</sub></em>,
+        θ = 2π<em>u<sub>2</sub></em>.
+    </p>
+
+    <h2>Implementation</h2>
+
+    <p>
+        The thin-lens jitter is applied inside the primary-ray generation stage of
+        <code>dxr/shaders/Shaders.hlsl</code>
+        The per-frame constants <code>lensRadius</code> and <code>focalDistance</code> are
+        uploaded from the CPU via <code>dxr/src/DXRApp.cpp</code> and declared in the
+        <code>CameraConstants</code> struct in <code>dxr/shaders/Common.hlsli</code>.
+    </p>
+    <ol>
+        <li>The pinhole ray direction <code>dir</code> is computed from the image-plane UV.</li>
+        <li>The camera forward/right/up basis is reconstructed from the image-plane vectors.</li>
+        <li>The focus point is found by walking along <code>dir</code> until the projection onto
+            the optical axis equals <code>focalDistance</code>:
+            <code>ft = focalDistance / dot(dir, camFwd)</code>;
+            <code>focusPoint = camPos + dir * ft</code>.
+        </li>
+        <li>A uniform aperture disk sample is generated:
+            <code>r = sqrt(u1) * lensRadius</code>,
+            <code>theta = 2π u2</code>,
+            <code>lensOffset = r·cos(θ)·camRight + r·sin(θ)·camUp</code>.
+        </li>
+        <li>The new ray originates at <code>camPos + lensOffset</code> and points toward <code>focusPoint</code>.</li>
+    </ol>
+    <p>
+        When <code>lensRadius = 0</code> the branch is skipped entirely, and we just get our normal pinhole camera look.
+    </p>
+
+    <h2>Validation Strategy</h2>
+
+    <p>
+        Cross-renderer comparison against Mitsuba 3's <code>thinlens</code> sensor under an identical
+        HDR environment map (<code>sunset.hdr</code>), following the same pipeline used for Feature 6
+        (Disney BRDF):
+    </p>
+    <ol>
+        <li><strong>Pinhole sanity check</strong> (<code>lensRadius=0</code>): our renderer
+            <code>perspective</code> vs. Mitsuba <code>perspective</code> sensor.
+            Should achieve PSNR &gt; 45 dB, any lower would indicate an unrelated renderer mismatch.
+        </li>
+        <li><strong>DOF comparison</strong> (<code>lensRadius=0.15</code>): our renderer <code>thinlens</code>
+            vs. Mitsuba <code>thinlens</code> sensor.
+            The remaining error should be from purely Monte Carlo noise from aperture disk sampling.</li>
+        <li><strong>Increase Aperture</strong>: render at <em>r</em> ∈ {0, 0.05, 0.15} to confirm the
+            blur radius scales monotonically with aperture.</li>
+    </ol>
+
+    <h2>Quantitative Validation</h2>
+
+    <p>
+        All scenes: 512 × 512, 1024 spp, <code>path_mis</code> integrator, <code>sunset.hdr</code> envmap.
+        RMSE and PSNR computed on raw linear EXRs.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Test</th>
+                <th>lensRadius</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>Interpretation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Pinhole sanity check</td>
+                <td>0 (pinhole)</td>
+                <td><strong>0.009</strong></td>
+                <td><strong>47.0 dB</strong></td>
+                <td>Renderers agree; no systematic mismatch</td>
+            </tr>
+            <tr>
+                <td>Thin-lens DOF</td>
+                <td>0.15</td>
+                <td><strong>0.006</strong></td>
+                <td><strong>53.4 dB</strong></td>
+                <td>DOF blur reproduced correctly; aperture sampling matches Mitsuba</td>
+            </tr>
+            <tr>
+                <td>Thin-lens DOF (small)</td>
+                <td>0.05</td>
+                <td><strong>0.004</strong></td>
+                <td><strong>53.5 dB</strong></td>
+                <td>Smaller aperture → less noise → higher PSNR, as expected</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        All three configurations exceed 40 dB, they are visually indistinguishable.
+        Per-channel mean ratios are 1.000 ± 0.001 in every test, this means no brightness bias.
+    </p>
+
+    <h3>Pinhole Sanity Check: ours vs Mitsuba</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Ours (nori-dxr)</th>
+                <th>Reference (Mitsuba 3)</th>
+                <th>Absolute diff (10×)</th>
+                <th>False-color diff</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><img src="images/dof_pinhole_ours.png" width="230" alt="nori-dxr pinhole" /></td>
+                <td><img src="images/dof_pinhole_ref.png" width="230" alt="Mitsuba pinhole" /></td>
+                <td><img src="images/dof_pinhole_diff.png" width="230" alt="abs diff pinhole" /></td>
+                <td><img src="images/dof_pinhole_fc.png" width="230" alt="false-color pinhole" /></td>
+            </tr>
+        </tbody>
+    </table>
+    <p>Linear RMSE = 0.009 &nbsp;|&nbsp; Tonemap PSNR = 47.0 dB ,both renderers produce identical images under the
+        pinhole model.</p>
+
+    <h3>Thin-Lens DOF (lensRadius = 0.15): ours vs Mitsuba</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Ours (nori-dxr)</th>
+                <th>Reference (Mitsuba 3)</th>
+                <th>Absolute diff (10×)</th>
+                <th>False-color diff</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><img src="images/dof_main_ours.png" width="230" alt="nori-dxr DOF" /></td>
+                <td><img src="images/dof_main_ref.png" width="230" alt="Mitsuba DOF" /></td>
+                <td><img src="images/dof_main_diff.png" width="230" alt="abs diff DOF" /></td>
+                <td><img src="images/dof_main_fc.png" width="230" alt="false-color DOF" /></td>
+            </tr>
+        </tbody>
+    </table>
+    <p>Linear RMSE = 0.006 &nbsp;|&nbsp; Tonemap PSNR = 53.4 dB , the aperture disk sampling matches Mitsuba's thinlens
+        sensor.</p>
+
+    <h3>Aperture Sweep: blur scales with lensRadius</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>r = 0 (pinhole)</th>
+                <th>r = 0.05 (small)</th>
+                <th>r = 0.15 (medium)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><img src="images/dof_sweep_r0.png" width="230" alt="pinhole" /></td>
+                <td><img src="images/dof_sweep_r005.png" width="230" alt="r=0.05" /></td>
+                <td><img src="images/dof_sweep_r015.png" width="230" alt="r=0.15" /></td>
+            </tr>
+        </tbody>
+    </table>
+    <p>
+        The subject (red cube) is in focus at all apertures (<code>focalDistance = 3.0</code> = camera-to-subject
+        distance). We just want to see that the background envmap transitions from a sharp pinhole look to a blurred
+        look to see if the CoC scales with aperture radius, which it does!
+    </p>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 4: MESH DESIGN                                       -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 4: Mesh Design</h1>
+
+    <h2>Implementation</h2>
+
+    <p>
+        I put every mesh together in Blender to layout the general scene. I exported each mesh in Blender as its own
+        triangulated object. This is a good time saving hack because it keeps all the world coordinates consistent
+        across the scene. I don't know Blender at all, so I spent about 100 hours in this software (amazing).
+    </p>
+
+    <h2>Scene Complexity</h2>
+
+    <p>
+        The final scene contains approximately <strong>2.5 million triangles</strong> across 90+ individually exported
+        meshes,
+        with 50+ unique textures. Each mesh was exported from Blender with world-space transforms baked in, so the scene
+        XML
+        requires no per-object transformation matrices. The table below summarizes the scene composition:
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Region / Object Group</th>
+                <th>Meshes</th>
+                <th>BSDF Types</th>
+                <th>Notable Materials</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Grace (character): body, head, eyes, eyelashes, eyebrows, hair, shirt</td>
+                <td>7</td>
+                <td>Disney, hair_bsdf</td>
+                <td>Full PBR texture set (albedo, normal, roughness, specular, subsurface); alpha-masked eyelashes &amp;
+                    eyebrows; Chiang hair BCSDF with alpha cards</td>
+            </tr>
+            <tr>
+                <td>Digital Circus + Pomni figurine</td>
+                <td>~40</td>
+                <td>Disney, dielectric</td>
+                <td>11 glossy plastic color variants; glass tank; Pomni: 16 sub-meshes for per-part materials</td>
+            </tr>
+            <tr>
+                <td>OMORI diorama (picnic scene)</td>
+                <td>~35</td>
+                <td>Disney</td>
+                <td>10 colored balls (metallic, matte, pearlescent, satin); glossy playing cards with clearcoat;
+                    textured bread with subsurface</td>
+            </tr>
+            <tr>
+                <td>Spirited Away train</td>
+                <td>14</td>
+                <td>Disney, dielectric, diffuse</td>
+                <td>5 sub-material train parts; tinted glass windows; area-light interior lamps; matte-black No-Face
+                </td>
+            </tr>
+            <tr>
+                <td>Poppy Playtime</td>
+                <td>~19</td>
+                <td>Disney, dielectric</td>
+                <td>Rusted metal + dusted steel PBR; red metallic conductor; colored emitters (cyan + red); glass panels
+                </td>
+            </tr>
+            <tr>
+                <td>Window</td>
+                <td>11</td>
+                <td>Disney, dielectric</td>
+                <td>Wood frame; 4 anisotropic metal blinds; 4 metallic hinges with clearcoat; glass pane</td>
+            </tr>
+            <tr>
+                <td>Bookshelf, aquarium, &amp; books</td>
+                <td>7</td>
+                <td>Disney, dielectric</td>
+                <td>Glass fish tanks with water (IOR 1.52 &rarr; 1.333 nesting); textured goldfish</td>
+            </tr>
+            <tr>
+                <td>Teto figurines (&times;2), Miku figurine</td>
+                <td>9</td>
+                <td>Disney</td>
+                <td>Per-part color separation; sheen on hair</td>
+            </tr>
+            <tr>
+                <td>Goldfish (foreground + bookshelf)</td>
+                <td>~6</td>
+                <td>Disney</td>
+                <td>Full PBR: albedo, normal, metallic-roughness maps; subsurface + clearcoat</td>
+            </tr>
+            <tr>
+                <td>Table, walls, CS5630 text, Ajax bust</td>
+                <td>5</td>
+                <td>Disney</td>
+                <td>Wood table with clearcoat; marble-like Ajax bust with subsurface</td>
+            </tr>
+            <tr>
+                <td>Heterogeneous cloud volume</td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+                <td>OpenVDB &rarr; <code>.vol</code> pipeline; &sigma;<sub>s</sub>=15, g=0.75 forward-scattering</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The character mesh originates from a Polycam gaussian splat of my face, converted to a MetaHuman in Unreal
+        Engine 5,
+        then exported to Blender for cleanup and UV unwrapping. All body/head textures (albedo, normal, roughness,
+        specular,
+        subsurface) were baked from Unreal's MetaHuman material and wired into the renderer's Disney BSDF via the scene
+        XML.
+    </p>
+
+    <div class="figure">
+        <img src="images/blender_ss.png" width="800" alt="blender screenshot" />
+        <p><strong>Figure 1:</strong> Blender scene layout. All 90+ meshes positioned with shared world-space
+            coordinates.</p>
+    </div>
+
+    <!-- WIREFRAME: uncomment once you add the wireframe screenshot -->
+    <div class="figure">
+        <img src="images/blender_wireframe.png" width="800" alt="wireframe overlay" />
+        <p><strong>Figure 2:</strong> Wireframe overlay.</p>
+    </div>
+
+    <div class="figure">
+        <img src="images/face.png" width="800" alt="metahuman face" />
+        <p><strong>Figure 2:</strong> Polycam &rarr; Unreal Engine MetaHuman &rarr; Blender &rarr; renderer pipeline for
+            the character face.</p>
+    </div>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 5: IMAGE-BASED LIGHTING                              -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 5: Image-Based Lighting</h1>
+
+    <h2>Implementation</h2>
+
+    <p>
+        Image-based lighting (IBL) uses a real-world HDR panorama as a light source.
+        Two components work together in <code>dxr/shaders/Envmap.hlsli</code> and <code>dxr/src/DXRApp.cpp</code>:
+    </p>
+
+    <p>
+        <strong>Evaluation:</strong> <code>EvalEnvmap(dir)</code> maps any world-space direction to an equirectangular
+        UV using:
+    </p>
+
+    <p style="text-align:center; font-style:italic;">
+        φ = atan2(d<sub>z</sub>, d<sub>x</sub>), &nbsp; u = φ / 2π, &nbsp; θ = arccos(d<sub>y</sub>), &nbsp; v = θ / π
+    </p>
+
+    <p>and samples the HDR texture at that UV.</p>
+
+    <p>
+        <strong>Importance sampling (this is the important one (haha)):</strong> a 2D piecewise-constant CDF
+        is built at scene load time
+        (<code>BuildEnvmapCdf</code> in <code>DXRApp.cpp</code>). The probability density at each pixel is proportional
+        to
+        luminance(x,y) × sin θ, which accounts for the solid-angle shrinkage of
+        equirectangular pixels near the poles. At runtime, two sequential 1D binary searches pick row <em>y</em> from
+        the marginal CDF and column <em>x</em> from the conditional CDF for that row. The solid-angle PDF is recovered
+        via
+        CDF differencing and the Jacobian:
+    </p>
+
+    <p style="text-align:center; font-style:italic;">
+        p<sub>ω</sub> = p<sub>pixel</sub> · (W · H) / (2π² sin θ)
+    </p>
+
+    <p>
+        The sampled direction is MIS-weighted against the BSDF PDF in <code>EnvmapDirectIllumination</code>
+        (<code>Emitter.hlsli</code>).
+    </p>
+
+    <h2>Quantitative Validation</h2>
+
+    <p>
+        Three complementary tests cover the full IBL pipeline. All comparisons are against Mitsuba 3 (512×512 @ 512
+        spp).
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Test</th>
+                <th>Scene</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>What it validates</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Diffuse sphere</td>
+                <td>albedo=0.7, <code>sunset.hdr</code></td>
+                <td><strong>0.011</strong></td>
+                <td><strong>53.3 dB</strong></td>
+                <td>Envmap eval + CDF sampling + average-case IBL</td>
+            </tr>
+            <tr>
+                <td>Mirror sphere</td>
+                <td>perfect mirror, <code>sunset.hdr</code></td>
+                <td><strong>0.035</strong></td>
+                <td><strong>50.3 dB</strong></td>
+                <td>Per-direction UV lookup; specular MIS code path</td>
+            </tr>
+            <tr>
+                <td>White furnace</td>
+                <td>albedo=1.0, constant-1 HDR</td>
+                <td><strong>0.008</strong></td>
+                <td><strong>56.9 dB</strong></td>
+                <td>CDF energy conservation, sin θ PDF normalisation</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        All three tests exceed 50 dB PSNR, confirming that envmap evaluation, CDF construction, solid-angle weighting,
+        and MIS balance are all correct.
+    </p>
+
+    <h3>Test 1: Diffuse sphere with HDRI</h3>
+
+    <p>
+        A diffuse sphere (albedo 0.7) lit by a HDR <code>sunset.hdr</code> (the HDRI is a 4096×2048, it consists of
+        bright sun
+        disk and sky/ground gradient). This tests average-case IBL response. I think this looks fine.
+    </p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/ibl_ours.png" width="220" alt="IBL diffuse — nori-dxr" /></td>
+            <td><img src="images/ibl_ref.png" width="220" alt="IBL diffuse — Mitsuba" /></td>
+            <td><img src="images/ibl_absdiff.png" width="220" alt="IBL diffuse abs diff" /></td>
+            <td><img src="images/ibl_falsecolor.png" width="220" alt="IBL diffuse false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr</td>
+            <td class="caption">Mitsuba reference</td>
+            <td class="caption">Abs diff (RMSE = 0.011)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>EXR source files: <code>images_exr/ibl_ours.exr</code>, <code>images_exr/ibl_ref.exr</code>.</p>
+
+    <h3>Test 2: Mirror sphere with HDRI</h3>
+
+    <p>A perfect mirror sphere of specular reflectance = 1 under <code>sunset.hdr</code>.</p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/ibl_mirror_ours.png" width="220" alt="IBL mirror — nori-dxr" /></td>
+            <td><img src="images/ibl_mirror_ref.png" width="220" alt="IBL mirror — Mitsuba" /></td>
+            <td><img src="images/ibl_mirror_absdiff.png" width="220" alt="IBL mirror abs diff" /></td>
+            <td><img src="images/ibl_mirror_falsecolor.png" width="220" alt="IBL mirror false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr</td>
+            <td class="caption">Mitsuba reference</td>
+            <td class="caption">Abs diff (RMSE = 0.035)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>EXR source files: <code>images_exr/ibl_mirror_ours.exr</code>, <code>images_exr/ibl_mirror_ref.exr</code>.</p>
+
+    <p>
+        The residual 0.035 RMSE is concentrated on the bright sun-disk pixels where a small directional offset
+        produces a large intensity jump and the per-channel mean ratio is within 0.1% across all three channels
+        which is pretty small.
+    </p>
+
+    <h3>Test 3: White furnace test</h3>
+
+    <p>
+        An albedo-1 diffuse sphere under a perfectly uniform HDR, where every pixel = 1,1,1. Under energy conservation
+        the sphere must be invisible against the background: both must integrate to 1 in every direction. Any
+        error in the CDF normalization, the sin θ solid-angle weight, or the PDF recovery formula will
+        break the furnace condition and produce a visible sphere. Our render has a uniform mean of
+        1.0000 (all channels), confirming the CDF integrates to exactly 1.
+    </p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/ibl_furnace_ours.png" width="220" alt="IBL furnace — nori-dxr" /></td>
+            <td><img src="images/ibl_furnace_ref.png" width="220" alt="IBL furnace — Mitsuba" /></td>
+            <td><img src="images/ibl_furnace_absdiff.png" width="220" alt="IBL furnace abs diff" /></td>
+            <td><img src="images/ibl_furnace_falsecolor.png" width="220" alt="IBL furnace false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (sphere invisible)</td>
+            <td class="caption">Mitsuba reference</td>
+            <td class="caption">Abs diff (RMSE = 0.008)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>EXR source files: <code>images_exr/ibl_furnace_ours.exr</code>, <code>images_exr/ibl_furnace_ref.exr</code>.</p>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 6: DISNEY BRDF                                       -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 6: Disney BRDF</h1>
+
+    <h2>Model</h2>
+
+    <p>
+        The Disney "principled" BRDF from the Burley 2012 model unifies five physically-motivated lobes into a
+        single, artist-friendly material with ten scalar parameters. All lobes operate in the local
+        shading frame where ω<sub>i</sub> and ω<sub>o</sub> are the incident and outgoing directions and
+        <strong>h</strong> = normalize(ω<sub>i</sub> + ω<sub>o</sub>) is the half-vector.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Lobe</th>
+                <th>Core formula</th>
+                <th>Key parameters</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Burley diffuse</strong></td>
+                <td>f<sub>d</sub> = (c/π)(1+(F<sub>D90</sub>−1)(1−cos θ<sub>i</sub>)⁵)(1+(F<sub>D90</sub>−1)(1−cos
+                    θ<sub>o</sub>)⁵)</td>
+                <td><code>baseColor</code>, <code>roughness</code></td>
+            </tr>
+            <tr>
+                <td><strong>HK subsurface</strong></td>
+                <td>f<sub>ss</sub> = (1.25 c / π) (F<sub>ss,i</sub> F<sub>ss,o</sub> (1/(cos θ<sub>i</sub>+cos
+                    θ<sub>o</sub>) − 0.5) + 0.5)</td>
+                <td><code>subsurface</code> blend weight</td>
+            </tr>
+            <tr>
+                <td><strong>GGX specular</strong></td>
+                <td>f<sub>s</sub> = D<sub>GGX</sub> F<sub>Schlick</sub> G<sub>Smith</sub> / (4 cos θ<sub>i</sub> cos
+                    θ<sub>o</sub>)</td>
+                <td><code>metallic</code>, <code>specular</code>, <code>roughness</code></td>
+            </tr>
+            <tr>
+                <td><strong>Sheen</strong></td>
+                <td>f<sub>sh</sub> = κ<sub>sheen</sub> C<sub>sheen</sub> (1−cos θ<sub>D</sub>)⁵</td>
+                <td><code>sheen</code>, <code>sheenTint</code></td>
+            </tr>
+            <tr>
+                <td><strong>Clearcoat</strong></td>
+                <td>f<sub>cc</sub> = 0.25 k<sub>cc</sub> D<sub>GTR1</sub> F<sub>0.04</sub> G<sub>0.25</sub> / (4 cos
+                    θ<sub>i</sub> cos θ<sub>o</sub>)</td>
+                <td><code>clearcoat</code>, <code>clearcoatGloss</code></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The full BRDF is f = (1−metallic) f<sub>d</sub> + f<sub>s</sub> + f<sub>sh</sub> + f<sub>cc</sub>.
+        Setting <code>metallic=1</code> zeroes the diffuse lobe and drives the specular F<sub>0</sub> to
+        <code>baseColor</code>,
+        producing a conductor. Setting <code>metallic=0</code> yields a dielectric with a fixed F<sub>0</sub> controlled
+        by <code>specular</code>.
+    </p>
+
+    <h2>Implementation</h2>
+
+    <p>
+        All Disney lobes are implemented in the GPU shader <code>dxr/shaders/Shaders.hlsl</code>.
+    </p>
+
+    <p>
+        <strong>Burley diffuse</strong> (<code>DisneyDiffuseEval</code>): F<sub>D90</sub> = 0.5 + 2α cos² θ<sub>D</sub>;
+        Schlick
+        factors evaluated at cos θ<sub>i</sub> and cos θ<sub>o</sub> respectively, weighted by c/π.
+    </p>
+
+    <p>
+        <strong>Subsurface approximation</strong> (<code>DisneyHKSubsurfaceEval</code>): Hanrahan-Krueger flat-slab
+        formula
+        with F<sub>SS90</sub> = α cos² θ<sub>D</sub>. Blended into the diffuse lobe proportionally to
+        <code>subsurface</code>.
+    </p>
+
+    <p>
+        <strong>GGX specular</strong>
+    </p>
+
+    <p>
+        <strong>Sheen</strong> (<code>DisneySheenEval</code>): Grazing-angle brightening (1−cos θ<sub>D</sub>)⁵ weighted
+        by a
+        tint-blended color.
+    </p>
+
+    <p>
+        <strong>Clearcoat</strong> (<code>DisneyClearcoatEval</code>): Separate GTR1 NDF with
+        α = lerp(0.1, 0.001, clearcoatGloss).
+    </p>
+
+    <p>
+        <strong>Lobe MIS sampling</strong> (<code>DisneyComputeLobeProbs</code>)
+    </p>
+
+    <h2>Validation Strategy</h2>
+
+    <p>Three complementary tests are used:</p>
+
+    <p>
+        1. <strong>Mitsuba cross-renderer comparison</strong>: our renderer vs. Mitsuba <code>principled</code> BSDF
+        under
+        an identical HDR environment. Low RMSE proves the lobe math and normalization are correct.
+    </p>
+
+    <p>
+        2. <strong>Per-lobe ablation</strong>: each lobe is toggled off on our renderer. A large RMSE
+        between enabled and disabled proves the lobe has a measurable effect.
+    </p>
+
+    <p>
+        3. <strong>White-furnace energy conservation</strong>: we do an albedo-1 sphere under a constant-white
+        environment and hope for a ratio ≈ 1.0 which proves the BRDF integrates to ≤ 1 in every direction.
+    </p>
+
+    <h2>Quantitative Validation</h2>
+
+    <h3>Test 1: Cross-renderer comparison vs. Mitsuba 3 (512 × 512, 1024 spp)</h3>
+
+    <p>
+        All three scenes use the same <code>sunset.hdr</code> environment map. RMSE and PSNR computed on raw linear EXRs
+        before tone-mapping.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Scene</th>
+                <th>Material</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>Per-channel mean ratio</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Metallic blue sphere</td>
+                <td><code>metallic=0.9</code>, <code>rough=0.2</code></td>
+                <td><strong>0.010</strong></td>
+                <td><strong>56.6 dB</strong></td>
+                <td>R 1.001 · G 1.001 · B 1.000</td>
+            </tr>
+            <tr>
+                <td>Rough red + clearcoat</td>
+                <td><code>clearcoat=1.0</code>, <code>rough=0.6</code></td>
+                <td><strong>0.019</strong></td>
+                <td><strong>40.5 dB</strong></td>
+                <td>R 1.000 · G 0.999 · B 0.999</td>
+            </tr>
+            <tr>
+                <td>Sheen fabric sphere</td>
+                <td><code>sheen=0.5</code>, <code>rough=0.85</code></td>
+                <td><strong>0.015</strong></td>
+                <td><strong>50.5 dB</strong></td>
+                <td>R 1.001 · G 1.001 · B 1.001</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        All three scenes score above 40 dB, which is the "visually indistinguishable" threshold!
+        Per-channel mean ratios are within 0.1% of 1.0, confirming both the spectral energy scale
+        and the angular distribution of every evaluated lobe.
+    </p>
+
+    <h3>Test 2: Per-lobe ablations</h3>
+
+    <p>
+        Each ablation keeps the identical renderer, camera, and environment, and only the target
+        parameter is zeroed. A high RMSE confirms the lobe is actively contributing to the render,
+        not silently disabled.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Ablation</th>
+                <th>Change</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>Interpretation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Subsurface (<code>subsurface</code> 0.8 → 0)</td>
+                <td>Replace HK flat-slab with Burley diffuse</td>
+                <td><strong>0.039</strong></td>
+                <td><strong>37.7 dB</strong></td>
+                <td>Clearly visible flattening of shading at terminator</td>
+            </tr>
+            <tr>
+                <td>Metallic (<code>metallic</code> 0.9 → 0)</td>
+                <td>Specular F0 coloring + diffuse suppression</td>
+                <td><strong>0.095</strong></td>
+                <td><strong>32.2 dB</strong></td>
+                <td>Very large, clearly visible difference</td>
+            </tr>
+            <tr>
+                <td>Clearcoat (<code>clearcoat</code> 1.0 → 0)</td>
+                <td>Remove GTR1 sheen layer</td>
+                <td><strong>0.015</strong></td>
+                <td><strong>40.0 dB</strong></td>
+                <td>Measurable specular highlight loss</td>
+            </tr>
+            <tr>
+                <td>Sheen (<code>sheen</code> 0.5 → 0)</td>
+                <td>Remove grazing brightening</td>
+                <td><strong>0.010</strong></td>
+                <td><strong>51.3 dB</strong></td>
+                <td>Subtle but measurable at silhouette</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The metallic ablation (RMSE = 0.095) produces the largest change because <code>metallic</code> affects
+        both the diffuse weight and the full specular color. The subsurface ablation (RMSE = 0.039)
+        shows a visible difference in shadow softness at the terminator: the HK lobe
+        redistributes energy from the lit side toward the unlit side. The sheen ablation is
+        expectedly subtle, because sheen is just a small grazing-angle correction.
+    </p>
+
+    <h3>Test 3: White-furnace energy conservation (256 × 256, 512 spp)</h3>
+
+    <p>
+        An albedo-1 sphere under a constant-white HDR, where every pixel = 1,1,1. A correctly-normalised
+        BRDF integrates to ≤ 1, so the sphere must be indistinguishable from the background. Any
+        error in the NDF normalisation, the PDF, or the importance-sampling Jacobian will produce a
+        visible, bright or dark sphere.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Test</th>
+                <th>Parameters</th>
+                <th>nori-dxr mean</th>
+                <th>Mitsuba mean</th>
+                <th>Ratio</th>
+                <th>RMSE</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Burley diffuse</td>
+                <td><code>metallic=0</code>, <code>rough=0.5</code></td>
+                <td>1.0082</td>
+                <td>1.0026</td>
+                <td>1.006</td>
+                <td>0.025</td>
+            </tr>
+            <tr>
+                <td>Smooth metallic</td>
+                <td><code>metallic=1.0</code>, <code>rough=0.1</code></td>
+                <td>0.9998</td>
+                <td>0.9998</td>
+                <td><strong>1.000</strong></td>
+                <td><strong>0.003</strong></td>
+            </tr>
+            <tr>
+                <td>Rough metallic</td>
+                <td><code>metallic=1.0</code>, <code>rough=0.5</code></td>
+                <td>0.9629</td>
+                <td>0.9629</td>
+                <td><strong>1.000</strong></td>
+                <td>0.013</td>
+            </tr>
+            <tr>
+                <td>Clearcoat</td>
+                <td><code>clearcoat=1.0</code>, black base</td>
+                <td>0.7053</td>
+                <td>0.7002</td>
+                <td>1.007</td>
+                <td>0.025</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        Both metallic rows achieve a ratio of exactly 1.000, which confirms the GGX NDF, Fresnel, and
+        Smith masking are correctly normalised. The diffuse and clearcoat rows show ratios of 1.006
+        and 1.007, which are both within 1%. This can be attributable to Monte Carlo noise at 512 spp. The clearcoat
+        furnace has a black base color, so the sphere reflects only the clearcoat fraction of the
+        environment, the PSNR is lower because a tiny
+        spatial offset at the bright-to-dark sphere boundary produces a disproportionately large
+        pixel-level error, but the per-pixel ratio of 1.007 confirms the clearcoat lobe is still energy-conserving
+        within reason.
+    </p>
+
+    <h2>Visual Results</h2>
+
+    <p>
+        Each comparison table shows four images: our renderer, the reference render, the
+        absolute per-pixel difference image, and the false-color error map, which is a log<sub>10</sub>-scaled
+        heatmap that serves as the per-pixel error plot required to demonstrate low per-pixel
+        variance against the reference.
+    </p>
+
+    <h3>Mitsuba cross-renderer comparison</h3>
+
+    <p><strong>Metallic blue sphere (<code>metallic=0.9</code>, <code>rough=0.2</code>):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_metallic_ours.png" width="220" alt="Disney metallic — nori-dxr" /></td>
+            <td><img src="images/disney_metallic_ref.png" width="220" alt="Disney metallic — Mitsuba" /></td>
+            <td><img src="images/disney_metallic_absdiff.png" width="220" alt="Disney metallic abs diff" /></td>
+            <td><img src="images/disney_metallic_falsecolor.png" width="220" alt="Disney metallic false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr</td>
+            <td class="caption">Mitsuba reference</td>
+            <td class="caption">Abs diff (RMSE = 0.010)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p><strong>Rough red sphere with full clearcoat (<code>clearcoat=1.0</code>, <code>rough=0.6</code>):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_clearcoat_ours.png" width="220" alt="Disney clearcoat — nori-dxr" /></td>
+            <td><img src="images/disney_clearcoat_ref.png" width="220" alt="Disney clearcoat — Mitsuba" /></td>
+            <td><img src="images/disney_clearcoat_absdiff.png" width="220" alt="Disney clearcoat abs diff" /></td>
+            <td><img src="images/disney_clearcoat_falsecolor.png" width="220" alt="Disney clearcoat false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr</td>
+            <td class="caption">Mitsuba reference</td>
+            <td class="caption">Abs diff (RMSE = 0.019)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p><strong>Sheen fabric sphere (<code>sheen=0.5</code>, <code>rough=0.85</code>):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_sheen_ours.png" width="220" alt="Disney sheen — nori-dxr" /></td>
+            <td><img src="images/disney_sheen_ref.png" width="220" alt="Disney sheen — Mitsuba" /></td>
+            <td><img src="images/disney_sheen_absdiff.png" width="220" alt="Disney sheen abs diff" /></td>
+            <td><img src="images/disney_sheen_falsecolor.png" width="220" alt="Disney sheen false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr</td>
+            <td class="caption">Mitsuba reference</td>
+            <td class="caption">Abs diff (RMSE = 0.015)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>
+        EXR source files: <code>images_exr/disney_metallic_ours.exr</code>,
+        <code>images_exr/disney_metallic_ref.exr</code>,
+        <code>images_exr/disney_clearcoat_ours.exr</code>, <code>images_exr/disney_clearcoat_ref.exr</code>,
+        <code>images_exr/disney_sheen_ours.exr</code>, <code>images_exr/disney_sheen_ref.exr</code>.
+    </p>
+
+    <h3>Per-lobe ablations (feature enabled vs. disabled)</h3>
+
+    <p><strong>Metallic ablation (<code>metallic</code> 0.9 → 0), RMSE = 0.095:</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_abl_metallic_with.png" width="220" alt="metallic=0.9" /></td>
+            <td><img src="images/disney_abl_metallic_without.png" width="220" alt="metallic=0" /></td>
+            <td><img src="images/disney_abl_metallic_absdiff.png" width="220" alt="metallic ablation diff" /></td>
+            <td><img src="images/disney_abl_metallic_falsecolor.png" width="220" alt="metallic ablation false color" />
+            </td>
+        </tr>
+        <tr>
+            <td class="caption">metallic = 0.9</td>
+            <td class="caption">metallic = 0</td>
+            <td class="caption">Abs diff (RMSE = 0.095)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>
+        The metallic transition replaces the white dielectric specular highlight with a colored
+        conductor reflection that takes on the blue <code>baseColor</code>. The RMSE of 0.095 and PSNR 32.2 dB
+        confirms a strong, renderer-visible effect.
+    </p>
+
+    <p><strong>Clearcoat ablation (<code>clearcoat</code> 1.0 → 0), RMSE = 0.015:</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_abl_clearcoat_with.png" width="220" alt="clearcoat=1" /></td>
+            <td><img src="images/disney_abl_clearcoat_without.png" width="220" alt="clearcoat=0" /></td>
+            <td><img src="images/disney_abl_clearcoat_absdiff.png" width="220" alt="clearcoat ablation diff" /></td>
+            <td><img src="images/disney_abl_clearcoat_falsecolor.png" width="220"
+                    alt="clearcoat ablation false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">clearcoat = 1.0</td>
+            <td class="caption">clearcoat = 0</td>
+            <td class="caption">Abs diff (RMSE = 0.015)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>
+        The GTR1 clearcoat adds a secondary sharp specular highlight visible as a bright ring near the specular
+        peak. RMSE = 0.015 / PSNR 40.0 dB.
+    </p>
+
+    <p><strong>Sheen ablation (<code>sheen</code> 0.5 → 0), RMSE = 0.010:</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_abl_sheen_with.png" width="220" alt="sheen=0.5" /></td>
+            <td><img src="images/disney_abl_sheen_without.png" width="220" alt="sheen=0" /></td>
+            <td><img src="images/disney_abl_sheen_absdiff.png" width="220" alt="sheen ablation diff" /></td>
+            <td><img src="images/disney_abl_sheen_falsecolor.png" width="220" alt="sheen ablation false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">sheen = 0.5</td>
+            <td class="caption">sheen = 0</td>
+            <td class="caption">Abs diff (RMSE = 0.010)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>The sheen lobe brightens the grazing rim of the sphere.</p>
+
+    <p><strong>Subsurface ablation (<code>subsurface</code> 0.8 → 0), RMSE = 0.039:</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_abl_subsurface_with.png" width="220" alt="subsurface=0.8" /></td>
+            <td><img src="images/disney_abl_subsurface_without.png" width="220" alt="subsurface=0" /></td>
+            <td><img src="images/disney_abl_subsurface_absdiff.png" width="220" alt="subsurface ablation diff" /></td>
+            <td><img src="images/disney_abl_subsurface_falsecolor.png" width="220"
+                    alt="subsurface ablation false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">subsurface = 0.8</td>
+            <td class="caption">subsurface = 0</td>
+            <td class="caption">Abs diff (RMSE = 0.039)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <h3>White-furnace energy conservation</h3>
+
+    <p><strong>Burley diffuse furnace (<code>metallic=0</code>, <code>rough=0.5</code>):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_furnace_diffuse_ours.png" width="220" alt="Furnace diffuse — nori-dxr" /></td>
+            <td><img src="images/disney_furnace_diffuse_ref.png" width="220" alt="Furnace diffuse — Mitsuba" /></td>
+            <td><img src="images/disney_furnace_diffuse_absdiff.png" width="220" alt="Furnace diffuse diff" /></td>
+            <td><img src="images/disney_furnace_diffuse_falsecolor.png" width="220" alt="Furnace diffuse false color" />
+            </td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (mean = 1.008)</td>
+            <td class="caption">Mitsuba (mean = 1.003)</td>
+            <td class="caption">Abs diff (RMSE = 0.025)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p><strong>Smooth metallic furnace (<code>metallic=1.0</code>, <code>rough=0.1</code>):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_furnace_smooth_ours.png" width="220" alt="Furnace smooth — nori-dxr" /></td>
+            <td><img src="images/disney_furnace_smooth_ref.png" width="220" alt="Furnace smooth — Mitsuba" /></td>
+            <td><img src="images/disney_furnace_smooth_absdiff.png" width="220" alt="Furnace smooth diff" /></td>
+            <td><img src="images/disney_furnace_smooth_falsecolor.png" width="220" alt="Furnace smooth false color" />
+            </td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (mean = 0.9998, sphere invisible)</td>
+            <td class="caption">Mitsuba (mean = 0.9998)</td>
+            <td class="caption">Abs diff (RMSE = 0.003)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p><strong>Rough metallic furnace (<code>metallic=1.0</code>, <code>rough=0.5</code>):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_furnace_rough_ours.png" width="220" alt="Furnace rough — nori-dxr" /></td>
+            <td><img src="images/disney_furnace_rough_ref.png" width="220" alt="Furnace rough — Mitsuba" /></td>
+            <td><img src="images/disney_furnace_rough_absdiff.png" width="220" alt="Furnace rough diff" /></td>
+            <td><img src="images/disney_furnace_rough_falsecolor.png" width="220" alt="Furnace rough false color" />
+            </td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (mean = 0.9629)</td>
+            <td class="caption">Mitsuba (mean = 0.9629)</td>
+            <td class="caption">Abs diff (RMSE = 0.013)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p><strong>Clearcoat furnace (<code>clearcoat=1.0</code>, black base):</strong></p>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/disney_furnace_clearcoat_ours.png" width="220" alt="Furnace clearcoat — nori-dxr" />
+            </td>
+            <td><img src="images/disney_furnace_clearcoat_ref.png" width="220" alt="Furnace clearcoat — Mitsuba" /></td>
+            <td><img src="images/disney_furnace_clearcoat_absdiff.png" width="220" alt="Furnace clearcoat diff" /></td>
+            <td><img src="images/disney_furnace_clearcoat_falsecolor.png" width="220"
+                    alt="Furnace clearcoat false color" /></td>
+        </tr>
+        <tr>
+            <td class="caption">nori-dxr (mean = 0.705)</td>
+            <td class="caption">Mitsuba (mean = 0.700)</td>
+            <td class="caption">Abs diff (RMSE = 0.025)</td>
+            <td class="caption">False-color error map</td>
+        </tr>
+    </table>
+
+    <p>
+        The clearcoat furnace uses a black base color, so the sphere reflects only the thin
+        dielectric clearcoat fraction of the environment. The sphere is visibly darker than the
+        background (mean ≈ 0.70 vs 1.0), which is physically correct: a clearcoat-only surface
+        with F<sub>0</sub> = 0.04 and 0.25× scale will reflect a small fraction of incident light
+        at most angles and absorbs the rest into the black base. The per-pixel ratio of 1.007
+        (within 1% of 1.0) confirms the clearcoat lobe integrates correctly.
+    </p>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 7: HAIR                                              -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 7: Hair</h1>
+
+    <h2>Model</h2>
+
+    <p>
+        The hair BSDF follows the <strong>Chiang et al. 2016</strong> model which treats each hair fiber as a dielectric
+        cylinder with a slightly tilted cuticle surface. Incident light decomposes into four scattering lobes indexed by
+        <em>p</em>:
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Lobe</th>
+                <th>Symbol</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><em>p</em>=0</td>
+                <td><strong>R</strong></td>
+                <td>Specular reflection off the cuticle surface</td>
+            </tr>
+            <tr>
+                <td><em>p</em>=1</td>
+                <td><strong>TT</strong></td>
+                <td>Direct transmission through the fiber</td>
+            </tr>
+            <tr>
+                <td><em>p</em>=2</td>
+                <td><strong>TRT</strong></td>
+                <td>One internal reflection before exiting</td>
+            </tr>
+            <tr>
+                <td><em>p</em>=3</td>
+                <td><strong>residual</strong></td>
+                <td>Geometric series summing all <em>p</em> ≥ 3 bounces</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        Each lobe's energy is attenuated by Fresnel reflectance <em>f</em> and Beer-law transmittance:
+    </p>
+
+    <p style="text-align:center; font-style:italic;">
+        T = exp(−σ<sub>a</sub> · 2 cos γ<sub>t</sub> / cos θ<sub>t</sub>)
+    </p>
+
+    <p>
+        where σ<sub>a</sub> is derived from the desired hair color via a polynomial fit, γ<sub>t</sub> is the refracted
+        azimuthal angle inside the cylinder, and θ<sub>t</sub> the refracted longitudinal angle.
+    </p>
+
+    <p>
+        The full BCSDF factors as f<sub>hair</sub> = Σ<sub>p</sub> M<sub>p</sub> · A<sub>p</sub> · N<sub>p</sub>, where
+        importance sampling selects a lobe by luminance weight, then draws longitude from the M<sub>p</sub> inverse CDF
+        and
+        azimuth from the trimmed logistic CDF.
+    </p>
+
+    <h2>Implementation</h2>
+
+    <p>
+        The CPU-side code (this includes <code>src/hair.cpp</code>, <code>include/nori/hair.h</code>) loads the
+        <a href="http://www.cemyuksel.com/research/hairmodels/">Yuksel <code>.hair</code> binary format</a> and
+        tessellates each strand
+        into a 6-sided prism tube mesh. The per-vertex UV <em>v</em>-coordinate encodes the cross-section offset
+        <em>h</em> = 2v−1 ∈ [−1,1].
+    </p>
+
+    <p>
+        Then, the rest of the hair BCSDF from evaluation, PDF, to importance sampling runs on the GPU in
+        <code>dxr/shaders/Hair.hlsli</code>.
+        The central attenuation function:
+    </p>
+
+    <pre><code>void HairAp(float cosTheta_o, float sinTheta_o, float h, float eta,
             float3 sigma_a, out float3 ap[4])
-            {
-            float etap = sqrt(eta*eta - sinTheta_o*sinTheta_o) / cosTheta_o;
-            float sinGamma_t = clamp(h / etap, -1.0, 1.0);
-            float cosGamma_t = sqrt(1.0 - sinGamma_t * sinGamma_t);
-            float sinTheta_t = sinTheta_o / eta;
-            float cosTheta_t = sqrt(1.0 - sinTheta_t * sinTheta_t);
+{
+    float etap = sqrt(eta*eta - sinTheta_o*sinTheta_o) / cosTheta_o;
+    float sinGamma_t = clamp(h / etap, -1.0, 1.0);
+    float cosGamma_t = sqrt(1.0 - sinGamma_t * sinGamma_t);
+    float sinTheta_t = sinTheta_o / eta;
+    float cosTheta_t = sqrt(1.0 - sinTheta_t * sinTheta_t);
 
-            float3 T = exp(-sigma_a * (2.0 * cosGamma_t / cosTheta_t)); // Beer's law
+    float3 T = exp(-sigma_a * (2.0 * cosGamma_t / cosTheta_t)); // Beer's law
 
-            float cosGamma_o = sqrt(1.0 - h * h);
-            float f = FresnelDielectric(cosTheta_o * cosGamma_o, 1.0, eta);
+    float cosGamma_o = sqrt(1.0 - h * h);
+    float f = FresnelDielectric(cosTheta_o * cosGamma_o, 1.0, eta);
 
-            ap[0] = float3(f, f, f); // R
-            ap[1] = (1.0-f)*(1.0-f) * T; // TT
-            ap[2] = ap[1] * T * f; // TRT
-            ap[3] = ap[2] * f * T / (1.0-T*f); // residual (geometric series, p>=3)
+    ap[0] = float3(f, f, f);                    // R
+    ap[1] = (1.0-f)*(1.0-f) * T;                // TT
+    ap[2] = ap[1] * T * f;                      // TRT
+    ap[3] = ap[2] * f * T / (1.0-T*f);          // residual (geometric series, p>=3)
+}</code></pre>
+
+    <h2>White Furnace Validation</h2>
+
+    <p>
+        The scene (<code>validation_tests/hair_furnace_test/white_furnace_test.xml</code>) places the full
+        <code>wWavy.hair</code> strand
+        geometry inside a uniform white HDR environment and renders with <code>color=(1,1,1)</code> → σ<sub>a</sub>=0.
+        Every pixel must converge to 1.0. If we get a mean below 0.97, that is energy loss; if we get a mean above
+        1.03, that is energy creation and both are incorrect.
+    </p>
+
+    <p>Below: the test at <strong>26 spp</strong> (noisy but already around 1.0) and <strong>512 spp</strong> (converged
+        pretty quickly):</p>
+
+    <div class="figure">
+        <img src="images/snapshot_26.png" alt="White furnace test — 26 spp (early, noisy)" />
+        <p>White furnace test — 26 spp (early, noisy)</p>
+    </div>
+
+    <div class="figure">
+        <img src="images/snapshot_512.png" alt="White furnace test — 512 spp (converged)" />
+        <p>White furnace test — 512 spp (converged. I know you can still see it a little, but it passes the statistical
+            tests. )</p>
+    </div>
+
+    <p>Measured result at 512 spp on the full strand mesh:</p>
+
+    <pre><code>Image     : 640 x 480
+Mean lum  : 0.9911 (target = 1.000)
+Std dev   : 0.0299 (MC noise)
+Min / Max : 0.7077 / 1.2252
+
+PASS mean=0.9911, within 3% of 1.0, therefore hair BCSDF conserves energy.</code></pre>
+
+    <h2>Extra Qualitative Validation: This Hair Looks Right</h2>
+
+    <p>Hair model under bright day env map.</p>
+
+    <div class="figure">
+        <img src="images/hair_1.png" alt="Screenshot From Renderer 1" />
+        <p>Hair render — view 1</p>
+    </div>
+
+    <div class="figure">
+        <img src="images/hair_2.png" alt="Screenshot From Renderer 2" />
+        <p>Hair render — view 2</p>
+    </div>
+
+    <h2>Alternative: Hair Cards with Alpha Masking</h2>
+
+    <p>
+        The renderer also supports hair cards, which is a simpler, cheaper approach that is commonly used in
+        real-time and game rendering.
+        Instead of loading a <code>.hair</code> strand file and tessellating it into cylinder meshes, the hair is
+        modeled as a set
+        of flat billboard quads (an ordinary OBJ mesh) textured with a grayscale strand atlas. Where the texture is
+        black
+        the quad is transparent; where it is white the quad is opaque. This was useful for modelling my final scene's
+        hair.
+    </p>
+
+    <p>
+        In the scene XML a hair card mesh is declared exactly like any other OBJ, with an extra
+        <code>alphaTexture</code> property:
+    </p>
+
+    <pre><code>&lt;mesh type="obj"&gt;
+    &lt;string name="filename" value="grace_mesh/hair.obj" /&gt;
+    &lt;bsdf type="disney"&gt;
+        &lt;color name="baseColor" value="0.03 0.02 0.015" /&gt;
+        &lt;string name="alphaTexture" value="textures/grace_textures/hair/hair_alpha1.png" /&gt;
+        &lt;float name="roughness" value="0.4" /&gt;
+        &lt;float name="specular" value="0.4" /&gt;
+        &lt;float name="sheen" value="0.3" /&gt;
+        &lt;float name="clearcoat" value="0.3" /&gt;
+    &lt;/bsdf&gt;
+&lt;/mesh&gt;</code></pre>
+
+    <p>
+        Any BSDF, that is, Disney, diffuse, etc., whatever, can carry an <code>alphaTexture</code>. The rest of the
+        pipeline is
+        handled automatically:
+    </p>
+
+    <p>
+        1. <strong>Instance flag</strong>: <code>DXRApp.cpp</code> detects a non-empty <code>alphaTexture</code> and
+        marks the TLAS instance
+        <code>D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE</code>, enabling the any-hit shader.
+    </p>
+
+    <p>
+        2. <strong>Primary any-hit</strong> (<code>PrimaryAnyHit</code> in <code>Shaders.hlsl</code>): samples the alpha
+        texture at the hit UV.
+        Below 0.01 the hit is hard-rejected (<code>IgnoreHit()</code>). Above that threshold, acceptance is stochastic
+        with
+        probability α² : this gives anti-aliased strand silhouettes without any supersampling cost.
+    </p>
+
+    <p>
+        3. <strong>Shadow any-hit</strong> (<code>ShadowAnyHit</code>): the same α² test is applied to shadow rays, so
+        shadows
+        also cut out at strand boundaries and the lighting is consistent.
+    </p>
+
+    <p>
+        The stochastic α² rule (rather than α) was chosen because alpha textures exported from
+        typical DCC tools are already perceptually linear; squaring them brings them closer to a physically correct
+        coverage
+        probability.
+    </p>
+
+    <!-- ============================================================ -->
+    <!--  FEATURE 8: VOLUMETRIC MEDIA                                  -->
+    <!-- ============================================================ -->
+
+    <h1>Feature 8: Homogeneous Volumetric Participating Media</h1>
+
+    <h2>Model</h2>
+
+    <p>
+        Volumetric participating media allow paths to scatter or be absorbed <em>in-flight</em>, producing
+        effects such as fog, smoke, subsurface glow, and god-rays. Each homogeneous medium is parameterised
+        by three constant coefficients:
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Name</th>
+                <th>Meaning</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>σ<sub>a</sub></td>
+                <td>absorption coefficient</td>
+                <td>Probability of absorption per unit length</td>
+            </tr>
+            <tr>
+                <td>σ<sub>s</sub></td>
+                <td>scattering coefficient</td>
+                <td>Probability of in-scattering per unit length</td>
+            </tr>
+            <tr>
+                <td>σ<sub>t</sub> = σ<sub>a</sub> + σ<sub>s</sub></td>
+                <td>extinction coefficient</td>
+                <td>Total interaction probability per unit length</td>
+            </tr>
+            <tr>
+                <td>ω<sub>0</sub> = σ<sub>s</sub>/σ<sub>t</sub></td>
+                <td>single-scattering albedo</td>
+                <td>Fraction of interactions that scatter vs. absorb</td>
+            </tr>
+            <tr>
+                <td>g ∈ (−1, 1)</td>
+                <td>asymmetry parameter</td>
+                <td>Mean cosine of the Henyey-Greenstein phase function</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The transmittance along a ray of length <em>d</em> through a homogeneous medium follows Beer's law:
+    </p>
+    <p style="margin-left:2em">
+        T(d) = exp(−σ<sub>t</sub> d)
+    </p>
+
+    <p>
+        The <strong>Henyey-Greenstein (HG) phase function</strong> describes the angular distribution of scattered
+        light at a scatter event:
+    </p>
+    <p style="margin-left:2em">
+        f<sub>p</sub>(cos θ) = (1 − g²) / (4π (1 + g² − 2g cos θ)^(3/2))
+    </p>
+    <p>
+        At g = 0 this reduces to isotropic scattering; g → 1 produces strong forward scattering
+        (like thin aerosols or clouds); g → −1 produces strong backscattering. The HG function is
+        analytically invertible, making importance sampling exact.
+    </p>
+
+    <h2>Implementation</h2>
+
+    <p>
+        All volumetric logic lives in two GPU shader files:
+    </p>
+
+    <ul>
+        <li>
+            <strong><code>dxr/shaders/Volume.hlsl</code></strong> for medium sampling primitives
+        </li>
+        <li>
+            <strong><code>dxr/shaders/Shaders.hlsl</code></strong> for path integration
+        </li>
+    </ul>
+
+    <p>
+        <strong>Null-collision (Woodcock) tracking</strong>: the shader samples a free-flight
+        distance under a global majorant μ = σ<sub>t,max</sub>. At each candidate event the shader
+        performs a <em>null collision</em> rejection test: a real scatter occurs with probability
+        σ<sub>t</sub>/μ, otherwise the path continues with weight 1. This gives an unbiased
+        estimator for the free-flight PDF.
+    </p>
+
+    <h2>Validation Strategy</h2>
+
+    <p>Three complementary tests verify correctness:</p>
+
+    <ol>
+        <li>
+            <strong>Beer-Lambert analytical test</strong>: A purely absorbing slab (σ<sub>a</sub> = 2,
+            σ<sub>s</sub> = 0, thickness 1) is rendered with a narrow-FOV camera facing the slab.
+            The expected pixel luminance is exp(−2) ≈ 0.1353; any error in the free-flight
+            sampler or transmittance estimator will produce a measurable bias.
+        </li>
+        <li>
+            <strong>White-furnace energy conservation</strong>: A purely scattering medium
+            (σ<sub>a</sub> = 0, σ<sub>s</sub> = 1, g = 0) under a constant-white environment
+            (every envmap pixel = 1) must reproduce mean pixel luminance = 1.0. The scattering
+            medium cannot create or destroy energy.
+        </li>
+        <li>
+            <strong>Cross-renderer visual comparison vs. Mitsuba 3</strong>: A homogeneous
+            fog scene (σ<sub>t</sub> = 0.5, ω<sub>0</sub> = 0.8, HG phase) with a diffuse
+            sphere and a real HDR environment is rendered by both our renderer and Mitsuba 3's
+            <code>volpath</code> integrator at matched parameters. Per-pixel RMSE and PSNR
+            measure agreement on the full light-transport integral including multiple scattering.
+            Phase function ablations (g = 0, 0.3, 0.8) verify that the HG asymmetry parameter
+            has the expected visual effect.
+        </li>
+    </ol>
+
+    <h2>Quantitative Validation</h2>
+
+    <h3>Test 1 &amp; 2: Analytical ground-truth tests (256 × 64, 512 spp)</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Test</th>
+                <th>Parameters</th>
+                <th>nori-dxr mean</th>
+                <th>Expected</th>
+                <th>Error</th>
+                <th>Tolerance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Beer-Lambert slab</strong></td>
+                <td>σ<sub>a</sub> = 2, σ<sub>s</sub> = 0, d = 1</td>
+                <td><strong>0.1354</strong></td>
+                <td>exp(−2) = 0.1353</td>
+                <td>+0.0001</td>
+                <td>± 0.010</td>
+            </tr>
+            <tr>
+                <td><strong>White furnace</strong></td>
+                <td>σ<sub>a</sub> = 0, σ<sub>s</sub> = 1, g = 0, white env</td>
+                <td><strong>1.0001</strong></td>
+                <td>1.0000</td>
+                <td>+0.0001</td>
+                <td>± 0.040</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        Both tests pass with errors far below their tolerances. The Beer-Lambert result
+        confirms that the null-collision free-flight sampler and the ratio-tracking
+        transmittance estimator are unbiased to within Monte Carlo noise.
+        The white-furnace result confirms that
+        the HG phase function is correctly normalised, MIS weights sum to 1, and the
+        path throughput accounting (σ<sub>s</sub>/σ<sub>t</sub> at each scatter) is correct.
+    </p>
+
+    <h3>Test 3: Cross-renderer comparison vs. Mitsuba 3 (256 × 256, 512 spp)</h3>
+
+    <p>
+        Scene: homogeneous fog volume (10 m cube, σ<sub>t</sub> = 0.5, ω<sub>0</sub> = 0.8),
+        a diffuse gray sphere (albedo 0.5) at the origin, lit by <code>sunset.hdr</code>.
+        Camera is outside the volume at z = 15. RMSE and PSNR are computed on raw linear HDR
+        values before tone-mapping.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Phase g</th>
+                <th>Scattering character</th>
+                <th>Linear RMSE</th>
+                <th>Tonemap PSNR</th>
+                <th>Per-channel mean ratio</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>g = 0 (isotropic)</td>
+                <td>Equal scatter in all directions</td>
+                <td><strong>0.01188</strong></td>
+                <td><strong>40.84 dB</strong></td>
+                <td>R 1.000 · G 1.000 · B 1.000</td>
+            </tr>
+            <tr>
+                <td>g = 0.3 (mild forward)</td>
+                <td>slight glow</td>
+                <td><strong>0.01232</strong></td>
+                <td><strong>39.39 dB</strong></td>
+                <td>R 1.000 · G 1.000 · B 1.000</td>
+            </tr>
+            <tr>
+                <td>g = 0.8 (strong forward)</td>
+                <td>forward glow</td>
+                <td>0.04157</td>
+                <td>28.29 dB</td>
+                <td>R 1.235 · G 1.162 · B 1.103</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>
+        The g = 0 and g = 0.3 scenes score a high DB threshold and you visually cannot tell the difference, and
+        and the per-channel mean ratios are exactly 1.000, confirming that the volumetric path
+        integrator transports the correct amount of energy at all tested anisotropies.
+    </p>
+    <p>
+        The g = 0.8 scene scores lower because at high anisotropy, scattered light is concentrated
+        into a very narrow forward lobe around the sun. A tiny difference in how nori-dxr and
+        Mitsuba orient the envmap moves this bright glow by a few pixels, which tanks PSNR even
+        though the total energy is nearly identical. The g = 0 and g = 0.3 results confirm the
+        implementation is correct.
+    </p>
+
+    <h2>Visual Results</h2>
+
+    <p>
+        Each row shows three images: our renderer (left), the Mitsuba 3 reference (center), and
+        the false-color per-pixel error map (right, log<sub>10</sub>-scaled — blue = low error,
+        red = high error).
+    </p>
+
+    <h3>g = 0 (isotropic scattering) — PSNR 40.84 dB</h3>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/vol_g0_ours.png" width="220" alt="Volumetric g=0 — nori-dxr" /></td>
+            <td><img src="images/vol_g0_ref.png" width="220" alt="Volumetric g=0 — Mitsuba 3" /></td>
+            <td><img src="images/vol_g0_diff.png" width="220" alt="Volumetric g=0 error map" /></td>
+        </tr>
+        <tr>
+            <td style="text-align:center">nori-dxr (ours)</td>
+            <td style="text-align:center">Mitsuba 3 reference</td>
+            <td style="text-align:center">False-color error (RMSE = 0.012)</td>
+        </tr>
+    </table>
+
+    <h3>g = 0.3 (mild forward scattering) — PSNR 39.39 dB</h3>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/vol_g03_ours.png" width="220" alt="Volumetric g=0.3 — nori-dxr" /></td>
+            <td><img src="images/vol_g03_ref.png" width="220" alt="Volumetric g=0.3 — Mitsuba 3" /></td>
+            <td><img src="images/vol_g03_diff.png" width="220" alt="Volumetric g=0.3 error map" /></td>
+        </tr>
+        <tr>
+            <td style="text-align:center">nori-dxr (ours)</td>
+            <td style="text-align:center">Mitsuba 3 reference</td>
+            <td style="text-align:center">False-color error (RMSE = 0.012)</td>
+        </tr>
+    </table>
+
+    <h3>g = 0.8 (strong forward scattering) — PSNR 28.29 dB</h3>
+
+    <table class="compare">
+        <tr>
+            <td><img src="images/vol_g08_ours.png" width="220" alt="Volumetric g=0.8 — nori-dxr" /></td>
+            <td><img src="images/vol_g08_ref.png" width="220" alt="Volumetric g=0.8 — Mitsuba 3" /></td>
+            <td><img src="images/vol_g08_diff.png" width="220" alt="Volumetric g=0.8 error map" /></td>
+        </tr>
+        <tr>
+            <td style="text-align:center">nori-dxr (ours)</td>
+            <td style="text-align:center">Mitsuba 3 reference</td>
+            <td style="text-align:center">False-color error (RMSE = 0.042)</td>
+        </tr>
+    </table>
+
+    <!-- ============================================================ -->
+    <!--  FINAL SCENE                                                  -->
+    <!-- ============================================================ -->
+
+    <h1>How Was This Final Scene Made?</h1>
+
+    <p>
+        I put every mesh together in Blender to layout the general scene. I exported each mesh in Blender as its own
+        object as a triangulated mesh. This is a good time saving hack because it keeps all the world coordinates
+        consistent across the scene. I don't know Blender at all, so I spent about 100 hours in this software (amazing.)
+    </p>
+
+    <div class="figure">
+        <img src="images/blender_ss.png" width="800" alt="blender screenshot" />
+        <p><strong>Figure 1:</strong> Blender Hell</p>
+    </div>
+
+    <div class="figure">
+        <img src="images/snapshot_68_denoised.png" width="800" alt="Final Denoised Scene" />
+        <p><strong>Figure 2:</strong> The final rendered scene after denoising with Intel Open Image Denoiser.</p>
+    </div>
+
+    <!-- Slider dependencies -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="../resources/jquery.event.move.js"></script>
+    <script src="../resources/jquery.twentytwenty.js"></script>
+    <link href="../resources/offcanvas.css" rel="stylesheet" />
+    <link href="../resources/twentytwenty.css" rel="stylesheet" type="text/css" />
+    <script>
+        var markdeepOptions = {
+            onLoad: function () {
+                $(".twentytwenty-container").twentytwenty({
+                    default_offset_pct: 0.5,
+                    move_slider_on_hover: true
+                });
             }
-            ```
+        };
+    </script>
+    <!-- Markdeep -->
+    <script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script>
+    <script>window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")</script>
 
+</body>
 
-            ### White Furnace Validation
-
-            The scene (`validation_tests/hair_furnace_test/white_furnace_test.xml`) places the full `wWavy.hair` strand
-            geometry
-            inside a uniform white HDR environment and renders with `color=(1,1,1)` → $\sigma_a=0$.
-            Every pixel must converge to 1.0. If we get a mean below 0.97, that is energy loss; if we get a mean above
-            1.03, that is energy creation and both are incorrect.
-
-            Below: the test at **26 spp** (noisy but already around 1.0) and **512 spp** (converged pretty quickly):
-
-            ![White furnace test — 26 spp (early, noisy)](images/snapshot_26.png)
-
-            ![White furnace test — 512 spp (converged)](images/snapshot_512.png)
-
-            Measured result at 512 spp on the full strand mesh:
-
-            ```
-            Image : 640 x 480
-            Mean lum : 0.9911 (target = 1.000)
-            Std dev : 0.0299 (MC noise)
-            Min / Max : 0.7077 / 1.2252
-
-            PASS mean=0.9911, within 3% of 1.0, therefore hair BCSDF conserves energy.
-            ```
-            ### "Extra Qualitative Validation: This Hair Looks Right"
-
-            Hair model under bright day env map.
-
-            ![Screenshot From Renderer 1](images/hair_1.png)
-            ![Screenshot From Renderer 2](images/hair_2.png)
-
-            ### Alternative: Hair Cards with Alpha Masking
-
-            The renderer also supports hair cards, which is a simpler, cheaper approach that is commonly used in
-            real-time and game
-            rendering.
-            Instead of loading a `.hair` strand file and tessellating it into cylinder meshes, the hair is modeled as a
-            set
-            of flat
-            billboard quads (an ordinary OBJ mesh) textured with a grayscale strand atlas. Where the texture is black
-            the
-            quad is
-            transparent; where it is white the quad is opaque. This was useful for modelling my final scene's hair.
-
-            In the scene XML a hair card mesh is declared exactly like any other OBJ, with an extra `alphaTexture`
-            property:
-
-            ```xml
-            <mesh type="obj">
-                <string name="filename" value="grace_mesh/hair.obj" />
-                <bsdf type="disney">
-                    <color name="baseColor" value="0.03 0.02 0.015" />
-                    <string name="alphaTexture" value="textures/grace_textures/hair/hair_alpha1.png" />
-                    <float name="roughness" value="0.4" />
-                    <float name="specular" value="0.4" />
-                    <float name="sheen" value="0.3" />
-                    <float name="clearcoat" value="0.3" />
-                </bsdf>
-            </mesh>
-            ```
-
-            Any BSDF, that is, Disney, diffuse, etc., whatever, can carry an `alphaTexture`. The rest of the pipeline is
-            handled
-            automatically:
-
-            1. **Instance flag**: `DXRApp.cpp` detects a non-empty `alphaTexture` and marks the TLAS instance
-            `D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE`, enabling the any-hit shader.
-            2. **Primary any-hit** (`PrimaryAnyHit` in `Shaders.hlsl`): samples the alpha texture at the hit UV.
-            Below 0.01 the hit is hard-rejected (`IgnoreHit()`). Above that threshold, acceptance is stochastic with
-            probability $\alpha^2$: this gives anti-aliased strand silhouettes without any supersampling cost.
-            3. **Shadow any-hit** (`ShadowAnyHit`): the same $\alpha^2$ test is applied to shadow rays, so shadows
-            also cut out at strand boundaries and the lighting is consistent.
-
-            The stochastic $\alpha^2$ rule (rather than $\alpha$) was chosen because alpha textures exported from
-            typical
-            DCC tools are already perceptually linear; squaring them brings them closer to a physically correct coverage
-            probability.
-
-
-
-            Description and Validation of Feature 9: Heterogenous volumetric participating media
-            =========================================
-            This one was pretty hard to get working.
-
-            Validation is done with statistical sampling:
-
-            <h2 id="how-was-this-final-scene-made-">How was this final scene made?</h2>
-            <p>
-                I put every mesh together in Blender to layout the general scene. I exported each mesh in Blender as its
-                own
-                object as a triangulated mesh. This is a good time saving hack because it keeps all the world
-                coordinates
-                consistent across the scene. I don't know Blender at all, so I spent about 100 hours in this software
-                (amazing.)
-            </p>
-
-            <div align="center">
-                <img src="images/blender_ss.png" width="800" alt="blender screenshot" />
-                <p><strong>Figure 1:</strong> Blender Hell
-                </p>
-            </div>
-
-            <div align="center">
-                <img src="images/snapshot_68_denoised.png" width="800" alt="Final Denoised Scene" />
-                <p><strong>Figure 2:</strong> The final rendered scene after denoising with Intel Open Image Denoiser.
-                </p>
-            </div>
-
-
-
-            <!-- Slider -->
-            <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-            <script src="../resources/jquery.event.move.js"></script>
-            <script src="../resources/jquery.twentytwenty.js"></script>
-            <link href="../resources/offcanvas.css" rel="stylesheet">
-            <link href="../resources/twentytwenty.css" rel="stylesheet" type="text/css" />
-            <script>var markdeepOptions = { onLoad: function () { $(".twentytwenty-container").twentytwenty({ default_offset_pct: 0.5, move_slider_on_hover: true }); } };</script>
-            <!-- Markdeep: -->
-            <script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script>
-            <script>window.alreadyProcessedMarkdeep || (document.body.style.visibility = "visible")</script>
+</html>

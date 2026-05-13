@@ -13,8 +13,11 @@
 
 NORI_NAMESPACE_BEGIN
 
-Scene::Scene(const PropertyList &)
+Scene::Scene(const PropertyList &propList)
 {
+    m_envmap = propList.getString("envmap", "textures/white_furnace.hdr");
+    m_envmapScale = propList.getFloat("envmapScale", 1.0f);
+    m_evCompensation = propList.getFloat("evCompensation", 0.0f);
     m_accel = new Accel();
 }
 
