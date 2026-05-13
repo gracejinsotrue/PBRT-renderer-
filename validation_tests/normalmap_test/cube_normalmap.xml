@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<scene>
+    <string name="envmap" value="textures/sky_gradient.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="3, 2, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="512"/>
+        <integer name="width" value="512"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="../blender_default_sphere.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.7 0.7 0.7"/>
+            <string name="normalTexture" value="textures/rocky-rugged-terrain_1_normal-ogl.png"/>
+        </bsdf>
+    </mesh>
+</scene>

@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<scene>
+	<integrator type="direct">
+		<string name="strategy" value="mis"/>
+	</integrator>
+	<!-- Disable fallback gray envmap so scene is area-light only, matching Mitsuba -->
+	<float name="envmapScale" value="0"/>
+
+	<!-- Camera with depth of field: positioned to focus on cube center -->
+	<!-- Focal distance = distance from camera to focus plane -->
+	<!-- lensRadius = aperture radius (larger = stronger DOF) -->
+	<camera type="perspective">
+		<float name="fov" value="50"/>
+		<float name="lensRadius" value="0.1"/>
+		<float name="focalDistance" value="4.0"/>
+		<transform name="toWorld">
+			<lookat origin="0, 1, 3" target="0, 1, 0" up="0, 1, 0"/>
+		</transform>
+		<integer name="width" value="512"/>
+		<integer name="height" value="512"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="256"/>
+	</sampler>
+
+	<!-- Simple area light above the scene -->
+	<mesh type="obj">
+		<string name="filename" value="blender_default_cube.obj"/>
+		<bsdf type="diffuse">
+			<color name="albedo" value="0.8 0.2 0.2"/>
+		</bsdf>
+	</mesh>
+
+	<!-- Emitter plane (light) -->
+	<mesh type="obj">
+		<string name="filename" value="light_plane.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="10 10 10"/>
+		</emitter>
+	</mesh>
+</scene>

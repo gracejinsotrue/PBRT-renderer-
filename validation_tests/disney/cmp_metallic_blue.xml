@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Matches Mitsuba 'metallic_blue' test in render_mitsuba_ref.py.
+     Run:  nori-dxr cmp_metallic_blue.xml      (auto-saves snapshot_1024.exr)
+     Then: python ..\compare_exr.py snapshot_1024.exr ref_metallic_blue.exr -->
+<scene>
+    <string name="envmap" value="textures/sunset.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+    <integrator type="path_mis"/>
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="0, 0, 4" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="512"/>
+        <integer name="width" value="512"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="1024"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="sphere.obj"/>
+        <bsdf type="disney">
+            <color name="baseColor" value="0.10 0.30 0.90"/>
+            <float name="roughness" value="0.2"/>
+            <float name="metallic" value="0.9"/>
+            <float name="specular" value="1.0"/>
+            <float name="specularTint" value="0.5"/>
+            <float name="sheen" value="0.0"/>
+            <float name="sheenTint" value="0.0"/>
+            <float name="subsurface" value="0.0"/>
+            <float name="clearcoat" value="0.0"/>
+            <float name="clearcoatGloss" value="0.5"/>
+            <float name="anisotropic" value="0.0"/>
+        </bsdf>
+    </mesh>
+</scene>

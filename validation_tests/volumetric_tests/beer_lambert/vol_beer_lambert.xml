@@ -1,0 +1,87 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  DXR Volume Beer-Lambert Transmittance Test
+  ==========================================
+  A purely absorbing slab (sigmaA=2, sigmaS=0) with thickness d=1,
+  viewed through a constant-white environment (L=1).
+
+  Physics
+  -------
+  With sigmaS=0 there is NO scattering.  Every time NullCollisionFreeFlight
+  samples a "real" collision, the path's scatter albedo is 0 so the path
+  contributes nothing.  Only paths that free-fly THROUGH the slab without
+  any collision survive to see the white env.
+
+  Probability of surviving the slab  =  exp(-sigmaT * d)
+                                      =  exp(-2.0 * 1.0)
+                                      =  exp(-2)
+                                      ≈  0.13534
+
+  Therefore  E[pixel] = 1.0 × exp(-2) ≈ 0.13534.
+
+  Camera is at z=3, looking in -Z, very small FOV (5°) so every pixel ray
+  travels almost exactly d=1 through the slab (angular error < 0.1%).
+
+  What this test validates in the real GPU shaders
+  ------------------------------------------------
+  - NullCollisionFreeFlight correctly stops at real collisions and applies
+    zero throughput when sigmaS=0 (albedo = sigmaS / sigmaT = 0).
+  - The exponential free-flight CDF is unbiased: the fraction of paths that
+    exit matches exp(-sigmaT * d) analytically.
+  - MultiVolumeTransmittance (homogeneous path): gives exp(-sigmaT*d) for
+    shadow rays (cross-check; not the primary path here).
+
+  The DXR app auto-saves snapshot_512.exr next to this file and quits.
+
+  Run (from repo root):
+      dxr\build\Release\nori-dxr.exe validation_tests\volumetric_tests\beer_lambert\vol_beer_lambert.xml
+
+  Expected result:
+      Mean luminance of snapshot_512.exr ≈ 0.1353  (tolerance ±0.01)
+-->
+<scene>
+    <integrator type="path_mis"/>
+
+    <!--
+      Camera at z=3, pointing in -Z.  FOV=5° means at z=0 the half-width
+      is tan(2.5°) ≈ 0.044, so all rays are nearly perpendicular to the slab.
+    -->
+    <camera type="perspective">
+        <float name="fov" value="5"/>
+        <transform name="toWorld">
+            <lookat origin="0, 0, 3"
+                    target="0, 0, 0"
+                    up="0, 1, 0"/>
+        </transform>
+        <integer name="width"  value="64"/>
+        <integer name="height" value="64"/>
+    </camera>
+
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <!--
+      Dummy triangle far off-camera.
+    -->
+    <mesh type="obj">
+        <string name="filename" value="meshes/dummy_tri.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.5 0.5 0.5"/>
+        </bsdf>
+    </mesh>
+
+    <!--
+      Pure absorber slab: z ∈ [-1, 0], thickness = 1.
+      sigmaS=0  →  albedo=0  →  any scatter event kills the path.
+      sigmaA=2  →  extinction coefficient = 2.
+      Wide in X and Y so all camera rays pass through it.
+    -->
+    <medium type="homogeneous">
+        <float name="sigmaA" value="2.0"/>
+        <float name="sigmaS" value="0.0"/>
+        <float name="g"      value="0.0"/>
+        <point name="boundsMin" value="-100, -100, -1"/>
+        <point name="boundsMax" value=" 100,  100,  0"/>
+    </medium>
+</scene>

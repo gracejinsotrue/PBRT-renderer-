@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  DXR Volume White Furnace Test
+  ============================
+  A pure scattering volume (sigmaA=0, sigmaS=1, g=0) surrounded by a
+  constant-white environment (L=1).  Because there is zero absorption,
+  every photon that enters the volume MUST eventually leave and see L=1.
+  Therefore every pixel must converge to 1.0 regardless of the view direction.
+
+  If any pixel is significantly below 1.0  → energy is leaking  (e.g. wrong
+    null-collision weight, missing path throughput term).
+  If any pixel is significantly above 1.0  → energy is being created.
+
+  This validates end-to-end in the real GPU shaders:
+    NullCollisionFreeFlight  (weight arithmetic and Russian-roulette)
+    SampleHG                 (normalization: scattered direction pdf cancels)
+    MultiVolumeTransmittance (used in shadow rays — here irrelevant because
+                              no emitters, but the miss shader must return 1)
+    Miss shader              (must return envmap = 1.0)
+
+  The DXR app auto-saves snapshot_512.exr next to this file and quits
+  when 512 frames are accumulated (m_targetSamples mechanism).
+
+  Run (from repo root):
+      dxr\build\Release\nori-dxr.exe validation_tests\volumetric_tests\white_furnace\vol_white_furnace.xml
+
+  Generate the white HDR first (or let validate_volumetrics.py do it):
+      python make_white_furnace.py
+
+  Expected result:
+      Mean luminance of snapshot_512.exr ≈ 1.0  (tolerance ±0.04)
+-->
+<scene>
+    <integrator type="path_mis"/>
+
+    <camera type="perspective">
+        <float name="fov" value="60"/>
+        <transform name="toWorld">
+            <lookat origin="0, 0, 8"
+                    target="0, 0, 0"
+                    up="0, 1, 0"/>
+        </transform>
+        <integer name="width"  value="64"/>
+        <integer name="height" value="64"/>
+    </camera>
+
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <!--
+      Dummy triangle far off-camera so the TLAS is non-empty.
+      Camera at (0,0,8) looking in -Z with FOV=60 covers roughly
+      x ∈ [-4.6, 4.6] at z=0.  The triangle is at (1000, 1000, -1000).
+    -->
+    <mesh type="obj">
+        <string name="filename" value="meshes/dummy_tri.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.5 0.5 0.5"/>
+        </bsdf>
+    </mesh>
+
+    <!--
+      Pure scattering slab.  Optical depth = sigmaT * thickness = 1.0 * 2 = 2.
+      Camera is OUTSIDE at z=8; rays enter the slab at z=1 and traverse at
+      most 2 units before exiting at z=-1.  With sigmaA=0 every photon
+      eventually exits and sees L=1, so every pixel must converge to 1.0.
+
+      Optical depth 2 means:
+        P(no scatter)     = exp(-2) ≈ 0.135  →  direct pass-through → 1.0 ✓
+        P(scatter 1 time) ≈ 0.465             →  scatter near boundary, exits quickly
+      Paths converge in 1–4 bounces; 512 spp gives a stable mean ≈ 1.0 ± 0.03.
+      minDist * sigmaTmin = 1.0 < 8.0  →  VolumeNEEEnvmap proceeds normally
+      so MIS (NEE + phase) both contribute and sum to the correct answer.
+    -->
+    <medium type="homogeneous">
+        <float name="sigmaA" value="0.0"/>
+        <float name="sigmaS" value="1.0"/>
+        <float name="g"      value="0.0"/>
+        <point name="boundsMin" value="-100, -100, -1"/>
+        <point name="boundsMax" value=" 100,  100,  1"/>
+    </medium>
+</scene>

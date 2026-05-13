@@ -1,0 +1,55 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Visual volumetric scene for cross-renderer comparison with Mitsuba 3.
+  Scene: diffuse sphere (albedo 0.5) floating in a homogeneous fog,
+         lit by sunset.hdr environment map.
+
+  Volume parameters:
+    sigmaA = 0.1,  sigmaS = 0.4,  sigmaT = 0.5
+    albedo = sigmaS/sigmaT = 0.8  (80 % single-scatter)
+    g      = 0.3  (forward-biased Henyey-Greenstein)
+    bounds = [-11, 11]^3  (camera at z=15 is OUTSIDE the medium)
+
+  Compare with render_vol_mitsuba.py output (ref_vol_g03.exr).
+-->
+<scene>
+    <string name="envmap" value="textures/sunset.hdr"/>
+    <float name="envmapScale" value="1.0"/>
+    <float name="evCompensation" value="0.0"/>
+
+    <integrator type="path_mis"/>
+
+    <camera type="perspective">
+        <float name="fov" value="45"/>
+        <transform name="toWorld">
+            <lookat origin="0, 0, 15" target="0, 0, 0" up="0, 1, 0"/>
+        </transform>
+        <integer name="width"  value="256"/>
+        <integer name="height" value="256"/>
+    </camera>
+
+    <sampler type="independent">
+        <integer name="sampleCount" value="512"/>
+    </sampler>
+
+    <!-- Diffuse sphere at origin, radius 1 -->
+    <mesh type="obj">
+        <string name="filename" value="sphere.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.5 0.5 0.5"/>
+        </bsdf>
+    </mesh>
+
+    <!--
+      Homogeneous participating medium.
+      Camera at z=15 is OUTSIDE the bounds [-11, 11]^3.
+      Rays enter the fog at z=11 and scatter toward the sphere / env.
+    -->
+    <medium type="homogeneous">
+        <float name="sigmaA" value="0.1"/>
+        <float name="sigmaS" value="0.4"/>
+        <float name="g"      value="0.3"/>
+        <point name="boundsMin" value="-11, -11, -11"/>
+        <point name="boundsMax" value=" 11,  11,  11"/>
+    </medium>
+</scene>
