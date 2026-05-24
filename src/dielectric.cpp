@@ -21,7 +21,7 @@ public:
         /* Exterior IOR (default: air) */
         m_extIOR = propList.getFloat("extIOR", 1.000277f);
 
-        /* Optional transmission tint color. defauult is just white, no tint*/
+        /* Optional transmission tint color (default: white, no tint). */
         m_tintColor = propList.getColor("tintColor", Color3f(1.0f));
     }
 

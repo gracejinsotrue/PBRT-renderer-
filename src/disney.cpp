@@ -1,26 +1,13 @@
 /*
-    This file is part of Nori, a simple educational ray tracer
-
     Disney "principled" BRDF (Burley 2012).
 
-    STEP 2 STATUS: scaffolding only. The CPU-side eval/pdf/sample
-    currently behave as Lambertian so the CPU Nori renderer still
-    produces a reasonable fallback and so the plumbing can be
-    validated before any Disney math is added. The GPU HLSL shader
-    similarly routes type==DISNEY to the diffuse code path for now.
-
-    Disney lobes will be filled in across Steps 3-7 on the GPU side:
-      Step 3: Burley diffuse
-      Step 4: Hanrahan-Krueger subsurface lobe
-      Step 5: GGX specular (Schlick Fresnel, anisotropy-ready)
-      Step 6: Sheen
-      Step 7: Clearcoat
-      Step 8: Lobe-sampling MIS and energy-conservation audit
+    CPU eval/pdf/sample are a Lambertian fallback for scene validation;
+    the full Disney model runs in the HLSL shader (dxr/shaders/Shaders.hlsl).
 
     References:
       Burley, "Physically-Based Shading at Disney", SIGGRAPH 2012
       Burley, "Extending the Disney BRDF to a BSDF", SIGGRAPH 2015
-      PBRT 3rd/4th ed., Chapter 11 (implementations of Disney BRDF)
+      PBRT 3rd/4th ed., Chapter 11
 */
 
 #include <nori/bsdf.h>
@@ -68,10 +55,6 @@ public:
         if (!m_alphaTextureFile.empty())
             m_alphaTex = std::make_unique<AlphaTexture>(m_alphaTextureFile);
     }
-
-    // ---- CPU-side stubs (Step 2): behave as Lambertian ----
-    // The CPU renderer isn't the target for Disney; it runs only as a
-    // sanity fallback. Real Disney math lives in the HLSL shader.
 
     Color3f eval(const BSDFQueryRecord &bRec) const
     {

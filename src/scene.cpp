@@ -5,7 +5,6 @@
 */
 
 #include <nori/scene.h>
-#include <nori/bitmap.h>
 #include <nori/integrator.h>
 #include <nori/sampler.h>
 #include <nori/camera.h>
@@ -35,7 +34,7 @@ void Scene::activate()
     m_accel->build();
 
     if (!m_integrator)
-        throw NoriException("No integrator was specified!");
+        cerr << "Warning: No integrator was specified (GPU build will ignore this)." << endl;
     if (!m_camera)
         throw NoriException("No camera was specified!");
 
@@ -46,9 +45,12 @@ void Scene::activate()
             NoriObjectFactory::createInstance("independent", PropertyList()));
     }
 
-    cout << endl;
-    cout << "Configuration: " << toString() << endl;
-    cout << endl;
+    if (m_integrator)
+    {
+        cout << endl;
+        cout << "Configuration: " << toString() << endl;
+        cout << endl;
+    }
 }
 
 void Scene::addChild(NoriObject *obj)
@@ -64,12 +66,8 @@ void Scene::addChild(NoriObject *obj)
     break;
 
     case EEmitter:
-    {
-        // Emitter *emitter = static_cast<Emitter *>(obj);
-        /* TBD */
-        throw NoriException("Scene::addChild(): You need to implement this for emitters");
-    }
-    break;
+        /* Area emitters are attached as children of mesh objects. */
+        break;
 
     case ESampler:
         if (m_sampler)
@@ -121,7 +119,7 @@ std::string Scene::toString() const
         "  meshes = {\n"
         "  %s  }\n"
         "]",
-        indent(m_integrator->toString()),
+        m_integrator ? indent(m_integrator->toString()) : std::string("none"),
         indent(m_sampler->toString()),
         indent(m_camera->toString()),
         m_medium ? indent(m_medium->toString()) : std::string("none"),

@@ -1,7 +1,7 @@
 ﻿<?xml version='1.0' encoding='utf-8'?>
 <scene>
-	<integrator type="path_mis"/>
-    
+    <string name="envmap" value="textures/sunset.hdr"/>
+    <float name="envmapScale" value="1.0"/>
 
 <camera type="perspective">
     <float name="fov" value="55"/>

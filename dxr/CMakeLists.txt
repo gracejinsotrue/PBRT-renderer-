@@ -50,7 +50,6 @@ set(NORI_SOURCES
     ${NORI_ROOT}/src/accel.cpp
     ${NORI_ROOT}/src/perspective.cpp
     ${NORI_ROOT}/src/independent.cpp
-    ${NORI_ROOT}/src/rfilter.cpp
     ${NORI_ROOT}/src/warp.cpp
     # BSDFs
     ${NORI_ROOT}/src/diffuse.cpp
@@ -61,16 +60,6 @@ set(NORI_SOURCES
     ${NORI_ROOT}/src/hair.cpp
     ${NORI_ROOT}/src/homogeneous.cpp
     ${NORI_ROOT}/src/heterogeneous.cpp
-    # Emitters
-    ${NORI_ROOT}/src/area.cpp
-    # Integrators
-    ${NORI_ROOT}/src/normals.cpp
-    ${NORI_ROOT}/src/simple.cpp
-    ${NORI_ROOT}/src/ao.cpp
-    ${NORI_ROOT}/src/direct.cpp
-    ${NORI_ROOT}/src/path_mats.cpp
-    ${NORI_ROOT}/src/path_ems.cpp
-    ${NORI_ROOT}/src/path_mis.cpp
 )
 
 # dxc shader compiler 
@@ -100,6 +89,13 @@ add_executable(nori-dxr
     src/main.cpp
     src/Win32Application.cpp
     src/DXRApp.cpp
+    src/DXRApp_Device.cpp
+    src/DXRApp_Scene.cpp
+    src/DXRApp_Textures.cpp
+    src/DXRApp_Pipeline.cpp
+    src/DXRApp_Camera.cpp
+    # Emitters
+    ${NORI_ROOT}/src/area.cpp
     ${NORI_SOURCES}
 )
 add_dependencies(nori-dxr compile_shaders)

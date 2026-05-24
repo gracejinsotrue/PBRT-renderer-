@@ -201,7 +201,7 @@ private:
     // Environment map (IBL)
     ComPtr<ID3D12Resource> m_envmap;
     ComPtr<ID3D12Resource> m_envmapUpload;
-    std::vector<float> m_envmapPixels; // kept CPU-side for CDF build in Step 2
+    std::vector<float> m_envmapPixels; // retained for CPU-side CDF construction
     uint32_t m_envmapWidth = 0;
     uint32_t m_envmapHeight = 0;
     bool m_envmapValid = false;

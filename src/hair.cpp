@@ -20,8 +20,6 @@ NORI_NAMESPACE_BEGIN
 // ============================================================
 //  .hair binary file loader
 //  Reference: [Yuksel] HAIR File Format Specification
-
-// when I started writing for hair, I used yuksel's hair format specification which is why this code exists:
 // ============================================================
 
 /// .hair file header is 128 bytes, little-endian.
@@ -165,7 +163,6 @@ HairMesh::HairMesh(const PropertyList &propList)
     Timer timer;
 
     HairFile hf = HairFile::load(filename.str());
-    // TODO: when testing, I would subsample hair strands.
     if (maxStrands > 0 && (uint32_t)maxStrands < hf.totalStrands)
     {
         hf.strands.resize(maxStrands);
@@ -243,10 +240,8 @@ void HairMesh::tessellate(const HairFile &hf, const Transform &trafo)
                           (trafo * strand.points[pi - 1]);
 
             tangent.normalize();
-            // if (tangent.squaredNorm() < 1e-8f)
-            //     tangent = Vector3f(0, 1, 0); // fallback
 
-            // build the  orthonormal frame for the cross-section ring.
+            // build the orthonormal frame for the cross-section ring.
             // We need two vectors (B, N_ring) perpendicular to tangent.
             // Use the Frame utility which builds an ONB from a single direction.
             // Frame expects the "z-axis" input, but we want tangent as x-axis
@@ -282,21 +277,9 @@ void HairMesh::tessellate(const HairFile &hf, const Transform &trafo)
 
                 // Surface normal = radial direction pointing outward
                 Vector3f normal = radial.normalized();
-                // TODO
-                // h parameter: offset across fiber width, ∈ [-1, 1].
-                //
-                // Reference: [PBRT] Section 9.9.1, Figure 9.42
-                //   h parameterizes the circle's diameter as seen from
-                //   the incident ray direction. Since we don't know the
-                //   ray direction at tessellation time, we store the
-                //   angular position and let the shader compute h.
-                //
-                // We encode v_uv = (angle / 2π) so the shader can
-                // reconstruct h = -cos(angle) = -cos(2π * v_uv).
-                // Alternatively, for a simpler first pass, we just store
-                // h directly: h = -cos(angle), mapped to [0,1] as
-                //   v_uv = (h + 1) / 2.
-
+                // h parameter ∈ [-1, 1]: offset across fiber width.
+                // Reference: [PBRT] Section 9.9.1, Figure 9.42.
+                // h = -cos(angle), stored as v_uv = (h + 1) / 2.
                 float h = -std::cos(angle);
                 float v_uv = (h + 1.0f) * 0.5f;
 
@@ -340,18 +323,14 @@ void HairMesh::tessellate(const HairFile &hf, const Transform &trafo)
 
 NORI_REGISTER_CLASS(HairMesh, "hair");
 
-//  Hair BSDF, CPU-side stub
-//  Reference: [Chiang] Section 4 — six production parameters
-//
-
+// Hair BSDF — CPU-side Lambertian fallback; full model in the HLSL shader.
+// Reference: [Chiang] Section 4 — six production parameters.
 class HairBSDF : public BSDF
 {
 public:
     HairBSDF(const PropertyList &propList)
     {
-        // Hair color — will be converted to σ_a on the GPU via
-        // Chiang Eq. 9 (albedo inversion).
-        // deafult color here is medium brown but it is overwriten in the xml
+        // Hair color — converted to σ_a on the GPU via Chiang Eq. 9 (albedo inversion).
         m_color = propList.getColor("color", Color3f(0.28f, 0.15f, 0.06f));
 
         // Longitudinal roughness β_M ∈ [0,1], mapped to variance v via Chiang Eq. 7 in the shader.
