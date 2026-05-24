@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Pinhole sanity-check: same scene, lensRadius=0 => no DOF, should match Mitsuba perspective sensor. -->
+<scene>
+	<string name="envmap" value="textures/sunset.hdr"/>
+	<float name="envmapScale" value="1.0"/>
+
+	<integrator type="path_mis"/>
+
+	<camera type="perspective">
+		<float name="fov" value="45"/>
+		<float name="lensRadius" value="0"/>
+		<float name="focalDistance" value="3.0"/>
+		<transform name="toWorld">
+			<lookat origin="0, 1, 3" target="0, 1, 0" up="0, 1, 0"/>
+		</transform>
+		<integer name="width" value="512"/>
+		<integer name="height" value="512"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="1024"/>
+	</sampler>
+
+	<mesh type="obj">
+		<string name="filename" value="blender_default_cube.obj"/>
+		<bsdf type="diffuse">
+			<color name="albedo" value="0.8 0.2 0.2"/>
+		</bsdf>
+	</mesh>
+</scene>
