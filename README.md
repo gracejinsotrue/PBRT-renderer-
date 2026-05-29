@@ -1,4 +1,4 @@
-# DirectX12 Physically-Based Renderer Running on My Sad Ass A3000
+# DirectX12 Physically-Based Renderer Running on My Sad Ass RTX A3000
 This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. This was their first ever offering of PBR class by the way! So cool! More on physics-based rendering here: https://pbrt.org/
 
 Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
@@ -13,7 +13,7 @@ Anyways, every ray bounce, material evaluation, and light sample runs entirely o
 
 The scene was assembled in Blender (about 100 hours in a piece of software I did not know going in), exported mesh by mesh with all world-space transforms baked in, and post-processed with Intel's open-source denoiser.
 
-In terms of the blender scene assembly, I had some help scanning my face and reconstructing it as a mesh with clean geometry. It looks good, right? And then, I modelled so many small objects in Blender, or took them off of SketchFab and moved them to their respective coordinates in Blender; consider this a glorified art project. See if you can spot any references (e.g., how many Miku's can you spot?)
+In terms of the Blender scene assembly, I had some help scanning my face and reconstructing it as a mesh with clean geometry. It looks good, right? And then, I modelled so many small objects in Blender, or took them off of SketchFab and moved them to their respective coordinates in Blender. Consider this a glorified art project. See if you can spot any references (e.g., how many Miku's can you spot?)
 
 ![Final Denoised Scene](images/snapshot_68_denoised.png)
 
@@ -43,7 +43,9 @@ The whole pipeline (shooting rays, finding intersections, all the beautiful shad
 
 ### Hair (Chiang et al. 2016 BCSDF)
 
-Rendering hair is hard. A single fiber is a translucent dielectric cylinder, so light can reflect off the outside, transmit straight through, bounce internally, or some combination. The Chiang 2016 model breaks this down into four scattering paths:
+Rendering hair is hard, both in terms of performance and visual accuracy. This is because a single fiber is a translucent dielectric cylinder, so light can reflect off the outside, transmit straight through, bounce internally, or some combination. Now imagine thousands of these.
+
+I implemented the Chiang 2016 model, which breaks this down into four scattering paths:
 
 | Path | Description |
 |---|---|
@@ -101,7 +103,7 @@ The combined BRDF is $f = (1-\text{metallic})\,f_\text{diffuse} + f_\text{specul
 
 ### Volumetric Participating Media
 
-Fog, smoke, and clouds scatter or absorb light as rays travel through them, not just at surfaces. A homogeneous medium has three parameters: absorption $\sigma_a$, scattering $\sigma_s$, and an asymmetry parameter $g$ that controls how directional the scattering is.
+Volumetrics are objects that are not solid, and they are another rendering challenge mathematically, accurately, performance-wise, whatever. Fog, smoke, and clouds scatter or absorb light as rays travel through them, not just at surfaces. A homogeneous medium has three parameters: absorption $\sigma_a$, scattering $\sigma_s$, and an asymmetry parameter $g$ that controls how directional the scattering is.
 
 The probability that a ray makes it distance $d$ without interacting follows Beer's law:
 
