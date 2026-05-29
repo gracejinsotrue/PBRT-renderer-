@@ -16,8 +16,6 @@ The scene was assembled in Blender (about 100 hours in a piece of software I did
 
 ![Blender Wireframe](images/blender_wireframe.png)
 
-![MetaHuman Face Pipeline](images/face.png)
-
 ---
 
 ## Architecture
