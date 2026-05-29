@@ -1,4 +1,4 @@
-# Physically-Based Renderer
+# DirectX12 Physically-Based Renderer Running on My Sad Ass A3000
 This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. This was their first ever offering of PBR class by the way! So cool! More on physics-based rendering here: https://pbrt.org/
 
 Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
