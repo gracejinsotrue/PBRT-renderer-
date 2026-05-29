@@ -1,6 +1,7 @@
 # Physically-Based Renderer
-This is a GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell; this won second place lmao.
- Every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. I then used it to render a final scene of a self-portrait surrounded by objects I like: roughly 2.5 million triangles, 90+ meshes, 50+ textures.
+This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. More on physics-based rendering here: https://pbrt.org/
+
+Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. I then used it to render a final scene of a self-portrait surrounded by objects I like: roughly 2.5 million triangles, 90+ meshes, 50+ textures.
 
  A couple of other interesting scenes are to come...
 
@@ -51,7 +52,7 @@ Each path is attenuated by Fresnel reflectance at each interface and Beer-law ab
 
 $$T = \exp\!\left(-\sigma_a \cdot \frac{2\cos\gamma_t}{\cos\theta_t}\right)$$
 
-where $\sigma_a$ is the absorption coefficient, derived from the target hair color via a polynomial fit — you specify color directly, not raw absorption values. The four attenuation values work out to:
+where $\sigma_a$ is the absorption coefficient, derived from the target hair color via a polynomial fit: you specify color directly, not raw absorption values. The four attenuation values work out to:
 
 ```hlsl
 ap[0] = f;                          // R:  one Fresnel reflection
