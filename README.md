@@ -1,9 +1,11 @@
 # Physically-Based Renderer
 This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. More on physics-based rendering here: https://pbrt.org/
 
-Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. I then used it to render a final scene of a self-portrait surrounded by objects I like: roughly 2.5 million triangles, 90+ meshes, 50+ textures.
+Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
 
- A couple of other interesting scenes are to come...
+1. I render a final scene of a self-portrait surrounded by objects I like: roughly 2.5 million triangles, 90+ meshes, 50+ textures.
+
+2. Quite a few other interesting scenes are to come...
 
 ---
 
