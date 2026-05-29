@@ -1,5 +1,5 @@
 # Physically-Based Renderer
-This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. More on physics-based rendering here: https://pbrt.org/
+This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. This was their first ever offering of PBR class by the way! So cool! More on physics-based rendering here: https://pbrt.org/
 
 Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
 
@@ -25,7 +25,7 @@ In terms of the blender scene assembly, I had some help scanning my face and rec
 
 ## Architecture
 
-The whole pipeline (shooting rays, finding intersections, shading, shadow testing) is implemented in HLSL and dispatched through DXR. Some design decisions worth explaining:
+The whole pipeline (shooting rays, finding intersections, all the beautiful shading math, shadow testing) is implemented in HLSL and dispatched through DXR. Some design decisions worth explaining:
 
 **All textures in one array.** Every texture in the scene is loaded into a single unbounded GPU array. Each material stores small integer indices pointing into that array, so any shader invocation can reach any texture with a single indexed sample. 50+ textures can coexist without any special-casing.
 
