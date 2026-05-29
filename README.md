@@ -69,9 +69,7 @@ ap[3] = ap[2] * f*T / (1 - f*T);   // residual: geometric series for p>=3
 
 The full scattering function factors into longitudinal ($M_p$), attenuation ($A_p$), and azimuthal ($N_p$) terms. Importance sampling picks a path by luminance weight, draws a longitude direction from the $M_p$ distribution, and an azimuth from a trimmed logistic distribution.
 
-On the CPU side, hair geometry is loaded from the Yuksel `.hair` binary format and tessellated into hexagonal prism tubes, so each strand becomes a thin 6-sided mesh. The cross-section offset $h \in [-1,1]$ is baked into the vertex UVs so the shader knows where on the cylinder each hit landed.
-
-**Hair cards** are also supported: flat quad meshes textured with a grayscale strand atlas, made transparent via the alpha any-hit shader described above.
+**Hair cards** are supported!: flat quad meshes textured with a grayscale strand atlas, made transparent via the alpha any-hit shader described above.
 
 | Hair View 1 | Hair View 2 |
 |---|---|
