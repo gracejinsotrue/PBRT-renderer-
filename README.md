@@ -3,7 +3,7 @@ This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Ren
 
 Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
 
-1. I render a final scene of a self-portrait surrounded by objects I like: roughly 2.5 million triangles, 90+ meshes, 50+ textures.
+1. I render a final scene of a "self-portrait" surrounded by nerdy objects I like. This scene contains roughly 2.5 million triangles, 100+ meshes, 100+ distinct textures. 
 
 2. Quite a few other interesting scenes are to come...
 
@@ -12,6 +12,8 @@ Anyways, every ray bounce, material evaluation, and light sample runs entirely o
 ## Final Render That I Submitted for CS5630 Rendering Competition
 
 The scene was assembled in Blender (about 100 hours in a piece of software I did not know going in), exported mesh by mesh with all world-space transforms baked in, and post-processed with Intel's open-source denoiser.
+
+In terms of the blender scene assembly, I had some help scanning my face and reconstructing it as a mesh with clean geometry. It looks good, right? And then, I modelled so many small objects in Blender, or took them off of SketchFab and moved them to their respective coordinates in Blender; consider this a glorified art project. See if you can spot any references (e.g., how many Miku's can you spot?)
 
 ![Final Denoised Scene](images/snapshot_68_denoised.png)
 
