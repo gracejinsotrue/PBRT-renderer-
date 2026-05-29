@@ -25,7 +25,7 @@ In terms of the Blender scene assembly, I had some help scanning my face and rec
 
 ## Architecture
 
-The whole pipeline (shooting rays, finding intersections, all the beautiful shading math, shadow testing) is implemented in HLSL and dispatched through DXR. Some design decisions worth explaining:
+The whole pipeline (shooting rays, finding intersections, all the beautiful shading math, shadow testing) is implemented in HLSL and dispatched through DXR. Here are some interesting design decisions (in my opinion):
 
 **All textures in one array.** Every texture in the scene is loaded into a single unbounded GPU array. Each material stores small integer indices pointing into that array, so any shader invocation can reach any texture with a single indexed sample. 50+ textures can coexist without any special-casing.
 
@@ -167,9 +167,9 @@ The subject (red cube) stays sharp while the background blurs more as the apertu
 
 ### Image-Based Lighting (IBL)
 
-Rather than placing explicit lights, the scene is lit by an HDR panorama. Rays that miss all geometry look up their direction in the panorama and return that radiance.
+Rather than placing explicit lights, a scene can be lit by an HDR panorama (or a combination of lights + ibl. Also IBL is a good hack for getting non-grainy scenes because it has less high-variance sampling!) Rays that miss all geometry look up their direction in the panorama and return that radiance.
 
-The challenge is sampling it efficiently. A uniform random direction wastes most samples on the dark sky, so at load time we build a 2D CDF over the image pixels, with each pixel weighted by its luminance times $\sin\theta$ (to correct for equirectangular pixels covering less solid angle near the poles). At render time, two binary searches pick a row then a column, sampling directions proportional to their brightness. The resulting solid-angle PDF is:
+In sampling IBL, a uniform random direction wastes most samples on the dark sky, so at load time we build a 2D CDF over the image pixels, with each pixel weighted by its luminance times $\sin\theta$ (to correct for equirectangular pixels covering less solid angle near the poles). At render time, two binary searches pick a row then a column, sampling directions proportional to their brightness. The resulting solid-angle PDF is:
 
 $$p_\omega = p_\text{pixel} \cdot \frac{W \cdot H}{2\pi^2 \sin\theta}$$
 
