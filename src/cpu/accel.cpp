@@ -16,8 +16,8 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <nori/accel.h>
-#include <nori/timer.h>
+#include <accel.h>
+#include <timer.h>
 #include <tbb/tbb.h>
 #include <Eigen/Geometry>
 #include <atomic>

@@ -1,9 +1,9 @@
 #include "DXRApp.h"
 
-#include <nori/scene.h>
-#include <nori/mesh.h>
-#include <nori/bsdf.h>
-#include <nori/medium.h>
+#include <scene.h>
+#include <mesh.h>
+#include <bsdf.h>
+#include <medium.h>
 #include <filesystem/resolver.h>
 
 #include <algorithm>

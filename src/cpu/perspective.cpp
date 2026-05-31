@@ -4,9 +4,9 @@
     Copyright (c) 2015 by Wenzel Jakob
 */
 
-#include <nori/camera.h>
-#include <nori/rfilter.h>
-#include <nori/warp.h>
+#include <camera.h>
+#include <rfilter.h>
+#include <warp.h>
 #include <Eigen/Geometry>
 
 NORI_NAMESPACE_BEGIN

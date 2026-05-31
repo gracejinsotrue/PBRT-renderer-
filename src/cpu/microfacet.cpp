@@ -2,9 +2,9 @@
     This file is part of Nori, a simple educational ray tracer
     Copyright (c) 2015 by Wenzel Jakob
 */
-#include <nori/bsdf.h>
-#include <nori/frame.h>
-#include <nori/warp.h>
+#include <bsdf.h>
+#include <frame.h>
+#include <warp.h>
 
 NORI_NAMESPACE_BEGIN
 

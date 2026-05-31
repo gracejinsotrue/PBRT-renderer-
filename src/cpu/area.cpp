@@ -1,4 +1,4 @@
-#include <nori/emitter.h>
+#include <emitter.h>
 
 NORI_NAMESPACE_BEGIN
 

@@ -12,7 +12,7 @@
       </medium>
 */
 
-#include <nori/medium.h>
+#include <medium.h>
 
 NORI_NAMESPACE_BEGIN
 

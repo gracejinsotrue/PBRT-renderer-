@@ -1,8 +1,8 @@
-﻿#include "DXRApp.h"
+#include "DXRApp.h"
 #include "Win32Application.h"
 
-#include <nori/scene.h>
-#include <nori/camera.h>
+#include <scene.h>
+#include <camera.h>
 #include <filesystem/resolver.h>
 
 #include <fstream>

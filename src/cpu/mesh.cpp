@@ -4,11 +4,11 @@
     Copyright (c) 2015 by Wenzel Jakob
 */
 
-#include <nori/mesh.h>
-#include <nori/bbox.h>
-#include <nori/bsdf.h>
-#include <nori/emitter.h>
-#include <nori/warp.h>
+#include <mesh.h>
+#include <bbox.h>
+#include <bsdf.h>
+#include <emitter.h>
+#include <warp.h>
 #include <Eigen/Geometry>
 
 NORI_NAMESPACE_BEGIN
