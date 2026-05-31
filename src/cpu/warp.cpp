@@ -4,9 +4,9 @@
     Copyright (c) 2015 by Wenzel Jakob
 */
 
-#include <nori/warp.h>
-#include <nori/vector.h>
-#include <nori/frame.h>
+#include <warp.h>
+#include <vector.h>
+#include <frame.h>
 
 NORI_NAMESPACE_BEGIN
 

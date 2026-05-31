@@ -3,12 +3,12 @@
 
 */
 
-#include <nori/hair.h>
-#include <nori/bsdf.h>
-#include <nori/frame.h>
-#include <nori/warp.h>
-#include <nori/timer.h>
-#include <nori/texture.h>
+#include <hair.h>
+#include <bsdf.h>
+#include <frame.h>
+#include <warp.h>
+#include <timer.h>
+#include <texture.h>
 #include <filesystem/resolver.h>
 #include <fstream>
 #include <cstring>

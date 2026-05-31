@@ -1,13 +1,13 @@
 #include "DXRApp.h"
 
-#include <nori/parser.h>
-#include <nori/scene.h>
-#include <nori/mesh.h>
-#include <nori/bsdf.h>
-#include <nori/emitter.h>
-#include <nori/medium.h>
-#include <nori/dpdf.h>
-#include <nori/sampler.h>
+#include <parser.h>
+#include <scene.h>
+#include <mesh.h>
+#include <bsdf.h>
+#include <emitter.h>
+#include <medium.h>
+#include <dpdf.h>
+#include <sampler.h>
 #include <filesystem/resolver.h>
 
 #include <fstream>

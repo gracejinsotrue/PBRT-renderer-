@@ -1,7 +1,7 @@
 #include "DXRApp.h"
 
-#include <nori/camera.h>
-#include <nori/scene.h>
+#include <camera.h>
+#include <scene.h>
 #include <filesystem/resolver.h>
 
 #include <chrono>

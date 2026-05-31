@@ -10,10 +10,10 @@
       PBRT 3rd/4th ed., Chapter 11
 */
 
-#include <nori/bsdf.h>
-#include <nori/frame.h>
-#include <nori/warp.h>
-#include <nori/texture.h>
+#include <bsdf.h>
+#include <frame.h>
+#include <warp.h>
+#include <texture.h>
 #include <memory>
 
 NORI_NAMESPACE_BEGIN

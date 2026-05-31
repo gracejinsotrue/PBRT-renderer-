@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <nori/common.h>
+#include <common.h>
 
 NORI_NAMESPACE_BEGIN
 

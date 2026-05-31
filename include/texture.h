@@ -1,7 +1,7 @@
 #pragma once
 
-#include <nori/color.h>
-#include <nori/common.h>
+#include <color.h>
+#include <common.h>
 #include <filesystem/resolver.h>
 #include <stb_image.h>
 #include <vector>

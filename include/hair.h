@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <nori/mesh.h>
+#include <mesh.h>
 #include <string>
 #include <vector>
 

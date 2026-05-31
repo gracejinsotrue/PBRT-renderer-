@@ -4,11 +4,11 @@
 
 #pragma once
 
-#include <nori/object.h>
-#include <nori/color.h>
-#include <nori/bbox.h>
-#include <nori/proplist.h>
-#include <nori/common.h>
+#include <object.h>
+#include <color.h>
+#include <bbox.h>
+#include <proplist.h>
+#include <common.h>
 
 NORI_NAMESPACE_BEGIN
 
