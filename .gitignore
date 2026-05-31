@@ -42,3 +42,8 @@ scenes/final_scenes/
 .hdr
 
 scenes/final_scene_real/textures/table/semi-gloss-wood_albedo.png
+
+validate_volumetrics.py
+make_white_furnace.py
+analyze_furnace.py
+scripts/
