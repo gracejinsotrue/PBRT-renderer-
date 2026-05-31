@@ -1,8 +1,11 @@
-# Physically-Based Renderer
-This is a GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell; this won second place lmao.
- Every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. I then used it to render a final scene of a self-portrait surrounded by objects I like: roughly 2.5 million triangles, 90+ meshes, 50+ textures.
+# DirectX12 Physically-Based Renderer Running on My Sad Ass RTX A3000
+This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. This was their first ever offering of PBR class by the way! So cool! More on physics-based rendering here: https://pbrt.org/
 
- A couple of other interesting scenes are to come...
+Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
+
+1. I render a final scene of a "self-portrait" surrounded by nerdy objects I like. This scene contains roughly 2.5 million triangles, 100+ meshes, 100+ distinct textures. 
+
+2. Quite a few other interesting scenes are to come...
 
 ---
 
@@ -10,19 +13,19 @@ This is a GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cor
 
 The scene was assembled in Blender (about 100 hours in a piece of software I did not know going in), exported mesh by mesh with all world-space transforms baked in, and post-processed with Intel's open-source denoiser.
 
+In terms of the Blender scene assembly, I had some help scanning my face and reconstructing it as a mesh with clean geometry. It looks good, right? And then, I modelled so many small objects in Blender, or took them off of SketchFab and moved them to their respective coordinates in Blender. Consider this a glorified art project. See if you can spot any references (e.g., how many Miku's can you spot?)
+
 ![Final Denoised Scene](images/snapshot_68_denoised.png)
 
 ![Blender Scene Layout](images/blender_ss.png)
 
 ![Blender Wireframe](images/blender_wireframe.png)
 
-<!-- ![MetaHuman Face Pipeline](images/face.png) -->
-
 ---
 
 ## Architecture
 
-The whole pipeline (shooting rays, finding intersections, shading, shadow testing) is implemented in HLSL and dispatched through DXR. Some design decisions worth explaining:
+The whole pipeline (shooting rays, finding intersections, all the beautiful shading math, shadow testing) is implemented in HLSL and dispatched through DXR. Here are some interesting design decisions (in my opinion):
 
 **All textures in one array.** Every texture in the scene is loaded into a single unbounded GPU array. Each material stores small integer indices pointing into that array, so any shader invocation can reach any texture with a single indexed sample. 50+ textures can coexist without any special-casing.
 
@@ -40,7 +43,9 @@ The whole pipeline (shooting rays, finding intersections, shading, shadow testin
 
 ### Hair (Chiang et al. 2016 BCSDF)
 
-Rendering hair is hard. A single fiber is a translucent dielectric cylinder, so light can reflect off the outside, transmit straight through, bounce internally, or some combination. The Chiang 2016 model breaks this down into four scattering paths:
+Rendering hair is hard, both in terms of performance and visual accuracy. This is because a single fiber is a translucent dielectric cylinder, so light can reflect off the outside, transmit straight through, bounce internally, or some combination. Now imagine thousands of these.
+
+I implemented the Chiang 2016 model, which breaks this down into four scattering paths:
 
 | Path | Description |
 |---|---|
@@ -53,7 +58,7 @@ Each path is attenuated by Fresnel reflectance at each interface and Beer-law ab
 
 $$T = \exp\!\left(-\sigma_a \cdot \frac{2\cos\gamma_t}{\cos\theta_t}\right)$$
 
-where $\sigma_a$ is the absorption coefficient, derived from the target hair color via a polynomial fit — you specify color directly, not raw absorption values. The four attenuation values work out to:
+where $\sigma_a$ is the absorption coefficient, derived from the target hair color via a polynomial fit: you specify color directly, not raw absorption values. The four attenuation values work out to:
 
 ```hlsl
 ap[0] = f;                          // R:  one Fresnel reflection
@@ -64,9 +69,7 @@ ap[3] = ap[2] * f*T / (1 - f*T);   // residual: geometric series for p>=3
 
 The full scattering function factors into longitudinal ($M_p$), attenuation ($A_p$), and azimuthal ($N_p$) terms. Importance sampling picks a path by luminance weight, draws a longitude direction from the $M_p$ distribution, and an azimuth from a trimmed logistic distribution.
 
-On the CPU side, hair geometry is loaded from the Yuksel `.hair` binary format and tessellated into hexagonal prism tubes, so each strand becomes a thin 6-sided mesh. The cross-section offset $h \in [-1,1]$ is baked into the vertex UVs so the shader knows where on the cylinder each hit landed.
-
-**Hair cards** are also supported: flat quad meshes textured with a grayscale strand atlas, made transparent via the alpha any-hit shader described above.
+**Hair cards** are supported!: flat quad meshes textured with a grayscale strand atlas, made transparent via the alpha any-hit shader described above.
 
 | Hair View 1 | Hair View 2 |
 |---|---|
@@ -98,7 +101,7 @@ The combined BRDF is $f = (1-\text{metallic})\,f_\text{diffuse} + f_\text{specul
 
 ### Volumetric Participating Media
 
-Fog, smoke, and clouds scatter or absorb light as rays travel through them, not just at surfaces. A homogeneous medium has three parameters: absorption $\sigma_a$, scattering $\sigma_s$, and an asymmetry parameter $g$ that controls how directional the scattering is.
+Volumetrics are objects that are not solid, and they are another rendering challenge mathematically, accurately, performance-wise, whatever. Fog, smoke, and clouds scatter or absorb light as rays travel through them, not just at surfaces. A homogeneous medium has three parameters: absorption $\sigma_a$, scattering $\sigma_s$, and an asymmetry parameter $g$ that controls how directional the scattering is.
 
 The probability that a ray makes it distance $d$ without interacting follows Beer's law:
 
@@ -164,9 +167,9 @@ The subject (red cube) stays sharp while the background blurs more as the apertu
 
 ### Image-Based Lighting (IBL)
 
-Rather than placing explicit lights, the scene is lit by an HDR panorama. Rays that miss all geometry look up their direction in the panorama and return that radiance.
+Rather than placing explicit lights, a scene can be lit by an HDR panorama (or a combination of lights + ibl. Also IBL is a good hack for getting non-grainy scenes because it has less high-variance sampling!) Rays that miss all geometry look up their direction in the panorama and return that radiance.
 
-The challenge is sampling it efficiently. A uniform random direction wastes most samples on the dark sky, so at load time we build a 2D CDF over the image pixels, with each pixel weighted by its luminance times $\sin\theta$ (to correct for equirectangular pixels covering less solid angle near the poles). At render time, two binary searches pick a row then a column, sampling directions proportional to their brightness. The resulting solid-angle PDF is:
+In sampling IBL, a uniform random direction wastes most samples on the dark sky, so at load time we build a 2D CDF over the image pixels, with each pixel weighted by its luminance times $\sin\theta$ (to correct for equirectangular pixels covering less solid angle near the poles). At render time, two binary searches pick a row then a column, sampling directions proportional to their brightness. The resulting solid-angle PDF is:
 
 $$p_\omega = p_\text{pixel} \cdot \frac{W \cdot H}{2\pi^2 \sin\theta}$$
 
