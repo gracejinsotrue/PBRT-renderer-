@@ -132,7 +132,6 @@ static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
 static const int MAX_BOUNCES = 32;
 static const float kFireflyClamp = 3.402823466e+38;
-=
 
     // Ray payloads
 

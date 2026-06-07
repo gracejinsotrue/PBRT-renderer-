@@ -312,6 +312,7 @@
             }
 
             float3 T, B;
+            float h = 0.0; // hair fiber offset in [-1,1]
             if (mat.type == 5)
             {
                 // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
@@ -323,7 +324,7 @@
                     // Strand geometry from tessellator — tangent buffer is valid.
                     // h was encoded by tessellator as UV.y = (h+1)/2.
                     hairTangent = normalize(hairTangent);
-                    g_hairH = payload.hairH; // payload.hairH = texUV.y * 2 - 1
+                    h = payload.hairH; // payload.hairH = texUV.y * 2 - 1
                 }
                 else
                 {
@@ -354,7 +355,7 @@
                         BuildONB(N, hairTangent, B);
                     }
                     // h = fiber offset across card width (UV.x in [0,1] → [-1,1])
-                    g_hairH = payload.texU * 2.0 - 1.0;
+                    h = payload.texU * 2.0 - 1.0;
                 }
                 // Orthogonalize tangent against surface normal
                 T = normalize(hairTangent - N * dot(hairTangent, N));
@@ -363,7 +364,7 @@
             else
             {
                 BuildONB(N, T, B);
-                g_hairH = 0.0;
+                h = 0.0;
             }
 
             // Shading-normal terminator handling: when the perturbed N points
@@ -444,12 +445,12 @@
             }
             else if (mat.type == 0 || mat.type == 3 || mat.type == 4 || mat.type == 5)
             {
-                Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, rng);
-                Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, rng);
+                Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+                Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
 
                 float3 wo_local;
                 float bsdfPdf;
-                float3 weight = MaterialSample(wi_local, rng, mat, wo_local, bsdfPdf);
+                float3 weight = MaterialSample(wi_local, rng, mat, h, wo_local, bsdfPdf);
                 if (bsdfPdf <= 0.0 || all(weight == 0.0))
                     break;
 

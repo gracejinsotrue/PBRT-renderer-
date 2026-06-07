@@ -13,9 +13,9 @@
 #include "Disney.hlsli"
 #include "Hair.hlsli"
 
-static float g_hairH = 0.0;
+// `h` is the hair fiber offset in [-1, 1]
 
-float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat)
+float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
 {
     if (mat.type == 0) // Diffuse
     {
@@ -39,12 +39,12 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat)
     }
     else if (mat.type == 5) // Hair
     {
-        return HairBCSDF_Eval(wi, wo, mat, g_hairH);
+        return HairBCSDF_Eval(wi, wo, mat, h);
     }
     return float3(0, 0, 0);
 }
 
-float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat)
+float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
 {
     if (mat.type == 0) // Diffuse
     {
@@ -68,14 +68,14 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat)
     }
     else if (mat.type == 5) // Hair
     {
-        return HairBCSDF_Pdf(wi, wo, mat, g_hairH);
+        return HairBCSDF_Pdf(wi, wo, mat, h);
     }
     return 0.0;
 }
 
 // Sample an outgoing direction. Returns f * cos(theta_o) / pdf (, which is the Monte Carlo throughput weight).
 // Outputs wo in the local frame and the solid-angle pdf. Not intended for delta BSDFs
-float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat,
+float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
                       out float3 wo, out float pdf)
 {
     if (mat.type == 0) // Diffuse
@@ -152,9 +152,9 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat,
 
         return fTotal * wo.z / pdf;
     }
-    else if (mat.type == 5) // Hair (Chiang BCSDF)
+    else if (mat.type == 5) // hiar
     {
-        return HairBCSDF_Sample(wi, rng, mat, g_hairH, wo, pdf);
+        return HairBCSDF_Sample(wi, rng, mat, h, wo, pdf);
     }
     wo = float3(0, 0, 1);
     pdf = 0.0;

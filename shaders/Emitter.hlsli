@@ -103,7 +103,7 @@ float EmitterPdfSolidAngle(GPUMaterial emitMat, float3 hitPos, float3 shadingPos
 }
 
 float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
-                             float3 wi_local, GPUMaterial mat, inout RNG rng)
+                             float3 wi_local, GPUMaterial mat, float h, inout RNG rng)
 {
     EmitterSample es = SampleEmitter(rng);
     if (!es.valid)
@@ -140,8 +140,8 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
         return float3(0, 0, 0);
 
     float3 wo_local = ToLocal(wi_world, T, B, N);
-    float3 f = MaterialEval(wi_local, wo_local, mat);
-    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat);
+    float3 f = MaterialEval(wi_local, wo_local, mat, h);
+    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat, h);
 
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float w = BalanceHeuristic(pdfEms, pdfBsdf);
@@ -152,7 +152,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 // Envmap next-event estimation, which samples one direction from the envmap's importance distribution, shoots a shadow ray evaluates the BSDF in that direction, and
 // MIS-weights against the BSDF pdf. Called from raygen for diffuse and microfacet hits, in addition to MISDirectIllumination and the two contributions are summed.
 float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
-                                float3 wi_local, GPUMaterial mat, inout RNG rng)
+                                float3 wi_local, GPUMaterial mat, float h, inout RNG rng)
 {
     float u1 = NextFloat(rng);
     float u2 = NextFloat(rng);
@@ -190,8 +190,8 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
 
     // BSDF evaluation at the envmap-sampled direction
     float3 wo_local = ToLocal(wi_world, T, B, N);
-    float3 f = MaterialEval(wi_local, wo_local, mat);
-    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat);
+    float3 f = MaterialEval(wi_local, wo_local, mat, h);
+    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat, h);
 
     float w = BalanceHeuristic(pdfEnv, pdfBsdf);
     float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
