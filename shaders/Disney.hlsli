@@ -67,8 +67,8 @@ float DisneyGGX_D(float NdotH, float alpha)
     if (NdotH <= 0.0)
         return 0.0;
     float a2 = alpha * alpha;
-    float t = 1.0 + (a2 - 1.0) * NdotH * NdotH;
-    return a2 / (M_PI * t * t);
+    float denom = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    return a2 / max(M_PI * denom * denom, 1e-10);
 }
 
 float DisneyGGX_G1(float NdotV, float alpha)
@@ -76,16 +76,15 @@ float DisneyGGX_G1(float NdotV, float alpha)
     if (NdotV <= 0.0)
         return 0.0;
     float a2 = alpha * alpha;
-    float denom = NdotV + sqrt(a2 + (1.0 - a2) * NdotV * NdotV);
-    if (denom < 1e-12)
-        return 0.0;
-    return 2.0 * NdotV / denom;
+    float NdotV2 = NdotV * NdotV;
+    float denom = NdotV + sqrt(a2 + (1.0 - a2) * NdotV2);
+    return 2.0 * NdotV / max(denom, 1e-10);
 }
 
 float3 DisneyGGX_SampleWh(float2 u, float alpha)
 {
     float a2 = alpha * alpha;
-    float cosTheta2 = (1.0 - u.x) / (1.0 + (a2 - 1.0) * u.x);
+    float cosTheta2 = (1.0 - u.x) / max(1.0 + (a2 - 1.0) * u.x, 1e-10);
     float cosTheta = sqrt(saturate(cosTheta2));
     float sinTheta = sqrt(max(0.0, 1.0 - cosTheta2));
     float phi = 2.0 * M_PI * u.y;
@@ -103,10 +102,8 @@ float DisneyGGX_PdfWo(float3 wi, float3 wo, float alpha)
 
 float3 FresnelSchlick(float3 F0, float cosThetaD)
 {
-    float x = 1.0 - cosThetaD;
-    float x2 = x * x;
-    float x5 = x2 * x2 * x;
-    return F0 + (1.0 - F0) * x5;
+    float t = pow(1.0 - cosThetaD, 5.0);
+    return F0 + (float3(1.0, 1.0, 1.0) - F0) * t;
 }
 
 float3 DisneySpecularF0(GPUMaterial mat)
@@ -114,9 +111,9 @@ float3 DisneySpecularF0(GPUMaterial mat)
     float3 base = MatAlbedo(mat);
     float lum = Luminance(base);
     float3 Ctint = (lum > 0.0) ? base / lum : float3(1.0, 1.0, 1.0);
-    float3 Ks = lerp(float3(1.0, 1.0, 1.0), Ctint, mat.specularTint);
-    float3 F0_dielectric = 0.08 * mat.specular * Ks;
-    return lerp(F0_dielectric, base, mat.metallic);
+    float3 Cspec0 = 0.08 * mat.specular *
+                    lerp(float3(1.0, 1.0, 1.0), Ctint, mat.specularTint);
+    return lerp(Cspec0, base, mat.metallic);
 }
 
 float3 DisneySpecularEval(float3 wi, float3 wo, GPUMaterial mat)
@@ -124,18 +121,20 @@ float3 DisneySpecularEval(float3 wi, float3 wo, GPUMaterial mat)
     if (wi.z <= 0.0 || wo.z <= 0.0)
         return float3(0, 0, 0);
 
-    float alpha = max(mat.roughness * mat.roughness, 1e-4);
     float3 wh = normalize(wi + wo);
     if (wh.z <= 0.0)
         return float3(0, 0, 0);
 
-    float D = DisneyGGX_D(wh.z, alpha);
-    float3 F = FresnelSchlick(DisneySpecularF0(mat), abs(dot(wi, wh)));
-    float Gv = DisneyGGX_G1(wi.z, alpha);
-    float Gl = DisneyGGX_G1(wo.z, alpha);
-    float G = Gv * Gl;
+    float alpha = max(mat.roughness * mat.roughness, 1e-4);
+    float NdotV = wi.z;
+    float NdotL = wo.z;
+    float VdotH = abs(dot(wi, wh));
 
-    return D * F * G / max(4.0 * wi.z * wo.z, 1e-10);
+    float D = DisneyGGX_D(wh.z, alpha);
+    float3 F = FresnelSchlick(DisneySpecularF0(mat), VdotH);
+    float G = DisneyGGX_G1(NdotV, alpha) * DisneyGGX_G1(NdotL, alpha);
+
+    return D * F * G / max(4.0 * NdotV * NdotL, 1e-10);
 }
 
 float DisneySpecularPdf(float3 wi, float3 wo, GPUMaterial mat)

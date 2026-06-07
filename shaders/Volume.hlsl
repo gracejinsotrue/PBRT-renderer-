@@ -1,3 +1,10 @@
+#ifndef VOLUME_HLSL
+#define VOLUME_HLSL
+
+#include "Common.hlsli"
+#include "RNG.hlsli"
+#include "GeometryUtils.hlsli"
+
 // Volume.hlsl for Multi-instance participating media.
 //
 // All volume math takes a GPUVolume parameter so the same code works for the current "loop over a flat structured buffer" enumeration and a future
@@ -445,3 +452,5 @@ float3 MultiVolumeTransmittance(float3 origin, float3 dir, float tMax,
     }
     return tr;
 }
+
+#endif // VOLUME_HLSL

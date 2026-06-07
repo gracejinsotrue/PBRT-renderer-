@@ -76,13 +76,17 @@ endif()
 message(STATUS "Found DXC: ${DXC_EXECUTABLE}")
 
 set(SHADER_SRC ${CMAKE_SOURCE_DIR}/shaders/Shaders.hlsl)
-set(SHADER_VOL ${CMAKE_SOURCE_DIR}/shaders/Volume.hlsl)
+# Shaders.hlsl is the only translation unit dxc compiles; it #includes the
+# modular headers below. Depend on all of them so edits trigger a recompile.
+file(GLOB SHADER_HEADERS
+    ${CMAKE_SOURCE_DIR}/shaders/*.hlsli
+    ${CMAKE_SOURCE_DIR}/shaders/Volume.hlsl)
 set(SHADER_CSO ${CMAKE_BINARY_DIR}/Shaders.cso)
 add_custom_command(
     OUTPUT ${SHADER_CSO}
     COMMAND ${DXC_EXECUTABLE} -T lib_6_3 -Fo ${SHADER_CSO} ${SHADER_SRC}
-    DEPENDS ${SHADER_SRC} ${SHADER_VOL}
-    COMMENT "Compiling Shaders.hlsl"
+    DEPENDS ${SHADER_SRC} ${SHADER_HEADERS}
+    COMMENT "Compiling Shaders.hlsl (+ modular .hlsli)"
     VERBATIM
 )
 add_custom_target(compile_shaders DEPENDS ${SHADER_CSO})
