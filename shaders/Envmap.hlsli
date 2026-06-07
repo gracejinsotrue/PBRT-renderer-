@@ -20,7 +20,7 @@ float3 EvalEnvmap(float3 dir)
         phi += 2.0 * M_PI;
     float theta = acos(clamp(d.y, -1.0, 1.0));
     float2 uv = float2(phi / (2.0 * M_PI), theta / M_PI);
-    return g_envmap.SampleLevel(g_envmapSampler, uv, 0).rgb;
+    return g_envmap.SampleLevel(g_envmapSampler, uv, 0).rgb * envmapScale;
 }
 
 // ============================================================================
@@ -62,14 +62,25 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
 
     // 1. pick a row via the marginal CDF (H + 1 entries).
     uint y = EnvmapCdfSearch(g_envmapMarginalCdf, 0, H + 1, u1);
+    // recover within-row jitter v ∈ [0,1) from u1's position inside the row's CDF cell.
+    float marg_y0 = asfloat(g_envmapMarginalCdf.Load(y * 4));
+    float marg_y1 = asfloat(g_envmapMarginalCdf.Load((y + 1) * 4));
+    float pMar = marg_y1 - marg_y0;
+    float jitter_v = (pMar > 1e-20) ? saturate((u1 - marg_y0) / pMar) : 0.5;
 
     // 2. pick a column within that row via the conditional CDF, where row y starts at float offset y * (W + 1), meaning byte offset y*(W+1)*4.
     uint rowBytes = (W + 1) * 4;
     uint x = EnvmapCdfSearch(g_envmapConditionalCdf, y * rowBytes, W + 1, u2);
 
-    // 3. compute the direction at the pixel center.
-    float u = ((float)x + 0.5) / (float)W;
-    float v = ((float)y + 0.5) / (float)H;
+    // recover within-column jitter u ∈ [0,1) from u2's position inside the column's CDF cell.
+    float cond_x0 = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + x * 4));
+    float cond_x1 = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + (x + 1) * 4));
+    float pCon = cond_x1 - cond_x0;
+    float jitter_u = (pCon > 1e-20) ? saturate((u2 - cond_x0) / pCon) : 0.5;
+
+    // 3. Compute the direction at the jittered sub-pixel position.
+    float u = ((float)x + jitter_u) / (float)W;
+    float v = ((float)y + jitter_v) / (float)H;
     float phi = 2.0 * M_PI * u;
     float theta = M_PI * v;
     float sinTheta = sin(theta);
@@ -78,17 +89,13 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
                  cosTheta,
                  sinTheta * sin(phi));
 
-    // 4. compute radiance by reading the pixel directly via the sampler at the center UV.
-    radiance = g_envmap.SampleLevel(g_envmapSampler, float2(u, v), 0).rgb;
+    // 4. compute radiance by sampling the envmap texture at the jittered UV (bilinear).
+    radiance = g_envmap.SampleLevel(g_envmapSampler, float2(u, v), 0).rgb * envmapScale;
 
-    // 5. find pixel-space pdf via CDF differencing, then convert to solid-angle pdf where p_pixel = p_marginal(y) * p_conditional(x | y)
-    float pMar = asfloat(g_envmapMarginalCdf.Load((y + 1) * 4)) -
-                 asfloat(g_envmapMarginalCdf.Load(y * 4));
-    float pCon = asfloat(g_envmapConditionalCdf.Load(y * rowBytes + (x + 1) * 4)) -
-                 asfloat(g_envmapConditionalCdf.Load(y * rowBytes + x * 4));
+    // 5. pixel-space pdf p_pixel = p_marginal(y) * p_conditional(x | y).
     float pPixel = pMar * pCon;
 
-    // do the jacobian where : pixel-space -> direction-space, where p_omega = p_pixel * (W * H) / (2 * pi^2 * sin(theta)).
+    // do the jacobian pixel-space -> direction-space: p_omega = p_pixel * (W * H) / (2 * pi^2 * sin(theta)).
     float denom = 2.0 * M_PI * M_PI * max(sinTheta, 1e-8);
     pdf = pPixel * (float)(W * H) / denom;
 }

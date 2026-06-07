@@ -1,7 +1,8 @@
-// Emitter.hlsli. Emitter sampling and next-event estimation.
-// Covers area light sampling via CDF, surface NEE which is MIS with BSDF, envmap NEE which is MIS with BSDF, and volume NEE which is MIS with phase function.
+// Emitter.hlsli
+// Next-event estimation: area-light + envmap direct lighting with MIS, and
+// the in-volume NEE variants.
 //
-// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli, Material.hlsli, Envmap.hlsli, Volume.hlsl
+// Requires: Common, RNG, GeometryUtils, Envmap, Volume, Material
 
 #ifndef EMITTER_HLSLI
 #define EMITTER_HLSLI
@@ -13,7 +14,6 @@
 #include "Volume.hlsl"
 #include "Material.hlsli"
 
-// Emitter triangle sampling
 uint CdfSample(uint cdfOffset, uint numEntries, float u)
 {
     uint lo = 0;
@@ -45,19 +45,11 @@ EmitterSample SampleEmitter(inout RNG rng)
     EmitterSample es;
     es.valid = false;
 
-    // Count all emitter meshes in the scene
-    uint numEmitters = 0;
-    for (uint i = 0; i < meshCount; i++)
-        if (g_materials[i].isEmitter)
-            numEmitters++;
-
-    if (numEmitters == 0)
+    if (emitterCount == 0)
         return es;
 
-    // Uniformly pick one emitter by index
-    uint pick = min((uint)(NextFloat(rng) * numEmitters), numEmitters - 1);
+    uint pick = min((uint)(NextFloat(rng) * float(emitterCount)), emitterCount - 1);
 
-    // walk meshes to find the picked emitter
     uint count = 0;
     for (uint j = 0; j < meshCount; j++)
     {
@@ -92,7 +84,7 @@ EmitterSample SampleEmitter(inout RNG rng)
     float sr1 = sqrt(r1);
     es.position = (1.0 - sr1) * p0 + sr1 * (1.0 - r2) * p1 + sr1 * r2 * p2;
     es.normal = normalize(cross(p1 - p0, p2 - p0));
-    es.pdfArea = 1.0 / (eMat.surfaceArea * float(numEmitters));
+    es.pdfArea = 1.0 / (eMat.surfaceArea * float(emitterCount));
     return es;
 }
 
@@ -106,15 +98,12 @@ float EmitterPdfSolidAngle(GPUMaterial emitMat, float3 hitPos, float3 shadingPos
     float cosL = abs(dot(emitNormal, -d / dist));
     if (cosL < 1e-8)
         return 0.0;
-    return (1.0 / emitMat.surfaceArea) * dist2 / cosL;
+
+    return (1.0 / (emitMat.surfaceArea * float(emitterCount))) * dist2 / cosL;
 }
 
-// ============================================================================
-// Surface NEE for area lights
-// ============================================================================
-
 float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
-                             float3 wi_local, GPUMaterial mat, float h, inout RNG rng)
+                             float3 wi_local, GPUMaterial mat, inout RNG rng)
 {
     EmitterSample es = SampleEmitter(rng);
     if (!es.valid)
@@ -124,10 +113,17 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     float3 wi_world = toLight / dist;
     float cosTheta = dot(N, wi_world);
     float cosLight = dot(es.normal, -wi_world);
-    if (cosTheta <= 0.0 || cosLight <= 0.0)
+    bool isHair = (mat.type == 5);
+    if ((!isHair && cosTheta <= 0.0) || cosLight <= 0.0)
         return float3(0, 0, 0);
+    float absCosTheta = isHair ? abs(cosTheta) : cosTheta;
 
-    float3 shadowOrigin = OffsetRayOrigin(hitPos, Ng, N);
+    // For hair, shadow rays may go to the back side of the fiber.
+    bool isHairShadow = (mat.type == 5);
+    float3 shadowNg = isHairShadow
+                          ? (dot(wi_world, Ng) >= 0.0 ? Ng : -Ng)
+                          : Ng;
+    float3 shadowOrigin = OffsetRayOrigin(hitPos, shadowNg, shadowNg);
     RayDesc shadowRay;
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wi_world;
@@ -135,28 +131,28 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     shadowRay.TMax = dist - 0.001;
     ShadowPayload shadow;
     shadow.shadowed = 1;
+    shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 0, 0, 1, shadowRay, shadow);
+             0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
     float3 wo_local = ToLocal(wi_world, T, B, N);
-    float3 f = MaterialEval(wi_local, wo_local, mat, h);
-    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat, h);
+    float3 f = MaterialEval(wi_local, wo_local, mat);
+    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat);
 
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float w = BalanceHeuristic(pdfEms, pdfBsdf);
-    float3 volTr = VolumeTransmittance(shadowOrigin, wi_world, dist, rng);
-    return es.radiance * f * cosTheta / max(pdfEms, 1e-20) * w * volTr;
+    float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, dist, rng);
+    return es.radiance * f * absCosTheta / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
 }
 
-// ============================================================================
-// Surface NEE for environment map
-// ============================================================================
-
-// Samples one direction from the envmap's importance distribution, shoots a shadow ray, evaluates the BSDF in that direction, and MIS-weights against the BSDF pdf.
+// Envmap next-event estimation, which samples one direction from the envmap's importance distribution, shoots a shadow ray evaluates the BSDF in that direction, and
+// MIS-weights against the BSDF pdf. Called from raygen for diffuse and microfacet hits, in addition to MISDirectIllumination and the two contributions are summed.
 float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,
-                                float3 wi_local, GPUMaterial mat, float h, inout RNG rng)
+                                float3 wi_local, GPUMaterial mat, inout RNG rng)
 {
     float u1 = NextFloat(rng);
     float u2 = NextFloat(rng);
@@ -167,10 +163,15 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
         return float3(0, 0, 0);
 
     float cosTheta = dot(N, wi_world);
-    if (cosTheta <= 0.0)
+    bool isHair = (mat.type == 5);
+    if (!isHair && cosTheta <= 0.0)
         return float3(0, 0, 0);
-
-    float3 shadowOrigin = OffsetRayOrigin(hitPos, Ng, N);
+    float absCosTheta = isHair ? abs(cosTheta) : cosTheta;
+    bool isHairEnvShadow = (mat.type == 5);
+    float3 envShadowNg = isHairEnvShadow
+                             ? (dot(wi_world, Ng) >= 0.0 ? Ng : -Ng)
+                             : Ng;
+    float3 shadowOrigin = OffsetRayOrigin(hitPos, envShadowNg, envShadowNg);
     RayDesc shadowRay;
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wi_world;
@@ -178,34 +179,48 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     shadowRay.TMax = 1e20;
     ShadowPayload shadow;
     shadow.shadowed = 1;
+    shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 0, 0, 1, shadowRay, shadow);
+             0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
     // BSDF evaluation at the envmap-sampled direction
     float3 wo_local = ToLocal(wi_world, T, B, N);
-    float3 f = MaterialEval(wi_local, wo_local, mat, h);
-    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat, h);
+    float3 f = MaterialEval(wi_local, wo_local, mat);
+    float pdfBsdf = MaterialPdf(wi_local, wo_local, mat);
 
     float w = BalanceHeuristic(pdfEnv, pdfBsdf);
-    float3 volTr = VolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
-    return Lenv * f * cosTheta / max(pdfEnv, 1e-20) * w * volTr;
+    float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
+    float3 contrib = Lenv * f * absCosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
+    float contribLum = dot(contrib, float3(0.2126, 0.7152, 0.0722));
+    if (contribLum > kFireflyClamp)
+        contrib *= kFireflyClamp / contribLum;
+    return contrib;
 }
 
-// ============================================================================
-// Volume NEE for area lights
-// ============================================================================
-
-// At a medium scatter point, explicitly sample a light direction and evaluate
-// the phase function.  Unlike surface NEE, there is no cosine factor at the
-// scatter point because volumes scatter isotropically w.r.t. geometry — the
-// directional dependence is entirely in the phase function.
+// Volume NEE
+//  at a medium scatter point, explicitly sample a light direction and evaluate the phase function.
+// Unlike surface NEE, there is no cosine factor at the scatter point because volumes scatter isotropically w.r.t. geometry. the directional
+// dependence is entirely in the phase function.
 // MIS-weighted against the phase function sampling pdf.
 
-float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)
+float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG rng)
 {
+
+    GPUVolume vol = g_volumes[volumeIndex];
+    float3 sigmaT = VolumeSigmaT(vol);
+    float sigmaTmin = min(sigmaT.r, min(sigmaT.g, sigmaT.b));
+    float phaseG = vol.phaseG;
+    float3 dMin = scatterPos - vol.vMin;
+    float3 dMax = vol.vMax - scatterPos;
+    float minDist = min(min(dMin.x, dMin.y), min(dMin.z, min(dMax.x, min(dMax.y, dMax.z))));
+    if (minDist * sigmaTmin > 8.0)
+        return float3(0, 0, 0);
+
     EmitterSample es = SampleEmitter(rng);
     if (!es.valid)
         return float3(0, 0, 0);
@@ -225,13 +240,16 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     shadowRay.TMax = dist - 0.001;
     ShadowPayload shadow;
     shadow.shadowed = 1;
+    shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 0, 0, 1, shadowRay, shadow);
+             0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
     // Phase function value in the light direction
-    // wo = ray travel direction toward scatter point, wi = toward light
+    // wo = ray travel direction (toward scatter point), wi = toward light
     float cosTheta = dot(wo, wi);
     float fp = HenyeyGreenstein(cosTheta, phaseG);
 
@@ -240,21 +258,29 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, float phaseG, inout RNG 
     float pdfPhase = fp;
     float w = BalanceHeuristic(pdfEms, pdfPhase);
 
-    // Transmittance along shadow ray through volume
-    float3 volTr = VolumeTransmittance(scatterPos, wi, dist, rng);
+    // Transmittance along shadow ray through all volumes
+    float3 volTr = MultiVolumeTransmittance(scatterPos, wi, dist, rng);
 
-    // Marschner §5: estimator = σ_s · f_p · L / pdf_emitter, but σ_s is
-    // already folded into the throughput as σ_s/σ_t so we just need f_p · L.
+    // [Marschner] §5: estimator = σ_s · f_p · L / pdf_emitter, but σ_s is
+    // already folded into the throughput (as σ_s/σ_t), so we just need f_p · L.
     // The σ_s/σ_t throughput weight accounts for the scattering coefficient.
-    return es.radiance * fp / max(pdfEms, 1e-20) * w * volTr;
+    return es.radiance * fp / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
 }
 
-// ============================================================================
-// Volume NEE for environment map
-// ============================================================================
-
-float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng)
+float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG rng)
 {
+    // envmap shadow rays must traverse the full remaining volume.
+    // If the scatter point is deep inside every channel, transmittance will be negligible.
+    GPUVolume vol = g_volumes[volumeIndex];
+    float3 sigmaT = VolumeSigmaT(vol);
+    float sigmaTmin = min(sigmaT.r, min(sigmaT.g, sigmaT.b));
+    float phaseG = vol.phaseG;
+    float3 dMin = scatterPos - vol.vMin;
+    float3 dMax = vol.vMax - scatterPos;
+    float minDist = min(min(dMin.x, dMin.y), min(dMin.z, min(dMax.x, min(dMax.y, dMax.z))));
+    if (minDist * sigmaTmin > 8.0)
+        return float3(0, 0, 0);
+
     float u1 = NextFloat(rng);
     float u2 = NextFloat(rng);
     float3 wi, Lenv;
@@ -269,9 +295,12 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     shadowRay.TMax = 1e20;
     ShadowPayload shadow;
     shadow.shadowed = 1;
+    shadow.transmission = float3(1, 1, 1);
+    shadow.rngState = rng.state;
     TraceRay(g_scene,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 0, 0, 1, shadowRay, shadow);
+             0xFF, 1, 0, 1, shadowRay, shadow);
+    rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
 
@@ -280,8 +309,8 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, float phaseG, inout RNG rng
     float pdfPhase = fp;
     float w = BalanceHeuristic(pdfEnv, pdfPhase);
 
-    float3 volTr = VolumeTransmittance(scatterPos, wi, 1e20, rng);
-    return Lenv * fp / max(pdfEnv, 1e-20) * w * volTr;
+    float3 volTr = MultiVolumeTransmittance(scatterPos, wi, 1e20, rng);
+    return Lenv * fp / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
 }
 
 #endif // EMITTER_HLSLI

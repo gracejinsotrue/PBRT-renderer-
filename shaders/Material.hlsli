@@ -1,8 +1,7 @@
 // Material.hlsli
-// Material dispatch layer.
-// Routes material type IDs to the correct BSDF implementation.
+// Material dispatch layer: routes material type IDs to the correct BSDF.
 //
-// Requires: Common.hlsli, GeometryUtils.hlsli, RNG.hlsli, Microfacet.hlsli, Disney.hlsli, Hair.hlsli
+// Requires: Common, RNG, GeometryUtils, Microfacet, Disney, Hair
 
 #ifndef MATERIAL_HLSLI
 #define MATERIAL_HLSLI
@@ -14,20 +13,9 @@
 #include "Disney.hlsli"
 #include "Hair.hlsli"
 
-// ============================================================================
-// Type predicates
-// ============================================================================
+static float g_hairH = 0.0;
 
-bool MaterialIsDelta(GPUMaterial mat)
-{
-    return mat.type == 1 || mat.type == 2;
-}
-
-// Eval / Pdf / Sample
-//
-// `h` is the hair fiber offset in [-1,1].  For non-hair materials it is unused, so pass 0.0.
-
-float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
+float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat)
 {
     if (mat.type == 0) // Diffuse
     {
@@ -51,12 +39,12 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
     }
     else if (mat.type == 5) // Hair
     {
-        return HairBCSDF_Eval(wi, wo, mat, h);
+        return HairBCSDF_Eval(wi, wo, mat, g_hairH);
     }
     return float3(0, 0, 0);
 }
 
-float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
+float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat)
 {
     if (mat.type == 0) // Diffuse
     {
@@ -80,15 +68,14 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
     }
     else if (mat.type == 5) // Hair
     {
-        return HairBCSDF_Pdf(wi, wo, mat, h);
+        return HairBCSDF_Pdf(wi, wo, mat, g_hairH);
     }
     return 0.0;
 }
 
-// Sample an outgoing direction.  Returns f * cos(theta_o) / pdf (the MC
-// throughput weight).  Outputs wo in the local frame and the solid-angle
-// pdf.  Not intended for delta BSDFs.
-float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
+// Sample an outgoing direction. Returns f * cos(theta_o) / pdf (, which is the Monte Carlo throughput weight).
+// Outputs wo in the local frame and the solid-angle pdf. Not intended for delta BSDFs
+float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat,
                       out float3 wo, out float pdf)
 {
     if (mat.type == 0) // Diffuse
@@ -124,7 +111,7 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
         // pick a lobe which is one of diffuse, specular, or clearcoat.
         if (u0 < p.pDiffuse)
         {
-            // Diffuse lobe covers Burley, HK subsurface, and sheen which are all cosine hemisphere sampled
+            // Diffuse lobe covers Burley, HK subsurface, and sheen which are all cosine hemispehre sampled
             wo = CosineSampleHemisphere(u12);
         }
         else if (u0 < p.pDiffuse + p.pSpecular)
@@ -167,7 +154,7 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
     }
     else if (mat.type == 5) // Hair (Chiang BCSDF)
     {
-        return HairBCSDF_Sample(wi, rng, mat, h, wo, pdf);
+        return HairBCSDF_Sample(wi, rng, mat, g_hairH, wo, pdf);
     }
     wo = float3(0, 0, 1);
     pdf = 0.0;
