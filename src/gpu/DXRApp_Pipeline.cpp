@@ -100,7 +100,9 @@ void DXRApp::CreateRaytracingPipeline()
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
     so[idx++].pDesc = &shg;
     D3D12_RAYTRACING_SHADER_CONFIG sc{};
-    sc.MaxPayloadSizeInBytes = 96;
+    // HitPayload is 28 B (hitT, materialID, hit, primitiveID, baryX/Y, rngState);
+    // ShadowPayload is 20 B. Must be >= the larger of the two.
+    sc.MaxPayloadSizeInBytes = 28;
     sc.MaxAttributeSizeInBytes = 8;
     so[idx].Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
     so[idx++].pDesc = &sc;
