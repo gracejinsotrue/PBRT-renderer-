@@ -178,7 +178,7 @@
         }
         else if (!payload.hit)
         {
-            float3 env = float3(payload.envR, payload.envG, payload.envB);
+            float3 env = EvalEnvmap(ray.Direction);
             // Clamp to suppress fireflies from bright HDRI sun disks on high-variance paths.
             float envLum = dot(env, float3(0.2126, 0.7152, 0.0722));
             if (envLum > kFireflyClamp)
@@ -200,10 +200,11 @@
             // surface hit
 
             float3 hitPos = ray.Origin + ray.Direction * payload.hitT;
-            float3 N = normalize(float3(payload.normalX, payload.normalY, payload.normalZ));
-            float3 Ng = normalize(float3(payload.geoNormalX, payload.geoNormalY, payload.geoNormalZ));
+            float2 bary = float2(payload.baryX, payload.baryY);
+            float3 N = normalize(GetInterpolatedNormal(payload.materialID, payload.primitiveID, bary));
+            float3 Ng = normalize(GetGeometricNormal(payload.materialID, payload.primitiveID));
             GPUMaterial mat = g_materials[payload.materialID];
-            float2 hitUV = float2(payload.texU, payload.texV);
+            float2 hitUV = GetInterpolatedUV(payload.materialID, payload.primitiveID, bary);
 
             bool hitBackFace = (dot(Ng, ray.Direction) > 0.0);
 
@@ -317,14 +318,14 @@
             {
                 // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
                 // Reference: [PBRT] Section 9.9.1 — sinθ = ω.x (tangent component)
-                float3 hairTangent = float3(payload.tangentX, payload.tangentY, payload.tangentZ);
+                float3 hairTangent = GetInterpolatedTangent(payload.materialID, payload.primitiveID, bary);
                 bool hasStrandTangent = dot(hairTangent, hairTangent) > 1e-8;
                 if (hasStrandTangent)
                 {
                     // Strand geometry from tessellator — tangent buffer is valid.
                     // h was encoded by tessellator as UV.y = (h+1)/2.
                     hairTangent = normalize(hairTangent);
-                    h = payload.hairH; // payload.hairH = texUV.y * 2 - 1
+                    h = hitUV.y * 2.0 - 1.0; // matches former payload.hairH (texV*2-1)
                 }
                 else
                 {
@@ -355,7 +356,7 @@
                         BuildONB(N, hairTangent, B);
                     }
                     // h = fiber offset across card width (UV.x in [0,1] → [-1,1])
-                    h = payload.texU * 2.0 - 1.0;
+                    h = hitUV.x * 2.0 - 1.0;
                 }
                 // Orthogonalize tangent against surface normal
                 T = normalize(hairTangent - N * dot(hairTangent, N));
@@ -507,47 +508,20 @@
 
     [shader("closesthit")] void ClosestHit(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
+    // here we store only the minimal hit descriptor
     payload.hit = 1;
     payload.hitT = RayTCurrent();
     payload.materialID = InstanceID();
-
-    // interpolated shading normal
-    float3 N = GetInterpolatedNormal(InstanceID(), PrimitiveIndex(), attr.barycentrics);
-    payload.normalX = N.x;
-    payload.normalY = N.y;
-    payload.normalZ = N.z;
-
-    // Geometric normal
-    float3 Ng = GetGeometricNormal(InstanceID(), PrimitiveIndex());
-    payload.geoNormalX = Ng.x;
-    payload.geoNormalY = Ng.y;
-    payload.geoNormalZ = Ng.z;
-
-    // Texture coordinates
-    float2 texUV = GetInterpolatedUV(InstanceID(), PrimitiveIndex(), attr.barycentrics);
-    payload.texU = texUV.x;
-    payload.texV = texUV.y;
-
     payload.primitiveID = PrimitiveIndex();
-
-    // Hair fiber data: tangent direction + h parameter.
-    // Reference: [PBRT] Section 9.9.1, [Chiang] Eq. 4
-    // tangent comes from the per-vertex tangent buffer (zero for non-hair).
-    // h is encoded in UV.y by the tessellator as (h+1)/2, so h = 2*v - 1.
-    float3 tang = GetInterpolatedTangent(InstanceID(), PrimitiveIndex(), attr.barycentrics);
-    payload.tangentX = tang.x;
-    payload.tangentY = tang.y;
-    payload.tangentZ = tang.z;
-    payload.hairH = texUV.y * 2.0 - 1.0;
+    payload.baryX = attr.barycentrics.x;
+    payload.baryY = attr.barycentrics.y;
 }
 
 [shader("miss")] void Miss(inout HitPayload payload)
 {
+    // Environment radiance is recomputed in RayGen via EvalEnvmap(ray.Direction)
+    // on miss, so it no longer travels in the payload.
     payload.hit = 0;
-    float3 env = EvalEnvmap(WorldRayDirection());
-    payload.envR = env.x;
-    payload.envG = env.y;
-    payload.envB = env.z;
 }
     // Primary any-hit: hybrid cutoff + stochastic alpha test for the radiance ray.
     // Hard reject below 0.1, accept above 0.95, stochastic in between. The RNG

@@ -138,16 +138,11 @@ static const float kFireflyClamp = 3.402823466e+38;
     struct HitPayload
 {
     float hitT;
-    float normalX, normalY, normalZ;
-    float geoNormalX, geoNormalY, geoNormalZ;
     uint materialID;
     uint hit;
-    float texU, texV;
-    float envR, envG, envB;
     uint primitiveID;
-    float tangentX, tangentY, tangentZ; // fiber tangent
-    float hairH;                        // fiber offset h in [-1,1]
-    uint rngState;                      // PCG state, propagated through any-hit
+    float baryX, baryY; // hit barycentrics; N/UV/tangent/hairH recomputed in RayGen
+    uint rngState;      // PCG state, propagated through any-hit
 };
 
 struct ShadowPayload
