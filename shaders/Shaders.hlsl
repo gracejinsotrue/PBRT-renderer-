@@ -123,6 +123,7 @@
         //     albedo below, the scatter contribution becomes σ_s,c / μ
         //     per channel (matching the previous formulation).
         bool volumeScattered = false;
+#if HAS_VOLUME
         if (volumeCount > 0)
         {
             float tSurface = payload.hit ? payload.hitT : 1e20;
@@ -169,6 +170,7 @@
                 lastBsdfPdf = max(phasePdf, 1e-20);
             }
         }
+#endif // HAS_VOLUME
 
         // Branch: volume scatter / miss / surface hit
         if (volumeScattered)
@@ -314,6 +316,7 @@
 
             float3 T, B;
             float h = 0.0; // hair fiber offset in [-1,1]
+#if HAS_HAIR
             if (mat.type == 5)
             {
                 // Hair: build frame with fiber tangent as x-axis, tube surface normal as z.
@@ -367,6 +370,9 @@
                 BuildONB(N, T, B);
                 h = 0.0;
             }
+#else
+            BuildONB(N, T, B);
+#endif // HAS_HAIR
 
             // Shading-normal terminator handling: when the perturbed N points
             // away from the viewer but Ng faces it, the BSDF sees wi_local.z<=0
