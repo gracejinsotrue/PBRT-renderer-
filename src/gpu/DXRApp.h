@@ -12,11 +12,14 @@
 #include <cstdio>
 #include <cmath>
 #include <chrono>
+#include <memory>
 
 namespace nori
 {
     class Scene;
 }
+
+class Denoiser; // src/gpu/Denoiser.h OIDN wrapper
 
 using Microsoft::WRL::ComPtr;
 
@@ -137,6 +140,9 @@ public:
 
     void SaveSnapshot();
     void SaveSnapshotEXR();
+    void SaveAccumResourceEXR(ID3D12Resource *res, const char *filename);
+    void DenoiseAndSaveEXR();
+    void DenoiseToViewport();
 
     UINT GetWidth() const { return m_width; }
     UINT GetHeight() const { return m_height; }
@@ -231,7 +237,20 @@ private:
     // Output + descriptors
     ComPtr<ID3D12Resource> m_outputResource;
     ComPtr<ID3D12Resource> m_accumResource;
+    ComPtr<ID3D12Resource> m_albedoResource;
+    ComPtr<ID3D12Resource> m_normalResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
+
+    // In-app denoiser with OIDN, this is lazily initialized on first denoise request.
+    // when the camera is stationary, the accumulator keeps running and we periodically denoise the current mean into m_denoisedResource
+    // and display THAT, which is a clean preview that refines as spp grows.
+    // if you move the camera, it resets it back to the live progressive view.
+    std::unique_ptr<Denoiser> m_denoiser;
+    ComPtr<ID3D12Resource> m_denoisedResource;
+    bool m_showDenoised = false;
+    bool m_autoDenoise = true;
+    uint32_t m_nextDenoiseSpp = 16;
+    static constexpr uint32_t kMaxDenoiseSpp = 2048;
     UINT m_srvUavDescriptorSize = 0;
 
     ComPtr<ID3D12Resource> m_shaderTable;
@@ -296,6 +315,11 @@ private:
     void PopulateCommandList();
     void WaitForGpu(UINT frameIndex);
     void FlushCommandQueue();
+
+    // Denoiser helpers
+    std::vector<float> ReadbackAccumResource(ID3D12Resource *res);
+    bool RunDenoise(std::vector<float> &outRGB);
+    void UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba);
 
     // Resource helpers
     ComPtr<ID3D12Resource> CreateBuffer(

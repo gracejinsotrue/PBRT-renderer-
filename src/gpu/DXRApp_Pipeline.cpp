@@ -11,27 +11,29 @@ void DXRApp::CreateRaytracingPipeline()
     UINT totalSRVs = 7 + 1 + 2 + 1 + m_textureCount; // +1 for tangent buffer
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
 
+    const UINT numUAV = 4; // u0=output, u1=accum, u2=albedo AOV, u3=normal AOV
+
     D3D12_DESCRIPTOR_RANGE ranges[4]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    ranges[0].NumDescriptors = 2; // u0=output, u1=accumulation
+    ranges[0].NumDescriptors = numUAV;
     ranges[0].BaseShaderRegister = 0;
     ranges[0].OffsetInDescriptorsFromTableStart = 0;
     ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     ranges[1].NumDescriptors = totalSRVs;
     ranges[1].BaseShaderRegister = 0;
-    ranges[1].OffsetInDescriptorsFromTableStart = 2;
+    ranges[1].OffsetInDescriptorsFromTableStart = numUAV;
 
     ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     ranges[2].NumDescriptors = 1;
     ranges[2].BaseShaderRegister = 0;
     ranges[2].RegisterSpace = 1;
-    ranges[2].OffsetInDescriptorsFromTableStart = 2 + totalSRVs;
+    ranges[2].OffsetInDescriptorsFromTableStart = numUAV + totalSRVs;
 
     ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     ranges[3].NumDescriptors = volumeTexCount;
     ranges[3].BaseShaderRegister = 1;
     ranges[3].RegisterSpace = 1;
-    ranges[3].OffsetInDescriptorsFromTableStart = 2 + totalSRVs + 1;
+    ranges[3].OffsetInDescriptorsFromTableStart = numUAV + totalSRVs + 1;
 
     D3D12_ROOT_PARAMETER rp[2]{};
     rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -145,6 +147,25 @@ void DXRApp::CreateOutputResource()
                       "Output tex");
     }
 
+    // this is a denoised-preview display texture of RGBA8. Not shader-bound. only a copy
+    // target for UploadRGBA8 and a copy source for the backbuffer blit when the
+    // denoise-while-still preview is active. Same format as the output texture.
+    {
+        D3D12_RESOURCE_DESC td{};
+        td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        td.Width = m_width;
+        td.Height = m_height;
+        td.DepthOrArraySize = 1;
+        td.MipLevels = 1;
+        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        td.SampleDesc.Count = 1;
+        td.Flags = D3D12_RESOURCE_FLAG_NONE;
+        ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
+                                                        D3D12_RESOURCE_STATE_COMMON, nullptr,
+                                                        IID_PPV_ARGS(&m_denoisedResource)),
+                      "Denoised display tex");
+    }
+
     // Accumulation UAV texture
     {
         D3D12_RESOURCE_DESC td{};
@@ -162,10 +183,35 @@ void DXRApp::CreateOutputResource()
                       "Accum tex");
     }
 
+    // Denoiser AOV textures albedo + shading normal accumulated like accum.
+
+    // these get recreated with D3D12_HEAP_FLAG_SHARED + COMMON initial state so CUDA can import them;
+    {
+        D3D12_RESOURCE_DESC td{};
+        td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        td.Width = m_width;
+        td.Height = m_height;
+        td.DepthOrArraySize = 1;
+        td.MipLevels = 1;
+        td.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        td.SampleDesc.Count = 1;
+        td.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
+                                                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                        IID_PPV_ARGS(&m_albedoResource)),
+                      "Albedo AOV tex");
+        ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
+                                                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                        IID_PPV_ARGS(&m_normalResource)),
+                      "Normal AOV tex");
+    }
+
     // Descriptor heap layout:
     //  [0]  u0  UAV output texture
     //  [1]  u1  UAV accumulation texture
-    //  [2]  t0  SRV TLAS
+    //  [2]  u2  UAV albedo AOV texture
+    //  [3]  u3  UAV normal AOV texture
+    //  [4]  t0  SRV TLAS
     //  [3]  t1  SRV material structured buffer
     //  [4]  t2  SRV global vertex normals (raw)
     //  [5]  t3  SRV global index buffer (raw)
@@ -180,7 +226,7 @@ void DXRApp::CreateOutputResource()
     //  [13+N]     t0 (space1) SRV volume StructuredBuffer<GPUVolume>
     //  [14+N..)   t1+ (space1) SRV volume density Texture3D<float>[]
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
-    UINT totalDescriptors = 14 + m_textureCount + volumeTexCount;
+    UINT totalDescriptors = 16 + m_textureCount + volumeTexCount;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
     dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -208,7 +254,17 @@ void DXRApp::CreateOutputResource()
         h.ptr += m_srvUavDescriptorSize;
     }
 
-    // [2] SRV — TLAS
+    // [2] UAV — albedo AOV, [3] UAV — normal AOV
+    for (ID3D12Resource *aov : {m_albedoResource.Get(), m_normalResource.Get()})
+    {
+        D3D12_UNORDERED_ACCESS_VIEW_DESC ud{};
+        ud.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        ud.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+        m_device->CreateUnorderedAccessView(aov, nullptr, &ud, h);
+        h.ptr += m_srvUavDescriptorSize;
+    }
+
+    // [4] SRV — TLAS
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC sd{};
         sd.Format = DXGI_FORMAT_UNKNOWN;
@@ -360,13 +416,17 @@ void DXRApp::CreateOutputResource()
 
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
-    D3D12_RESOURCE_BARRIER b{};
-    b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    b.Transition.pResource = m_outputResource.Get();
-    b.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
-    b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    m_commandList->ResourceBarrier(1, &b);
+    D3D12_RESOURCE_BARRIER ib[2]{};
+    ID3D12Resource *initToCopySrc[2] = {m_outputResource.Get(), m_denoisedResource.Get()};
+    for (int i = 0; i < 2; i++)
+    {
+        ib[i].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        ib[i].Transition.pResource = initToCopySrc[i];
+        ib[i].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        ib[i].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+        ib[i].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    }
+    m_commandList->ResourceBarrier(2, ib);
     FlushCommandQueue();
     printf("[output] Output + accum textures + %u descriptors created\n", totalDescriptors);
 }

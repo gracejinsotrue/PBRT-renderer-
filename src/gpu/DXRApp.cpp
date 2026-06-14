@@ -1,5 +1,6 @@
 #include "DXRApp.h"
 #include "Win32Application.h"
+#include "Denoiser.h"
 
 #include <scene.h>
 #include <camera.h>
@@ -110,7 +111,14 @@ void DXRApp::OnRender()
         m_fenceValues[m_frameIndex] = cv + 1;
     }
 
-    // Auto-save EXR and exit when the configured sample count is reached
+    if (!m_headless && m_autoDenoise && m_nextDenoiseSpp <= kMaxDenoiseSpp &&
+        m_frameCount >= m_nextDenoiseSpp)
+    {
+        DenoiseToViewport();
+        m_nextDenoiseSpp *= 2;
+    }
+
+    // auto-save EXR and exit when the configured sample count is reached
     if (m_targetSamples > 0 && m_frameCount >= m_targetSamples)
     {
         SaveSnapshotEXR();
@@ -161,10 +169,15 @@ void DXRApp::PopulateCommandList()
     bb[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &bb[0]);
 
-    D3D12_RESOURCE_BARRIER uavBarrier{};
-    uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-    uavBarrier.UAV.pResource = m_accumResource.Get();
-    m_commandList->ResourceBarrier(1, &uavBarrier);
+    // UAV barriers for the accumulation + AOV textures because we are doing a lot of cross-frame read-modify-write bullshit
+    D3D12_RESOURCE_BARRIER uavBarriers[3]{};
+    ID3D12Resource *uavRes[3] = {m_accumResource.Get(), m_albedoResource.Get(), m_normalResource.Get()};
+    for (int i = 0; i < 3; i++)
+    {
+        uavBarriers[i].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        uavBarriers[i].UAV.pResource = uavRes[i];
+    }
+    m_commandList->ResourceBarrier(3, uavBarriers);
 
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
     const UINT sa = D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
@@ -192,7 +205,11 @@ void DXRApp::PopulateCommandList()
         bb[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         m_commandList->ResourceBarrier(2, bb);
 
-        m_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(), m_outputResource.Get());
+        // Present the denoised preview instead of the live noisy output when available. m_denoisedResource is kept in COPY_SOURCE.
+        ID3D12Resource *presentSrc = (m_showDenoised && m_denoisedResource)
+                                         ? m_denoisedResource.Get()
+                                         : m_outputResource.Get();
+        m_commandList->CopyResource(m_renderTargets[m_frameIndex].Get(), presentSrc);
 
         bb[0].Transition.pResource = m_renderTargets[m_frameIndex].Get();
         bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;

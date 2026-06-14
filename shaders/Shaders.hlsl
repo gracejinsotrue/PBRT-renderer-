@@ -96,6 +96,15 @@
     float lastBsdfPdf = 0.0;
     float eta = 1.0;
 
+    // Denoiser feature buffers. Captured at the FIRST non-delta
+    // interaction along the path, whre mirror/dielectric are skipped so the albedo /
+    // normal describe the surface seen *through* the reflection/refraction. (This is juts because a
+    // flat first-hit GBuffer on the specular spheres would make OIDN oversmooth
+    // them)
+    bool aovDone = false;
+    float3 aovAlbedo = float3(0, 0, 0);
+    float3 aovNormal = float3(0, 0, 0);
+
     for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
     {
         HitPayload payload;
@@ -185,6 +194,12 @@
             float envLum = dot(env, float3(0.2126, 0.7152, 0.0722));
             if (envLum > kFireflyClamp)
                 env *= kFireflyClamp / envLum;
+            if (!aovDone)
+            {
+                aovAlbedo = env;
+                aovNormal = float3(0, 0, 0);
+                aovDone = true;
+            }
             if (lastBsdfPdf == 0.0)
             {
                 Lo += throughput * env;
@@ -303,6 +318,13 @@
 
             if (mat.isEmitter)
             {
+
+                if (!aovDone)
+                {
+                    aovAlbedo = float3(1, 1, 1);
+                    aovNormal = N;
+                    aovDone = true;
+                }
                 if (lastBsdfPdf == 0.0)
                     Lo += throughput * MatRadiance(mat);
                 else
@@ -452,6 +474,12 @@
             }
             else if (mat.type == 0 || mat.type == 3 || mat.type == 4 || mat.type == 5)
             {
+                if (!aovDone)
+                {
+                    aovAlbedo = texAlbedo;
+                    aovNormal = N;
+                    aovDone = true;
+                }
                 Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
                 Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
 
@@ -498,6 +526,10 @@
     float4 prev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
     float4 accum = prev + float4(Lo, 1.0);
     g_accum[pixel] = accum;
+    float4 prevA = (frameCount == 0) ? float4(0, 0, 0, 0) : g_albedo[pixel];
+    g_albedo[pixel] = prevA + float4(aovAlbedo, 1.0);
+    float4 prevN = (frameCount == 0) ? float4(0, 0, 0, 0) : g_normal[pixel];
+    g_normal[pixel] = prevN + float4(aovNormal, 1.0);
 
     float3 averaged = accum.xyz / accum.w;
     averaged = averaged * pow(2.0, evCompensation); // exposure compensation in EV stops (0 = no change)
