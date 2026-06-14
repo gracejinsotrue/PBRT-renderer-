@@ -27,6 +27,7 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
     {
         return MicrofacetEval(wi, wo, mat);
     }
+#if HAS_DISNEY
     else if (mat.type == 4) // Disney
     {
         if (wi.z <= 0.0 || wo.z <= 0.0)
@@ -37,10 +38,13 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
         float fCC = DisneyClearcoatEval(wi, wo, mat);
         return (1.0 - mat.metallic) * (fDiffuse + fSheen) + fSpec + fCC;
     }
+#endif
+#if HAS_HAIR
     else if (mat.type == 5) // Hair
     {
         return HairBCSDF_Eval(wi, wo, mat, h);
     }
+#endif
     return float3(0, 0, 0);
 }
 
@@ -56,6 +60,7 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
     {
         return MicrofacetPdf(wi, wo, mat);
     }
+#if HAS_DISNEY
     else if (mat.type == 4) // Disney
     {
         if (wi.z <= 0.0 || wo.z <= 0.0)
@@ -66,10 +71,13 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
         float pdfCC = DisneyClearcoatPdf(wi, wo, mat);
         return p.pDiffuse * pdfDiff + p.pSpecular * pdfSpec + p.pClearcoat * pdfCC;
     }
+#endif
+#if HAS_HAIR
     else if (mat.type == 5) // Hair
     {
         return HairBCSDF_Pdf(wi, wo, mat, h);
     }
+#endif
     return 0.0;
 }
 
@@ -95,6 +103,7 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
     {
         return MicrofacetSample(wi, rng, mat, wo, pdf);
     }
+#if HAS_DISNEY
     else if (mat.type == 4) // Disney
     {
         if (wi.z <= 0.0)
@@ -152,10 +161,13 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
 
         return fTotal * wo.z / pdf;
     }
+#endif
+#if HAS_HAIR
     else if (mat.type == 5) // hiar
     {
         return HairBCSDF_Sample(wi, rng, mat, h, wo, pdf);
     }
+#endif
     wo = float3(0, 0, 1);
     pdf = 0.0;
     return float3(0, 0, 0);

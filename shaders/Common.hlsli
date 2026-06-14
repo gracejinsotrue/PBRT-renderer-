@@ -4,6 +4,18 @@
 #ifndef COMMON_HLSLI
 #define COMMON_HLSLI
 
+// Feature toggles for per-scene specialization. Default would be a full kernel, everythign is on.
+// A specialized build compiles a stripped .cso via dxc -D HAS_X=0 to drop unused material/volume code paths and shrink the kernel's register footprint.
+#ifndef HAS_HAIR
+#define HAS_HAIR 1
+#endif
+#ifndef HAS_DISNEY
+#define HAS_DISNEY 1
+#endif
+#ifndef HAS_VOLUME
+#define HAS_VOLUME 1
+#endif
+
 // Global resources
 
 RaytracingAccelerationStructure g_scene : register(t0);
@@ -133,9 +145,9 @@ static const float M_INV_PI = 0.31830988618379067154;
 static const int MAX_BOUNCES = 32;
 static const float kFireflyClamp = 3.402823466e+38;
 
-    // Ray payloads
+// Ray payloads
 
-    struct HitPayload
+struct HitPayload
 {
     float hitT;
     uint materialID;

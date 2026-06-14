@@ -145,7 +145,11 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 
     float pdfEms = es.pdfArea * dist * dist / cosLight;
     float w = BalanceHeuristic(pdfEms, pdfBsdf);
+#if HAS_VOLUME
     float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, dist, rng);
+#else
+    float3 volTr = float3(1, 1, 1);
+#endif
     return es.radiance * f * absCosTheta / max(pdfEms, 1e-20) * w * volTr * shadow.transmission;
 }
 
@@ -194,7 +198,11 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     float pdfBsdf = MaterialPdf(wi_local, wo_local, mat, h);
 
     float w = BalanceHeuristic(pdfEnv, pdfBsdf);
+#if HAS_VOLUME
     float3 volTr = MultiVolumeTransmittance(shadowOrigin, wi_world, 1e20, rng);
+#else
+    float3 volTr = float3(1, 1, 1);
+#endif
     float3 contrib = Lenv * f * absCosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
     float contribLum = dot(contrib, float3(0.2126, 0.7152, 0.0722));
     if (contribLum > kFireflyClamp)
