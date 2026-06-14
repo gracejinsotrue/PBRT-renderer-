@@ -1,4 +1,5 @@
 #include "DXRApp.h"
+#include "Denoiser.h"
 
 #include <camera.h>
 #include <scene.h>
@@ -74,7 +75,8 @@ void DXRApp::SetupCamera()
            m_camPos[0], m_camPos[1], m_camPos[2],
            m_camYaw * 180.0f / 3.14159f, m_camPitch * 180.0f / 3.14159f,
            m_camFovY * 180.0f / 3.14159f);
-    printf("[camera] Controls: WASD=move, QE=up/down, RightClick+drag=look, Both+drag=pan, P=snapshot\n");
+    printf("[camera] Controls: WASD=move, QE=up/down, RightClick+drag=look, Both+drag=pan\n");
+    printf("[camera]           P=snapshot, O=EXR, N=denoise now, M=toggle auto denoise-while-still (default ON)\n");
 
     m_camera.volumeCount = (uint32_t)m_volumes.size();
 }
@@ -167,6 +169,8 @@ void DXRApp::OnUpdate()
         RecomputeCameraPlane();
         m_frameCount = 0;
         m_cameraDirty = false;
+        m_showDenoised = false; // camera moved, therefore show the live (noisy) render again
+        m_nextDenoiseSpp = 16;  // restart the denoise-while-still cadence
     }
 }
 
@@ -177,6 +181,15 @@ void DXRApp::OnKeyDown(UINT8 key)
         SaveSnapshot();
     if (key == 'O')
         SaveSnapshotEXR();
+    if (key == 'N')
+        DenoiseToViewport(); // denoise the current accumulation now and show it
+    if (key == 'M')
+    {
+        m_autoDenoise = !m_autoDenoise;
+        if (!m_autoDenoise)
+            m_showDenoised = false;
+        printf("[denoise] auto denoise-while-still %s\n", m_autoDenoise ? "ON" : "OFF");
+    }
     if (key == 'L')
     {
         float cy = cosf(m_camYaw), sy = sinf(m_camYaw);
@@ -318,11 +331,11 @@ void DXRApp::SaveSnapshot()
     readback->Unmap(0, nullptr);
 }
 
-void DXRApp::SaveSnapshotEXR()
+std::vector<float> DXRApp::ReadbackAccumResource(ID3D12Resource *res)
 {
     WaitForGpu(m_frameIndex);
 
-    D3D12_RESOURCE_DESC desc = m_accumResource->GetDesc();
+    D3D12_RESOURCE_DESC desc = res->GetDesc();
     UINT64 rowPitch = ((desc.Width * 16 + 255) & ~255ULL);
     UINT64 totalSize = rowPitch * desc.Height;
 
@@ -334,7 +347,7 @@ void DXRApp::SaveSnapshotEXR()
 
     D3D12_RESOURCE_BARRIER b{};
     b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    b.Transition.pResource = m_accumResource.Get();
+    b.Transition.pResource = res;
     b.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
     b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -349,7 +362,7 @@ void DXRApp::SaveSnapshotEXR()
     dst.PlacedFootprint.Footprint.Depth = 1;
     dst.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
 
-    src.pResource = m_accumResource.Get();
+    src.pResource = res;
     src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
     m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
@@ -364,38 +377,170 @@ void DXRApp::SaveSnapshotEXR()
 
     const UINT W = (UINT)desc.Width;
     const UINT H = desc.Height;
-    const UINT pixelCount = W * H;
 
-    std::vector<float> rgb(pixelCount * 3);
+    std::vector<float> rgb((size_t)W * H * 3);
     for (UINT y = 0; y < H; y++)
     {
         const float *row = data + y * (rowPitch / sizeof(float));
         for (UINT x = 0; x < W; x++)
         {
-            float r = row[x * 4 + 0];
-            float g = row[x * 4 + 1];
-            float bv = row[x * 4 + 2];
             float w = row[x * 4 + 3];
             float inv = (w > 0.0f) ? (1.0f / w) : 0.0f;
-            UINT idx = y * W + x;
-            rgb[idx * 3 + 0] = r * inv;
-            rgb[idx * 3 + 1] = g * inv;
-            rgb[idx * 3 + 2] = bv * inv;
+            size_t idx = (size_t)y * W + x;
+            rgb[idx * 3 + 0] = row[x * 4 + 0] * inv;
+            rgb[idx * 3 + 1] = row[x * 4 + 1] * inv;
+            rgb[idx * 3 + 2] = row[x * 4 + 2] * inv;
         }
     }
 
     readback->Unmap(0, nullptr);
+    return rgb;
+}
 
+void DXRApp::SaveAccumResourceEXR(ID3D12Resource *res, const char *filename)
+{
+    std::vector<float> rgb = ReadbackAccumResource(res);
+    const char *err = nullptr;
+    int ret = SaveEXR(rgb.data(), (int)m_width, (int)m_height, 3, 0, filename, &err);
+    if (ret != TINYEXR_SUCCESS)
+        printf("[snapshot] EXR save failed (%s): %s\n", filename, err ? err : "unknown error");
+    else
+        printf("[snapshot] Saved %s (%u samples, HDR linear)\n", filename, m_frameCount);
+}
+
+bool DXRApp::RunDenoise(std::vector<float> &outRGB)
+{
+    if (!m_denoiser)
+    {
+        m_denoiser = std::make_unique<Denoiser>();
+        if (!m_denoiser->Init(m_width, m_height))
+        {
+            printf("[denoise] OIDN init failed — denoise unavailable\n");
+            m_denoiser.reset();
+            return false;
+        }
+    }
+
+    std::vector<float> beauty = ReadbackAccumResource(m_accumResource.Get());
+    std::vector<float> albedo = ReadbackAccumResource(m_albedoResource.Get());
+    std::vector<float> normal = ReadbackAccumResource(m_normalResource.Get());
+
+    auto t0 = std::chrono::high_resolution_clock::now();
+    bool ok = m_denoiser->Denoise(beauty.data(), albedo.data(), normal.data(), outRGB);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    if (ok)
+        printf("[denoise] %u spp denoised in %.1f ms\n", m_frameCount,
+               std::chrono::duration<float, std::milli>(t1 - t0).count());
+    return ok;
+}
+
+void DXRApp::DenoiseAndSaveEXR()
+{
+    std::vector<float> rgb;
+    if (!RunDenoise(rgb))
+        return;
+
+    std::string dir = filesystem::path(m_scenePath).parent_path().str();
+    if (!dir.empty())
+        dir += "/";
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u_denoised.exr", dir.c_str(), m_frameCount);
+
+    const char *err = nullptr;
+    int ret = SaveEXR(rgb.data(), (int)m_width, (int)m_height, 3, 0, filename, &err);
+    if (ret != TINYEXR_SUCCESS)
+        printf("[denoise] EXR save failed (%s): %s\n", filename, err ? err : "unknown error");
+    else
+        printf("[denoise] Saved %s\n", filename);
+}
+
+void DXRApp::DenoiseToViewport()
+{
+    std::vector<float> rgb;
+    if (!RunDenoise(rgb))
+        return;
+    const float ev = powf(2.0f, m_camera.evCompensation);
+    const float a = 2.51f, b = 0.03f, c = 2.43f, d = 0.59f, e = 0.14f;
+    auto tonemap = [&](float x) -> uint8_t
+    {
+        x *= ev;
+        x = (x * (a * x + b)) / (x * (c * x + d) + e);
+        x = x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
+        x = powf(x, 1.0f / 2.2f);
+        return (uint8_t)(x * 255.0f + 0.5f);
+    };
+
+    const size_t px = (size_t)m_width * m_height;
+    std::vector<uint8_t> rgba(px * 4);
+    for (size_t i = 0; i < px; i++)
+    {
+        rgba[i * 4 + 0] = tonemap(rgb[i * 3 + 0]);
+        rgba[i * 4 + 1] = tonemap(rgb[i * 3 + 1]);
+        rgba[i * 4 + 2] = tonemap(rgb[i * 3 + 2]);
+        rgba[i * 4 + 3] = 255;
+    }
+
+    UploadRGBA8(m_denoisedResource.Get(), rgba);
+    m_showDenoised = true;
+    printf("[denoise] showing denoised preview (move camera to resume live render)\n");
+}
+
+void DXRApp::UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba)
+{
+    WaitForGpu(m_frameIndex);
+
+    const UINT W = m_width, H = m_height;
+    UINT64 rowPitch = ((UINT64)W * 4 + 255) & ~255ULL;
+    auto upload = CreateBuffer(rowPitch * H, D3D12_RESOURCE_FLAG_NONE,
+                               D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
+
+    uint8_t *p;
+    upload->Map(0, nullptr, (void **)&p);
+    for (UINT y = 0; y < H; y++)
+        memcpy(p + (size_t)y * rowPitch, rgba.data() + (size_t)y * W * 4, (size_t)W * 4);
+    upload->Unmap(0, nullptr);
+
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    // The target texture sits in COPY_SOURCE between frames, move it to COPY_DEST.
+    D3D12_RESOURCE_BARRIER b{};
+    b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    b.Transition.pResource = res;
+    b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+    b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(1, &b);
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = res;
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    src.pResource = upload.Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    src.PlacedFootprint.Footprint.Width = W;
+    src.PlacedFootprint.Footprint.Height = H;
+    src.PlacedFootprint.Footprint.Depth = 1;
+    src.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    // Back to COPY_SOURCE so RecordPresentHeld can blit it to the backbuffer.
+    std::swap(b.Transition.StateBefore, b.Transition.StateAfter);
+    m_commandList->ResourceBarrier(1, &b);
+
+    FlushCommandQueue();
+}
+
+void DXRApp::SaveSnapshotEXR()
+{
     std::string snapshotDir = filesystem::path(m_scenePath).parent_path().str();
     if (!snapshotDir.empty())
         snapshotDir += "/";
     char filename[512];
     snprintf(filename, sizeof(filename), "%ssnapshot_%u.exr", snapshotDir.c_str(), m_frameCount);
-
-    const char *err = nullptr;
-    int ret = SaveEXR(rgb.data(), (int)W, (int)H, 3, 0, filename, &err);
-    if (ret != TINYEXR_SUCCESS)
-        printf("[snapshot] EXR save failed: %s\n", err ? err : "unknown error");
-    else
-        printf("[snapshot] Saved %s (%u samples, HDR linear)\n", filename, m_frameCount);
+    SaveAccumResourceEXR(m_accumResource.Get(), filename);
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u_albedo.exr", snapshotDir.c_str(), m_frameCount);
+    SaveAccumResourceEXR(m_albedoResource.Get(), filename);
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u_normal.exr", snapshotDir.c_str(), m_frameCount);
+    SaveAccumResourceEXR(m_normalResource.Get(), filename);
 }

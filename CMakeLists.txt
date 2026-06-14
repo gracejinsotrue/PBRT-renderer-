@@ -9,6 +9,9 @@ add_definitions(-DUNICODE -D_UNICODE)
 
 set(NORI_EXT ${CMAKE_SOURCE_DIR}/ext)
 
+# Intel Open Image Denoise (OIDN) SDK, prebuilt v2.4.1 (CUDA + CPU backends). Override -DOIDN_ROOT=... if moved.
+set(OIDN_ROOT "C:/oidn/oidn-2.4.1.x64.windows" CACHE PATH "OIDN SDK root")
+
 # build dependencies
 
 # PugiXML
@@ -100,13 +103,14 @@ add_executable(nori-dxr
     ${CMAKE_SOURCE_DIR}/src/gpu/DXRApp_Textures.cpp
     ${CMAKE_SOURCE_DIR}/src/gpu/DXRApp_Pipeline.cpp
     ${CMAKE_SOURCE_DIR}/src/gpu/DXRApp_Camera.cpp
+    ${CMAKE_SOURCE_DIR}/src/gpu/Denoiser.cpp
     # Emitters
     ${CMAKE_SOURCE_DIR}/src/cpu/area.cpp
     ${NORI_SOURCES}
 )
 add_dependencies(nori-dxr compile_shaders)
 
-target_include_directories(nori-dxr PRIVATE ${NORI_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src/gpu)
+target_include_directories(nori-dxr PRIVATE ${NORI_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src/gpu ${OIDN_ROOT}/include)
 
 if(MSVC)
     target_compile_definitions(nori-dxr PRIVATE
@@ -122,8 +126,18 @@ endif()
 target_link_libraries(nori-dxr PRIVATE
     d3d12 dxgi dxguid d3dcompiler
     pugixml tbb_static
+    ${OIDN_ROOT}/lib/OpenImageDenoise.lib
 )
 
 add_custom_command(TARGET nori-dxr POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_CSO} $<TARGET_FILE_DIR:nori-dxr>/Shaders.cso
+)
+add_custom_command(TARGET nori-dxr POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${OIDN_ROOT}/bin/OpenImageDenoise.dll
+        ${OIDN_ROOT}/bin/OpenImageDenoise_core.dll
+        ${OIDN_ROOT}/bin/OpenImageDenoise_device_cuda.dll
+        ${OIDN_ROOT}/bin/OpenImageDenoise_device_cpu.dll
+        ${OIDN_ROOT}/bin/tbb12.dll
+        $<TARGET_FILE_DIR:nori-dxr>
 )

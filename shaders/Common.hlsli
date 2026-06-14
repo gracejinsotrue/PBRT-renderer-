@@ -22,6 +22,10 @@ RaytracingAccelerationStructure g_scene : register(t0);
 RWTexture2D<float4> g_output : register(u0);
 RWTexture2D<float4> g_accum : register(u1);
 
+// Denoiser feature buffers (AOVs)
+RWTexture2D<float4> g_albedo : register(u2);
+RWTexture2D<float4> g_normal : register(u3);
+
 // Constant buffer
 
 cbuffer CameraParams : register(b0)
