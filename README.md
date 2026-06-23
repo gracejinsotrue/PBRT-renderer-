@@ -3,9 +3,10 @@ This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Ren
 
 Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
 
-1. I render a final scene of a "self-portrait" surrounded by nerdy objects I like. This scene contains roughly 2.5 million triangles, 100+ meshes, 100+ distinct textures. 
+1. I render a final scene of a "self-portrait" surrounded by nerdy objects I like. This scene contains roughly 2.5 million triangles, 100+ meshes, 100+ distinct textures.
+2. In terms of perf benchmarking, it is able to render 10+ million triangles
 
-2. Quite a few other interesting scenes are to come...
+3. Quite a few other interesting scenes are to come...
 
 ---
 
