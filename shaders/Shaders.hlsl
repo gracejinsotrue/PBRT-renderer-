@@ -480,7 +480,14 @@
                     aovNormal = N;
                     aovDone = true;
                 }
+#ifndef USE_RIS
+#define USE_RIS 1
+#endif
+#if USE_RIS
+                Lo += throughput * RISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+#else
                 Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+#endif
                 Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
 
                 float3 wo_local;
