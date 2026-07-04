@@ -156,6 +156,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 // restir
 #ifndef RIS_M
 #define RIS_M 8
+#endif
 
 struct Reservoir
 {

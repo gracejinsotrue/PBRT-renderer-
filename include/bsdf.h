@@ -52,7 +52,8 @@ struct BSDFGPUData
         DIELECTRIC = 2,
         MICROFACET = 3,
         DISNEY = 4,
-        HAIR = 5
+        HAIR = 5,
+        SUBSURFACE = 6
     };
     int type = DIFFUSE;
     float albedo[3] = {0.5f, 0.5f, 0.5f};

@@ -481,7 +481,7 @@
                     aovDone = true;
                 }
 #ifndef USE_RIS
-#define USE_RIS 1
+#define USE_RIS 0
 #endif
 #if USE_RIS
                 Lo += throughput * RISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
@@ -510,6 +510,19 @@
 
                 throughput *= weight;
                 lastBsdfPdf = max(bsdfPdf, 1e-20);
+            }
+            // SSS
+            else if (mat.type == 6)
+            {
+                if (!aovDone)
+                {
+                    aovAlbedo = texAlbedo;
+                    aovNormal = N;
+                    aovDone = true;
+                }
+                float ndv = max(dot(N, -ray.Direction), 0.0);
+                Lo += throughput * MatAlbedo(mat) * ndv;
+                break;
             }
             else
             {

@@ -9,7 +9,7 @@ add_definitions(-DUNICODE -D_UNICODE)
 
 set(NORI_EXT ${CMAKE_SOURCE_DIR}/ext)
 
-# Intel Open Image Denoise (OIDN) SDK, prebuilt v2.4.1 (CUDA + CPU backends). Override -DOIDN_ROOT=... if moved.
+# Intel Open Image Denoise (OIDN) SDK, prebuilt v2.4.1
 set(OIDN_ROOT "C:/oidn/oidn-2.4.1.x64.windows" CACHE PATH "OIDN SDK root")
 
 # build dependencies
@@ -63,6 +63,7 @@ set(NORI_SOURCES
     ${CMAKE_SOURCE_DIR}/src/cpu/microfacet.cpp
     ${CMAKE_SOURCE_DIR}/src/cpu/disney.cpp
     ${CMAKE_SOURCE_DIR}/src/cpu/hair.cpp
+    ${CMAKE_SOURCE_DIR}/src/cpu/subsurface.cpp
     ${CMAKE_SOURCE_DIR}/src/cpu/homogeneous.cpp
     ${CMAKE_SOURCE_DIR}/src/cpu/heterogeneous.cpp
 )

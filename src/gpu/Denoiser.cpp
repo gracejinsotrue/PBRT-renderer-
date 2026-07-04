@@ -37,7 +37,7 @@ bool Denoiser::Init(unsigned width, unsigned height)
     m_filter.setImage("normal", m_bNormal, oidn::Format::Float3, m_w, m_h);
     m_filter.setImage("output", m_bOutput, oidn::Format::Float3, m_w, m_h);
     m_filter.set("hdr", true);
-    m_filter.set("cleanAux", true); // accumulated AOVs are noise-free
+    m_filter.set("cleanAux", true);
     m_filter.set("quality", oidn::Quality::High);
     m_filter.commit();
     if (m_device.getError(err) != oidn::Error::None)
