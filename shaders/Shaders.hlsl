@@ -15,9 +15,8 @@
 #include "Emitter.hlsli"
 #include "Envmap.hlsli"
 #include "Volume.hlsl"
+#include "Subsurface.hlsli"
 
-// (debug) When 1, RayGen replaces path tracing with a Monte Carlo estimate
-// of the envmap integral to validate the importance sampler. 0 = normal.
 #define ENVMAP_DEBUG_SAMPLER 0
 
 // Ray Generation
@@ -514,15 +513,92 @@
             // SSS
             else if (mat.type == 6)
             {
+                // AOV: capture skin color/normal at the entry so OIDN has features.
                 if (!aovDone)
                 {
                     aovAlbedo = texAlbedo;
                     aovNormal = N;
                     aovDone = true;
                 }
-                float ndv = max(dot(N, -ray.Direction), 0.0);
-                Lo += throughput * MatAlbedo(mat) * ndv;
-                break;
+                float3 I = ray.Direction;
+
+                mat.roughness *= lerp(1.0, 0.65, saturate(mat.specular * 2.0));
+                float rough = mat.roughness;
+                float aR = max(rough * rough, 1e-4);
+                float3 wiL = ToLocal(-I, T, B, N); // .z = cos to N
+
+                float3 wmL = (rough > 1e-3)
+                                 ? BeckmannSample(float2(NextFloat(rng), NextFloat(rng)), aR)
+                                 : float3(0, 0, 1);
+                float3 wm = normalize(ToWorld(wmL, T, B, N));
+                float cosThetaM = dot(-I, wm);
+                if (cosThetaM <= 0.0) // back-facing microfacet at grazing, therefore use N
+                {
+                    wm = N;
+                    wmL = float3(0, 0, 1);
+                    cosThetaM = dot(-I, N);
+                }
+                float G1i = (rough > 1e-3) ? SmithG1(wiL, wmL, aR) : 1.0;
+                float Fr = FresnelDielectric(cosThetaM, mat.extIOR, mat.intIOR);
+
+                Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+                Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+
+                if (NextFloat(rng) < Fr)
+                {
+                    float3 refl = reflect(I, wm);
+                    float3 woL = ToLocal(refl, T, B, N);
+                    if (woL.z <= 0.0)
+                        break; // reflected below the surface
+                    float weight = (rough > 1e-3)
+                                       ? G1i * SmithG1(woL, wmL, aR) * cosThetaM / max(wiL.z * wmL.z, 1e-6)
+                                       : 1.0;
+                    float pdfSpec = (rough > 1e-3)
+                                        ? Fr * BeckmannDCosTheta(wmL, aR) / max(4.0 * cosThetaM, 1e-6)
+                                        : 0.0;
+                    ray.Origin = hitPos + Ng * 0.001;
+                    ray.Direction = refl;
+                    ray.TMin = 0.0;
+                    ray.TMax = 1e20;
+                    throughput *= weight;
+                    lastBsdfPdf = pdfSpec;
+                }
+                else
+                {
+                    float3 refr = refract(I, wm, mat.extIOR / mat.intIOR);
+                    if (dot(refr, refr) < 1e-8)
+                    {
+                        ray.Origin = hitPos + Ng * 0.001;
+                        ray.Direction = reflect(I, wm);
+                        ray.TMin = 0.0;
+                        ray.TMax = 1e20;
+                        lastBsdfPdf = 0.0;
+                    }
+                    else
+                    {
+
+                        float sssSigmaT;
+                        float3 sssAlpha;
+                        float3 sssTint = float3(mat.sheen, mat.sheenTint, mat.clearcoat);
+                        SubsurfaceParams(MatAlbedo(mat) * sssTint, mat.subsurface, sssSigmaT, sssAlpha);
+                        float sssG = mat.anisotropic;
+
+                        float3 exitPos, exitDir, exitN, tmul;
+                        bool exited = SubsurfaceWalk(
+                            hitPos - Ng * 0.001, normalize(refr), payload.materialID,
+                            sssSigmaT, sssAlpha, sssG, mat.intIOR, mat.extIOR,
+                            rng, exitPos, exitDir, exitN, tmul);
+
+                        if (!exited)
+                            break;
+                        throughput *= tmul;
+                        ray.Origin = OffsetRayOrigin(exitPos, exitN, exitN);
+                        ray.Direction = exitDir;
+                        ray.TMin = 0.0;
+                        ray.TMax = 1e20;
+                        lastBsdfPdf = 0.0;
+                    }
+                }
             }
             else
             {

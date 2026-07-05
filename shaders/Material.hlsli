@@ -45,6 +45,17 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
         return HairBCSDF_Eval(wi, wo, mat, h);
     }
 #endif
+    else if (mat.type == 6)
+    {
+        if (wi.z <= 0.0 || wo.z <= 0.0)
+            return float3(0, 0, 0);
+        float a = max(mat.roughness * mat.roughness, 1e-4);
+        float3 wh = normalize(wi + wo);
+        float D = BeckmannD(wh, a);
+        float Fr = FresnelDielectric(dot(wh, wi), mat.extIOR, mat.intIOR);
+        float G = SmithG1(wi, wh, a) * SmithG1(wo, wh, a);
+        return float3(1, 1, 1) * (D * Fr * G / max(4.0 * wi.z * wo.z, 1e-10));
+    }
     return float3(0, 0, 0);
 }
 
@@ -78,6 +89,15 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
         return HairBCSDF_Pdf(wi, wo, mat, h);
     }
 #endif
+    else if (mat.type == 6)
+    {
+        if (wi.z <= 0.0 || wo.z <= 0.0)
+            return 0.0;
+        float a = max(mat.roughness * mat.roughness, 1e-4);
+        float3 wh = normalize(wi + wo);
+        float Fr = FresnelDielectric(dot(wh, wi), mat.extIOR, mat.intIOR);
+        return Fr * BeckmannDCosTheta(wh, a) / max(4.0 * dot(wh, wo), 1e-10);
+    }
     return 0.0;
 }
 

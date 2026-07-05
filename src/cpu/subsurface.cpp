@@ -29,6 +29,13 @@ public:
         m_intIOR = propList.getFloat("intIOR", 1.33f);
         m_extIOR = propList.getFloat("extIOR", 1.000277f);
         m_g = propList.getFloat("g", 0.0f);
+        m_roughness = propList.getFloat("roughness", 0.3f); // GGX/Beckmann interface roughness
+        m_albedoTexture = propList.getString("albedoTexture", "");
+        m_normalTexture = propList.getString("normalTexture", "");
+        m_roughnessTexture = propList.getString("roughnessTexture", "");
+        m_tint = propList.getColor("tint", Color3f(1.f, 1.f, 1.f));
+        m_specular = propList.getFloat("specular", 0.0f);
+        m_specularTexture = propList.getString("specularTexture", "");
     }
 
     Color3f eval(const BSDFQueryRecord &bRec) const
@@ -70,6 +77,15 @@ public:
         d.extIOR = m_extIOR;
         d.subsurface = m_radius;
         d.anisotropic = m_g;
+        d.roughness = m_roughness;
+        d.albedoTexture = m_albedoTexture;
+        d.normalTexture = m_normalTexture;
+        d.roughnessTexture = m_roughnessTexture;
+        d.sheen = m_tint.r();
+        d.sheenTint = m_tint.g();
+        d.clearcoat = m_tint.b();
+        d.specular = m_specular;
+        d.specularTexture = m_specularTexture;
         return d;
     }
 
@@ -92,6 +108,13 @@ private:
     float m_intIOR;
     float m_extIOR;
     float m_g;
+    float m_roughness;
+    std::string m_albedoTexture;
+    std::string m_normalTexture;
+    std::string m_roughnessTexture;
+    Color3f m_tint;
+    float m_specular;
+    std::string m_specularTexture;
 };
 
 NORI_REGISTER_CLASS(Subsurface, "subsurface");
