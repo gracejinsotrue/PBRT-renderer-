@@ -577,10 +577,21 @@
                     else
                     {
 
+                        float3 sssTint = float3(mat.sheen, mat.sheenTint, mat.clearcoat);
+                        float3 aSharp = MatAlbedo(mat);
+                        float3 aBlur = aSharp;
+                        float3 sssDetail = float3(1, 1, 1);
+                        if (mat.albedoTexIndex != 0xFFFFFFFF)
+                        {
+                            float blurLod = ComputeTexLOD(g_textures[mat.albedoTexIndex], uvFoot) + 4.0;
+                            aBlur = g_textures[mat.albedoTexIndex].SampleLevel(g_sampler, hitUV, blurLod).rgb;
+                            sssDetail = clamp(aSharp / max(aBlur, float3(1e-3, 1e-3, 1e-3)),
+                                              float3(0.5, 0.5, 0.5), float3(2.0, 2.0, 2.0));
+                        }
+
                         float sssSigmaT;
                         float3 sssAlpha;
-                        float3 sssTint = float3(mat.sheen, mat.sheenTint, mat.clearcoat);
-                        SubsurfaceParams(MatAlbedo(mat) * sssTint, mat.subsurface, sssSigmaT, sssAlpha);
+                        SubsurfaceParams(aBlur * sssTint, mat.subsurface, sssSigmaT, sssAlpha);
                         float sssG = mat.anisotropic;
 
                         float3 exitPos, exitDir, exitN, tmul;
@@ -591,7 +602,7 @@
 
                         if (!exited)
                             break;
-                        throughput *= tmul;
+                        throughput *= tmul * sssDetail;
                         ray.Origin = OffsetRayOrigin(exitPos, exitN, exitN);
                         ray.Direction = exitDir;
                         ray.TMin = 0.0;
