@@ -1,7 +1,7 @@
 # DirectX12 Physically-Based Renderer Running on My Sad Ass RTX A3000
-This is a physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell. This was their first ever offering of PBR class by the way! So cool! More on physics-based rendering here: https://pbrt.org/
+A physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell, the first-ever offering of the class ([more on PBR here](https://pbrt.org/)). More accurately, I primarily wrote the math-heavy logic (hair, volumetrics, etc.) on CPU during the school semester, then in my free time during my summer internship as as a systems software engineering intern at [LinkedIn](https://www.linkedin.com/blog/engineering)  I extended this project to run primarily on GPU.
 
-Anyways, every ray bounce, material evaluation, and light sample runs entirely on the GPU using DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. Coupled with the rendering techniques I implemented, spanning hair/fiber rendering, skin, Disney BSDF (this is just a commonly- used in industry material shading model), etc., a person can construct a very diverse/complicated and/or beautiful scene with physically-accurate lighting. 
+Every ray bounce, material evaluation, and light sample runs entirely on the GPU via DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. With the techniques implemented here (hair/fiber rendering, skin, the Disney BSDF, and more) you can build a diverse, complicated, beautiful scene with physically-accurate lighting.
 
 1. I render a final scene of a "self-portrait" surrounded by nerdy objects I like. This scene contains roughly 2.5 million triangles, 100+ meshes, 100+ distinct textures.
 2. In terms of perf benchmarking, it is able to render 10+ million triangles
