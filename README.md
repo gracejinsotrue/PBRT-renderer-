@@ -10,6 +10,27 @@ Anyways, every ray bounce, material evaluation, and light sample runs entirely o
 
 ---
 
+## Contents
+
+- [Final Render (CS5630 Rendering Competition)](#final-render-that-i-submitted-for-cs5630-rendering-competition)
+- [Architecture](#architecture)
+- [Rendering Techniques](#rendering-techniques)
+  - [Hair (Chiang et al. 2016 BCSDF)](#hair-chiang-et-al-2016-bcsdf)
+  - [Disney "Principled" BRDF](#disney-principled-brdf)
+  - [Volumetric Participating Media](#volumetric-participating-media)
+  - [Textures](#textures)
+  - [Normal Mapping](#normal-mapping)
+  - [Depth of Field (Thin Lens Model)](#depth-of-field-thin-lens-model)
+  - [Image-Based Lighting (IBL)](#image-based-lighting-ibl)
+- [Performance & Optimization](#performance--optimization)
+  - [Megakernel vs wavefront](#megakernel-vs-wavefront)
+  - [Measurement setup](#measurement-setup)
+  - [The bottleneck](#the-bottleneck)
+  - [Measured optimizations](#measured-optimizations)
+  - [Next](#next)
+
+---
+
 ## Final Render That I Submitted for CS5630 Rendering Competition
 
 The scene was assembled in Blender (about 100 hours in a piece of software I did not know going in), exported mesh by mesh with all world-space transforms baked in, and post-processed with Intel's open-source denoiser.
