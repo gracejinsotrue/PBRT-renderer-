@@ -180,3 +180,49 @@ Environment samples are combined with BSDF samples using MIS.
 |---|---|
 | ![IBL Diffuse](images/ibl_ours.png) | ![IBL Mirror](images/ibl_mirror_ours.png) |
 
+---
+
+## Performance & Optimization
+
+The renderer is a **megakernel path tracer**: the whole bounce loop, every BSDF above, next-event estimation with MIS, and the volume tracking all run inline in one `RayGen()` shader. It's a progressive accumulator, so each frame adds one sample per pixel and the image refines over time. All development and profiling was on a **mobile RTX A3000**, which throttles and crashes under sustained load, so this section leans on cheap measurements rather than heavy reference renders.
+
+### Megakernel vs wavefront
+
+The alternative to a megakernel is a **wavefront** tracer that splits the work into separate generation, intersection, shading, and shadow passes and sorts rays by material between bounces. That's the design "Megakernels Considered Harmful" (Laine, Karras, Aila 2013) argues for, and it's what PBRT's GPU backend uses; it gets higher throughput on big scenes because sorting restores coherence and each small pass hits higher occupancy.
+
+The tradeoff is that a wavefront tracer spills path state to global memory between passes and turns every new material into a scheduling problem. The megakernel keeps path state in registers across bounces and keeps the whole renderer in one shader, which made adding hair, then Disney, then volumes, then subsurface scattering cheap. For my renderer that outputs an accumulated, denoised final (not a 1-spp real-time frame), this iterative design choice was ok. 
+
+### Measurement setup
+
+Two properties make measurement cheap. The renderer is **byte-for-byte deterministic** (the RNG is seeded only from the frame counter), so any render-identical change is verified by hashing the output EXR instead of eyeballing it. And because it's a progressive accumulator, every frame is ~1 spp of identical work, so per-frame `DispatchRays` GPU time is the per-sample metric, captured with a `TIMESTAMP` query heap behind a `--profile` flag. That matters because wall-clock is misleading: on a 64-spp material scene wall-clock reads **114.8 ms/spp** but the pure GPU dispatch is **88.0 ms**, so ~23% of "render time" is CPU/present/fence overhead. Frame-to-frame spread is ~0.4%, so min-of-N GPU time is a stable A/B reference.
+
+### The bottleneck
+
+Nsight on the primary DirectX `DispatchRays` call:
+
+| Metric | Value | Meaning |
+|---|---|---|
+| SM warp occupancy | ~27% | about two-thirds of warp slots idle |
+| Active threads per warp | ~7 of 32 (~22%) | heavy **divergence** |
+| SM vs RT-core throughput | 46% vs 23% | **shading-bound**, not intersection-bound |
+
+The kernel is bound by **divergence and latency** ( who would have known) not by ray tracing: pixels in a warp take different BSDFs, bounce counts, and lights, so the lanes can't stay in lockstep. To check whether register pressure from inlining every material was the cause, I wrote some compile guards that produce a stripped kernel that is **63% smaller** (92,580 → 34,412 bytes) but rendered benchmark scenes bit-identical. Occupancy did **not** rise: **26.7% full → 14.1% stripped**. So it is not register-bound, and per-scene specialization was dropped. The real fix is structural (a wavefront rewrite), which I will build next...
+
+### Measured optimizations
+
+| Change | Before → After | Result |
+|---|---|---|
+| **Ray payload** shrink | 80 B → 28 B | ~5–10% faster on the hair scene, bit-identical output |
+| **Owen-Sobol sampler** (vs PCG white noise) | — | lower variance per sample; unbiased (64-spp means match to 0.01%) |
+| **64-spp + OIDN** vs 2048-spp reference | relMSE 0.182 → 0.006 | ~30× lower error, near-reference quality at a fraction of the GPU time |
+
+**Ray payload.** The per-ray payload originally carried the geometric normal, environment radiance, shading normal, UV, tangent, and a hair parameter. Most of that is recomputable from what DXR already returns, so the payload now ships two barycentric floats and `RayGen` recomputes normal/UV/tangent from the vertex buffers (geometric normal from the primitive ID, envmap radiance from a miss lookup). Occupancy was unchanged (27.0 → 26.7%), so the hair win came from reduced per-ray state traffic across `TraceRay`, not from freeing registers.
+
+**Sampler.** Independent PCG white noise was replaced with padded, per-pixel-decorrelated Owen-scrambled Sobol for lower variance at equal spp. 
+
+**Denoiser.** Rather than brute-forcing samples, a low-spp frame is denoised with Intel OIDN, fed **albedo and shading-normal AOVs** captured at the first non-delta hit (so mirror/glass surfaces carry the surface seen through them and don't get smeared). OIDN runs both offline and in-app (CUDA backend, ~30 ms at 800×600, bit-identical to offline). A **denoise-while-still** mode auto-denoises at power-of-two spp milestones while the camera is stationary. D3D12↔CUDA interop was measured at only ~10% of the 30 ms denoise floor and skipped as not worth the complexity. In short, this just makes life a bit easier.
+
+### Next
+
+Convert the `TraceRay` loop to **inline ray tracing (`RayQuery`, DXR 1.1)** and A/B it with the timestamp harness. The larger lever remains the wavefront + ray-sorting rewrite.
+
