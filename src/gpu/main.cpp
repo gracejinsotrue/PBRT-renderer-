@@ -11,12 +11,14 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: nori-dxr <scene.xml> [--headless] [--denoise]\n");
         fprintf(stderr, "  --headless  : render and exit (respects sampler sampleCount)\n");
         fprintf(stderr, "  --denoise   : also run OIDN on the result, save snapshot_N_denoised.exr\n");
+        fprintf(stderr, "  --profile   : GPU-timestamp the DispatchRays call, print ms/frame stats\n");
         fprintf(stderr, "Example: nori-dxr ..\\scenes\\a4\\cbox\\cbox_mis.xml\n");
         return 1;
     }
 
     bool headless = false;
     bool denoise = false;
+    bool profile = false;
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "--headless") == 0)
@@ -27,16 +29,21 @@ int main(int argc, char **argv)
         {
             denoise = true;
         }
+        else if (strcmp(argv[i], "--profile") == 0)
+        {
+            profile = true;
+        }
     }
 
     try
     {
         HINSTANCE hInstance = GetModuleHandle(nullptr);
         DXRApp app(argv[1], headless);
+        app.SetProfiling(profile);
 
         if (headless)
         {
-            // Headless mode: init, render to target samples, save, exit
+            // headless mode: init, render to target samples, save, exit
             app.OnInit();
             fprintf(stderr, "[headless] Rendering...\n");
 

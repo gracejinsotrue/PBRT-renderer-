@@ -7,6 +7,7 @@
 #include <filesystem/resolver.h>
 
 #include <fstream>
+#include <cstring>
 
 using namespace nori;
 
@@ -65,6 +66,7 @@ void DXRApp::OnInit()
     }
     CreateCommandAllocatorsAndList();
     CreateFence();
+    CreateProfiler();
     CreateAccelerationStructure();
     SetupVolumes();
     CreateSceneBuffers();
@@ -111,6 +113,24 @@ void DXRApp::OnRender()
         m_fenceValues[m_frameIndex] = cv + 1;
     }
 
+    // Read back the DispatchRays timestamps. In headless the fence wait above is
+    // fully synchronous so this frame's resolve has completed; in
+    // windowed mode it may lag a frame, which is fine since work is identical.
+    if (m_profile && m_tsReadback)
+    {
+        D3D12_RANGE rr{0, 2 * sizeof(UINT64)};
+        void *p = nullptr;
+        if (SUCCEEDED(m_tsReadback->Map(0, &rr, &p)) && p)
+        {
+            UINT64 t[2];
+            memcpy(t, p, sizeof(t));
+            D3D12_RANGE wr{0, 0};
+            m_tsReadback->Unmap(0, &wr);
+            if (t[1] > t[0] && m_tsFrequency)
+                m_frameMs.push_back((double)(t[1] - t[0]) * 1000.0 / (double)m_tsFrequency);
+        }
+    }
+
     if (!m_headless && m_autoDenoise && m_nextDenoiseSpp <= kMaxDenoiseSpp &&
         m_frameCount >= m_nextDenoiseSpp)
     {
@@ -131,6 +151,7 @@ void DXRApp::OnRender()
 
 void DXRApp::OnDestroy()
 {
+    PrintProfileSummary();
     for (UINT i = 0; i < FrameCount; i++)
         WaitForGpu(i);
     if (m_fenceEvent)
@@ -191,7 +212,11 @@ void DXRApp::PopulateCommandList()
     dr.Width = m_width;
     dr.Height = m_height;
     dr.Depth = 1;
+    if (m_profile)
+        m_commandList->EndQuery(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 0);
     m_commandList->DispatchRays(&dr);
+    if (m_profile)
+        m_commandList->EndQuery(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
 
     bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     bb[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
@@ -220,5 +245,8 @@ void DXRApp::PopulateCommandList()
     {
         m_commandList->ResourceBarrier(1, &bb[0]);
     }
+    if (m_profile)
+        m_commandList->ResolveQueryData(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP,
+                                        0, 2, m_tsReadback.Get(), 0);
     ThrowIfFailed(m_commandList->Close(), "Close");
 }

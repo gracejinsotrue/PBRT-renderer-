@@ -132,6 +132,10 @@ public:
     void OnRender();
     void OnDestroy();
 
+    // Enable GPU-timestamp profiling of the DispatchRays call (--profile).
+    // Must be called before OnInit() so the query heap gets created.
+    void SetProfiling(bool enable) { m_profile = enable; }
+
     void OnKeyDown(UINT8 key);
     void OnKeyUp(UINT8 key);
     void OnMouseDown(UINT button, int x, int y);
@@ -179,6 +183,20 @@ private:
     ComPtr<ID3D12Fence> m_fence;
     UINT64 m_fenceValues[FrameCount] = {};
     HANDLE m_fenceEvent = nullptr;
+
+    // GPU-timestamp profiling. A 2-slot TIMESTAMP query heap
+    // brackets the DispatchRays in PopulateCommandList; the ticks are resolved
+    // to m_tsReadback and read back in OnRender to get pure kernel ms/frame.
+    // Every frame is ~1 spp of identical work, the same as progressive accumulator, so
+    // per-frame dispatch ms IS the metric. Authoritative measurement path is
+    // --headless which is fully synchronous (or so I h ope); windowed sampling is
+    // best-effort and may lag a frame. See PrintProfileSummary for stats.
+    bool m_profile = false;
+    ComPtr<ID3D12QueryHeap> m_tsQueryHeap;
+    ComPtr<ID3D12Resource> m_tsReadback;
+    UINT64 m_tsFrequency = 0;
+    std::vector<double> m_frameMs;
+    bool m_profileSummaryPrinted = false;
 
     // Acceleration structure
     std::vector<MeshGPUData> m_meshGPU;
@@ -282,6 +300,8 @@ private:
     void CreateRTVHeap();
     void CreateCommandAllocatorsAndList();
     void CreateFence();
+    void CreateProfiler();
+    void PrintProfileSummary();
     void CreateAccelerationStructure();
     void SetupVolumes();
     void CreateSceneBuffers();

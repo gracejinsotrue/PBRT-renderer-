@@ -1,5 +1,6 @@
 #include "DXRApp.h"
 #include "Win32Application.h"
+#include <algorithm>
 
 // D3D12 device, command queue, swap chain, RTV heap, command allocators,
 // fence, buffer creation, and GPU synchronization.
@@ -123,6 +124,53 @@ void DXRApp::CreateFence()
     m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     if (!m_fenceEvent)
         throw std::runtime_error("CreateEvent");
+}
+
+void DXRApp::CreateProfiler()
+{
+    if (!m_profile)
+        return;
+    D3D12_QUERY_HEAP_DESC qd{};
+    qd.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+    qd.Count = 2; // slot 0 = before DispatchRays, slot 1 = after
+    ThrowIfFailed(m_device->CreateQueryHeap(&qd, IID_PPV_ARGS(&m_tsQueryHeap)), "QueryHeap");
+    // Readback heap resources live permanently in COPY_DEST, which is what ResolveQueryData writes into.
+    m_tsReadback = CreateBuffer(2 * sizeof(UINT64), D3D12_RESOURCE_FLAG_NONE,
+                                D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
+    ThrowIfFailed(m_commandQueue->GetTimestampFrequency(&m_tsFrequency), "TSFreq");
+    m_frameMs.reserve(4096);
+    printf("[profile] GPU timestamp profiling ON (%.3f MHz timestamp clock)\n",
+           (double)m_tsFrequency / 1e6);
+}
+
+void DXRApp::PrintProfileSummary()
+{
+    if (!m_profile || m_profileSummaryPrinted)
+        return;
+    m_profileSummaryPrinted = true;
+
+    const size_t warmup = 8;
+    if (m_frameMs.size() <= warmup)
+    {
+        printf("[profile] only %zu frames collected (<= %zu warmup) — no summary\n",
+               m_frameMs.size(), warmup);
+        return;
+    }
+    std::vector<double> s(m_frameMs.begin() + warmup, m_frameMs.end());
+    std::sort(s.begin(), s.end());
+    const size_t n = s.size();
+    double sum = 0.0;
+    for (double v : s)
+        sum += v;
+    const double mean = sum / (double)n;
+    const double mn = s.front();
+    const double median = s[n / 2];
+    const double p95 = s[(size_t)(0.95 * (double)(n - 1))];
+    printf("[profile] DispatchRays over %zu frames (dropped %zu warmup):\n", n, warmup);
+    printf("[profile]   min %.4f  median %.4f  mean %.4f  p95 %.4f  (ms)\n",
+           mn, median, mean, p95);
+    // min is the least thermally-throttled sample
+    printf("[profile]   min => %.1f dispatch/s\n", 1000.0 / mn);
 }
 
 ComPtr<ID3D12Resource> DXRApp::CreateBuffer(UINT64 size, D3D12_RESOURCE_FLAGS flags,
