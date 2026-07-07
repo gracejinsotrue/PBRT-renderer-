@@ -38,8 +38,8 @@ scenes/a3/
 scenes/a4/
 scenes/final_scenes/
 
-.exr
-.hdr
+*.exr
+*.hdr
 
 scenes/final_scene_real/textures/table/semi-gloss-wood_albedo.png
 
@@ -47,3 +47,8 @@ validate_volumetrics.py
 make_white_furnace.py
 analyze_furnace.py
 scripts/
+
+# editor / build / python caches
+__pycache__/
+*.pyc
+imgui.ini
