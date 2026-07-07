@@ -133,8 +133,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
     shadow.rngState = rng.state;
-    TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 1, 0, 1, shadowRay, shadow);
+    TRACE_SHADOW(g_scene, shadowRay, shadow);
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
@@ -254,8 +253,7 @@ float3 RISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
     shadow.rngState = rng.state;
-    TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 1, 0, 1, shadowRay, shadow);
+    TRACE_SHADOW(g_scene, shadowRay, shadow);
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
@@ -304,9 +302,7 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
     shadow.rngState = rng.state;
-    TraceRay(g_scene,
-             RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 1, 0, 1, shadowRay, shadow);
+    TRACE_SHADOW(g_scene, shadowRay, shadow);
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
@@ -369,8 +365,7 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, uint volumeIndex, inout 
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
     shadow.rngState = rng.state;
-    TraceRay(g_scene, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 1, 0, 1, shadowRay, shadow);
+    TRACE_SHADOW(g_scene, shadowRay, shadow);
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
@@ -424,9 +419,7 @@ float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
     shadow.rngState = rng.state;
-    TraceRay(g_scene,
-             RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 1, 0, 1, shadowRay, shadow);
+    TRACE_SHADOW(g_scene, shadowRay, shadow);
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);

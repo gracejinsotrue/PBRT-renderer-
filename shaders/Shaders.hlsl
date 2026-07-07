@@ -8,6 +8,7 @@
 #include "Common.hlsli"
 #include "RNG.hlsli"
 #include "GeometryUtils.hlsli"
+#include "RayQueryTrace.hlsli"
 #include "Microfacet.hlsli"
 #include "Disney.hlsli"
 #include "Hair.hlsli"
@@ -109,10 +110,8 @@
         HitPayload payload;
         payload.hit = 0;
         payload.rngState = rng.state;
-        TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, ray, payload);
+        TRACE_CLOSEST(g_scene, ray, payload);
         rng.state = payload.rngState;
-
-        // ── Volume free-flight check ──────────────────────────────────
         // [Marschner] §3, §5: before handling the surface hit, see whether
         // the ray scatters inside any participating medium first. The
         // multi-volume entry point walks all volumes the ray crosses and

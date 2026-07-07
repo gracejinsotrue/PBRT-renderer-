@@ -79,7 +79,7 @@ bool SubsurfaceWalk(
         HitPayload p;
         p.hit = 0;
         p.rngState = rng.state;
-        TraceRay(g_scene, RAY_FLAG_NONE, 0xFF, 0, 0, 0, r, p);
+        TRACE_CLOSEST(g_scene, r, p);
         rng.state = p.rngState;
 
         if (p.hit != 0 && p.hitT < d)
