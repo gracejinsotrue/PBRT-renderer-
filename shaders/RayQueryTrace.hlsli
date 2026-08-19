@@ -19,8 +19,11 @@
 #ifndef RAYQUERYTRACE_HLSLI
 #define RAYQUERYTRACE_HLSLI
 
+// Default ON. Inline RT is 14x faster on small scenes and 1.66x on the 2.5M-tri
+// hero scene, so it is the shipped path; -D USE_RAYQUERY=0 restores the
+// DispatchRays path for A/B. Note the default therefore requires -T lib_6_5.
 #ifndef USE_RAYQUERY
-#define USE_RAYQUERY 0
+#define USE_RAYQUERY 1
 #endif
 
 #if USE_RAYQUERY
