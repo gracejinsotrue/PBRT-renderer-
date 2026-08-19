@@ -1,0 +1,129 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<!-- BRDF comparison twin of sss_grace.xml (untracked). IDENTICAL scene — same
+     camera, sunset + key light, exposure, and eyebrows/eyes/eyelashes/hair —
+     with ONLY the head material swapped from random-walk `subsurface` to the
+     Disney BRDF (scene2's skin preset, whose "subsurface" is a surface-shading
+     approximation that never transports light beneath the surface). Render this
+     next to sss_grace.xml for an apples-to-apples SSS-vs-BRDF comparison. -->
+<scene>
+	<string name="envmap" value="textures/sunset.hdr"/>
+	<float name="envmapScale" value="0.4"/>
+	<float name="evCompensation" value="2.5"/>
+
+	<camera type="perspective">
+		<float name="fov" value="24"/>
+		<transform name="toWorld">
+			<lookat target="-0.18, 0.81, 0.35" origin="-0.56, 0.89, 1.15" up="0, 1, 0"/>
+		</transform>
+		<integer name="height" value="640"/>
+		<integer name="width" value="640"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="64"/>
+	</sampler>
+
+	<!-- HEAD — Disney BRDF (subsurface lobe = surface approximation, no transport) -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/head.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/head/baked_head_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/head/baked_head_normal.png"/>
+			<string name="roughnessTexture" value="textures/grace_textures/head/head_roughness.png"/>
+			<string name="specularTexture"  value="textures/grace_textures/head/head_specular.png"/>
+			<string name="subsurfaceTexture" value="textures/grace_textures/head/head_subsurface.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.1"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.3"/>
+			<float name="subsurface"     value="0.4"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- EYEBROWS -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyebrows.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.01 0.01 0.001"/>
+			<string name="alphaTexture"     value="textures/grace_textures/eyebrow/eyebrows_alpha.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.5"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="1.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- EYES -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/eye/baked_eyes_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/eye/eyes_normal.png"/>
+			<float name="roughness"      value="0.05"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.8"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.1"/>
+			<float name="clearcoat"      value="1.0"/>
+			<float name="clearcoatGloss" value="1.0"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- EYELASHES -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyelashes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
+			<string name="alphaTexture"  value="textures/grace_textures/eyelash/eyelash_baked_alpha.png"/>
+			<float name="roughness"      value="0.191"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.1"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- HAIR -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/hair.obj"/>
+		<bsdf type="hair_bsdf">
+			<color name="color" value="0.005 0.001 0.00006"/>
+			<float name="beta_m" value="0.2"/>
+			<float name="beta_n" value="0.3"/>
+			<float name="alpha" value="2.0"/>
+			<float name="eta" value="1.55"/>
+			<string name="alphaTexture" value="textures/grace_textures/hair/hair_alpha1.png"/>
+		</bsdf>
+	</mesh>
+
+	<!-- BACK LIGHT — behind the head; identical to the SSS backlit scene -->
+	<mesh type="obj">
+		<string name="filename" value="backlight.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="22 21 19"/>
+		</emitter>
+	</mesh>
+</scene>

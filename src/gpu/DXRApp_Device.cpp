@@ -28,12 +28,37 @@ void DXRApp::CreateDevice()
     {
         DXGI_ADAPTER_DESC1 d;
         adapter->GetDesc1(&d);
+
+        // Log every adapter DXGI hands back, including the ones we reject. A
+        // silent `continue` here can't distinguish "the dGPU was never
+        // enumerated" from "it was enumerated but device creation failed" —
+        // very different problems when the discrete GPU goes missing.
+        char adapterName[128];
+        std::snprintf(adapterName, sizeof(adapterName), "%ls", d.Description);
+        printf("[init] probing adapter %u: %s (vendor 0x%04X, %llu MB dedicated)\n",
+               i, adapterName, d.VendorId,
+               (unsigned long long)(d.DedicatedVideoMemory / (1024 * 1024)));
+
         if (d.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+        {
+            dxrProbeLog += "  - ";
+            dxrProbeLog += adapterName;
+            dxrProbeLog += ": software adapter, skipped\n";
             continue;
+        }
 
         ComPtr<ID3D12Device5> candidateDevice;
-        if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&candidateDevice))))
+        HRESULT createHr = D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_1,
+                                             IID_PPV_ARGS(&candidateDevice));
+        if (FAILED(createHr))
+        {
+            char why[192];
+            std::snprintf(why, sizeof(why),
+                          "  - %s: D3D12CreateDevice failed (HRESULT 0x%08X)\n",
+                          adapterName, (unsigned)createHr);
+            dxrProbeLog += why;
             continue;
+        }
 
         D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5{};
         HRESULT featureHr = candidateDevice->CheckFeatureSupport(
@@ -72,6 +97,20 @@ void DXRApp::CreateCommandQueue()
 
 void DXRApp::CreateSwapChain()
 {
+    // Uncapped presentation needs the tearing flag on the swap chain *and* on
+    // every Present; SyncInterval 0 by itself still gets paced to the refresh
+    // rate by DWM. Only ask for it when --novsync is set, so the default swap
+    // chain is bit-for-bit the one we've always created.
+    if (!m_vsync)
+    {
+        BOOL tearing = FALSE;
+        if (SUCCEEDED(m_factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+                                                     &tearing, sizeof(tearing))))
+            m_allowTearing = (tearing == TRUE);
+        printf("[init] vsync off; tearing %s\n",
+               m_allowTearing ? "supported (uncapped)" : "UNSUPPORTED (still refresh-capped)");
+    }
+
     DXGI_SWAP_CHAIN_DESC1 d{};
     d.BufferCount = FrameCount;
     d.Width = m_width;
@@ -80,6 +119,8 @@ void DXRApp::CreateSwapChain()
     d.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     d.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     d.SampleDesc = {1, 0};
+    if (m_allowTearing)
+        d.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
     ComPtr<IDXGISwapChain1> sc1;
     ThrowIfFailed(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(),
                                                     Win32Application::GetHwnd(), &d, nullptr, nullptr, &sc1),

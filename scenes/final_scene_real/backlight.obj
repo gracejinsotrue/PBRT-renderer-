@@ -1,0 +1,9 @@
+# Back light quad placed BEHIND the head (z < head back), facing the camera, so
+# light transmits through thin features (ear edges, nostrils, silhouette) — SSS
+# glows red there, Disney stays opaque.
+v -0.75 0.45 -0.18
+v 0.35 0.45 -0.18
+v 0.35 1.25 -0.18
+v -0.75 1.25 -0.18
+f 1 2 3
+f 1 3 4

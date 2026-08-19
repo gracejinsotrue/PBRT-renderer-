@@ -52,3 +52,27 @@ scripts/
 __pycache__/
 *.pyc
 imgui.ini
+# --- large scene assets (multi-GB source textures/meshes; not distributable) ---
+scenes/hand/
+scenes/diorama_1/
+
+# --- local engineering notes (working docs, deliberately not published) ---
+context.md
+perf_notes.md
+DEFERRED_PROFILING.md
+OPTIMIZATION_CONTEXT.md
+
+# --- local dev / measurement tooling (hardcoded Windows + dxc paths) ---
+_verify.sh
+_sweep_bounces.ps1
+_exrtool.py
+_oidn_a*.py
+_exr2png.py
+
+# --- profiling run artifacts ---
+run_vsync_*.txt
+sweep_log.txt
+bounce_sweep.csv
+snapshot_*.exr
+*.cso
+*.cso.bak

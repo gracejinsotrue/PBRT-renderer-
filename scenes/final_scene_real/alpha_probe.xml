@@ -1,0 +1,66 @@
+<!-- Alpha any-hit RayQuery probe (untracked). Minimal scene = just the two
+     alpha-textured meshes from sss_grace (eyebrows + eyelashes) lit by the sunset
+     envmap, reusing the grace eye-region camera. Purpose: exercise the ONE code
+     path the other test scenes miss, the stochastic alpha any-hit inline loop
+     (CANDIDATE_NON_OPAQUE_TRIANGLE + PCG alpha test in RayQueryTrace.hlsli), on
+     both primary rays (through overlapping strands) and envmap-NEE shadow rays
+     (through neighbouring strands). Thermally light: two ~300 KB meshes, 64 spp.
+     RayQuery can't be bit-identical here (candidate visit order differs from
+     fixed-function any-hit -> different PCG draws), so verify by means-match. -->
+<scene>
+	<!-- Constant white envmap on purpose: uniform lighting = no fireflies, so the
+	     default-vs-RayQuery means-match is a clean oracle for the alpha path. -->
+	<string name="envmap" value="white.hdr"/>
+	<float name="envmapScale" value="1.0"/>
+	<float name="evCompensation" value="0.0"/>
+
+	<camera type="perspective">
+		<float name="fov" value="24"/>
+		<transform name="toWorld">
+			<lookat target="-0.18, 0.81, 0.35" origin="-0.56, 0.89, 1.15" up="0, 1, 0"/>
+		</transform>
+		<integer name="height" value="640"/>
+		<integer name="width" value="640"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="64"/>
+	</sampler>
+
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyebrows.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.01 0.01 0.001"/>
+			<string name="alphaTexture"     value="textures/grace_textures/eyebrow/eyebrows_alpha.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.5"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="1.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyelashes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
+			<string name="alphaTexture"  value="textures/grace_textures/eyelash/eyelash_baked_alpha.png"/>
+			<float name="roughness"      value="0.191"/>
+			<float name="metallic"       value="0.0"/>
+			<float name="specular"       value="0.1"/>
+			<float name="specularTint"   value="0.0"/>
+			<float name="sheen"          value="0.0"/>
+			<float name="sheenTint"      value="0.0"/>
+			<float name="subsurface"     value="0.0"/>
+			<float name="clearcoat"      value="0.0"/>
+			<float name="clearcoatGloss" value="0.5"/>
+			<float name="anisotropic"    value="0.0"/>
+		</bsdf>
+	</mesh>
+</scene>

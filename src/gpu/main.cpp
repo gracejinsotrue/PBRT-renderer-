@@ -12,6 +12,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "  --headless  : render and exit (respects sampler sampleCount)\n");
         fprintf(stderr, "  --denoise   : also run OIDN on the result, save snapshot_N_denoised.exr\n");
         fprintf(stderr, "  --profile   : GPU-timestamp the DispatchRays call, print ms/frame stats\n");
+        fprintf(stderr, "  --novsync   : present without waiting for vblank (windowed; pair with --profile)\n");
         fprintf(stderr, "Example: nori-dxr ..\\scenes\\a4\\cbox\\cbox_mis.xml\n");
         return 1;
     }
@@ -19,9 +20,14 @@ int main(int argc, char **argv)
     bool headless = false;
     bool denoise = false;
     bool profile = false;
+    bool vsync = true;
     for (int i = 2; i < argc; i++)
     {
-        if (strcmp(argv[i], "--headless") == 0)
+        if (strcmp(argv[i], "--novsync") == 0)
+        {
+            vsync = false;
+        }
+        else if (strcmp(argv[i], "--headless") == 0)
         {
             headless = true;
         }
@@ -40,6 +46,7 @@ int main(int argc, char **argv)
         HINSTANCE hInstance = GetModuleHandle(nullptr);
         DXRApp app(argv[1], headless);
         app.SetProfiling(profile);
+        app.SetVSync(vsync); // before OnInit: CreateSwapChain needs the tearing flag
 
         if (headless)
         {

@@ -146,7 +146,11 @@ SamplerState g_volumeSampler : register(s2);
 
 static const float M_PI = 3.14159265358979323846;
 static const float M_INV_PI = 0.31830988618379067154;
-static const int MAX_BOUNCES = 32;
+// Path length cap. Overridable via dxc -D MAX_BOUNCES=<n> so a real-time build
+// can trade bounces for frame time without editing the source (32 = offline default).
+#ifndef MAX_BOUNCES
+#define MAX_BOUNCES 32
+#endif
 static const float kFireflyClamp = 3.402823466e+38;
 
 // Ray payloads

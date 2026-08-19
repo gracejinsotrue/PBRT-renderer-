@@ -1,0 +1,8 @@
+# Key/fill light quad for sss_grace.xml — placed above/behind the camera
+# (out of the fov-24 frame) to lift the face out of the sunset's shadow side.
+v -1.2 0.9 1.5
+v -0.2 0.9 1.5
+v -0.2 1.7 1.5
+v -1.2 1.7 1.5
+f 1 2 3
+f 1 3 4

@@ -215,7 +215,7 @@ The tradeoff is that a wavefront tracer spills path state to global memory betwe
 
 ### Measurement setup
 
-Two properties make measurement cheap. The renderer is **byte-for-byte deterministic** (the RNG is seeded only from the frame counter), so any render-identical change is verified by hashing the output EXR instead of eyeballing it. And because it's a progressive accumulator, every frame is ~1 spp of identical work, so per-frame `DispatchRays` GPU time is the per-sample metric, captured with a `TIMESTAMP` query heap behind a `--profile` flag. That matters because wall-clock is misleading: on a 64-spp material scene wall-clock reads **114.8 ms/spp** but the pure GPU dispatch is **88.0 ms**, so ~23% of "render time" is CPU/present/fence overhead. Frame-to-frame spread is ~0.4%, so min-of-N GPU time is a stable A/B reference.
+Two properties make measurement cheap. The renderer is **byte-for-byte deterministic** (the RNG is seeded only from the frame counter), so any render-identical change is verified by hashing the output EXR instead of eyeballing it. And because it's a progressive accumulator, every frame is ~1 spp of identical work, so per-frame `DispatchRays` GPU time is the per-sample metric, captured with a `TIMESTAMP` query heap behind a `--profile` flag. That matters because wall-clock is misleading in the **headless** batch path: on a 64-spp material scene wall-clock reads **114.8 ms/spp** against a pure GPU dispatch of **88.0 ms**. That ~23% gap is specific to headless, which blocks on a fence every frame with no CPU/GPU overlap; the windowed path is properly double-buffered and shows no such gap (wall 5.83 ms against a 5.83 ms dispatch). Frame-to-frame spread is ~0.4%, so min-of-N GPU time is a stable A/B reference.
 
 ### The bottleneck
 
@@ -236,6 +236,8 @@ The kernel is bound by **divergence and latency** ( who would have known) not by
 | **Ray payload** shrink | 80 B → 28 B | ~5–10% faster on the hair scene, bit-identical output |
 | **Owen-Sobol sampler** (vs PCG white noise) | — | lower variance per sample; unbiased (64-spp means match to 0.01%) |
 | **64-spp + OIDN** vs 2048-spp reference | relMSE 0.182 → 0.006 | ~30× lower error, near-reference quality at a fraction of the GPU time |
+| **Inline ray tracing** (`RayQuery`, DXR 1.1) | 91.7 → 6.2 ms/frame (cbox) | up to **14.8×** faster GPU dispatch; **1.66×** on the 2.5M-tri hero scene |
+| **Uncapped presentation** (`--novsync`) | 60 → 173 fps (cbox) | the viewport was vsync-locked while the GPU sat idle ~10 ms/frame |
 
 **Ray payload.** The per-ray payload originally carried the geometric normal, environment radiance, shading normal, UV, tangent, and a hair parameter. Most of that is recomputable from what DXR already returns, so the payload now ships two barycentric floats and `RayGen` recomputes normal/UV/tangent from the vertex buffers (geometric normal from the primitive ID, envmap radiance from a miss lookup). Occupancy was unchanged (27.0 → 26.7%), so the hair win came from reduced per-ray state traffic across `TraceRay`, not from freeing registers.
 
@@ -243,7 +245,29 @@ The kernel is bound by **divergence and latency** ( who would have known) not by
 
 **Denoiser.** Rather than brute-forcing samples, a low-spp frame is denoised with Intel OIDN, fed **albedo and shading-normal AOVs** captured at the first non-delta hit (so mirror/glass surfaces carry the surface seen through them and don't get smeared). OIDN runs both offline and in-app (CUDA backend, ~30 ms at 800×600, bit-identical to offline). A **denoise-while-still** mode auto-denoises at power-of-two spp milestones while the camera is stationary. D3D12↔CUDA interop was measured at only ~10% of the 30 ms denoise floor and skipped as not worth the complexity. In short, this just makes life a bit easier.
 
+**Inline ray tracing (`RayQuery`).** The profiling above says the kernel is shading-bound (SM ≫ RT cores), so I expected inline ray tracing to do approximately nothing and wrote "temper expectations, measure don't assume" in my notes. That prediction was **wrong**, and the reason is the interesting part.
+
+Converting all seven `TraceRay` sites to DXR 1.1 `RayQuery` gives this:
+
+| Scene | Geometry / shading | Default | RayQuery | Speedup |
+|---|---|---|---|---|
+| mats-64 | few hundred tris, Disney + microfacet | 87.70 ms | **6.23 ms** | **14.1×** |
+| cbox-64 | few hundred tris, + mirror + glass | 91.72 ms | **6.21 ms** | **14.8×** |
+| hand-SSS-64 | 750k tris, random-walk SSS | 27.13 ms | **21.18 ms** | 1.28× |
+| hair-32 | tessellated tubes, Chiang BCSDF | 148.98 ms | **135.52 ms** | 1.10× |
+| **hero self-portrait** | **2.5M tris, 100+ meshes/textures** | **565.81 ms** | **341.14 ms** | **1.66×** |
+
+The original "shading-bound" reading conflated real shading work with **per-`TraceRay` dispatch overhead** — shader-table lookup and payload marshalling, paid on every one of the ~10–15 rays each pixel casts. Inline RT removes that overhead entirely. So the win is roughly **dispatch overhead ÷ total time**: on a Cornell box the BVH fits in cache and traversal is nearly free, leaving overhead at ~93% of the dispatch, hence 14.8×.
+
+The hero scene is the useful data point. It gets **1.66×** — *better* than the 750k-triangle hand (1.28×) or hair (1.10×) despite being far heavier — because the win tracks ray *count*, not triangle count. With 8 emitters doing next-event estimation, envmap NEE on top, and alpha-tested hair cards firing any-hit shaders, it casts a lot of rays per pixel, so there is a lot of overhead to delete: **225 ms per frame**. In practice that takes a final 1028-spp render of the scene from **9.7 minutes to 5.8 minutes**.
+
+**Presentation pacing.** Worth a footnote because it is the kind of thing GPU-side profiling cannot see. Once `RayQuery` dropped the Cornell box to ~6 ms of GPU work, the interactive viewport still sat at exactly 60 fps, because `Present` was called with a sync interval of 1 — the GPU finished in 6.3 ms and then waited 10.4 ms for the display. Uncapping it (which needs the tearing flag on *both* the swap chain and the `Present` call; a sync interval of 0 alone is still paced by the compositor) gives **173 fps**. The `--profile` timestamps never showed this, since they bracket `DispatchRays` and are blind to presentation, so `--profile` now also reports wall-clock frame time in windowed mode.
+
+Correctness here is **unbiased rather than bit-identical**: `RayQuery`'s committed barycentrics and `RayT` differ from fixed-function `ClosestHit` in the last floating-point bits, so output hashes change, but means match to ≤4e-4 and RMSE is 1e-5…2e-3 (largest where mirror, glass, and SSS amplify last-bit divergence over many bounces). No mean shift means the inline shadow-ray path — which reimplements the alpha and Fresnel any-hit logic by hand — is correct; a logic bug there would have biased shadow brightness.
+
 ### Next
 
-Convert the `TraceRay` loop to **inline ray tracing (`RayQuery`, DXR 1.1)** and A/B it with the timestamp harness. The larger lever remains the wavefront + ray-sorting rewrite.
+The remaining lever is the structural one: a **wavefront / ray-sorting rewrite** that splits the megakernel into generate / intersect / shade / shadow passes and sorts rays by material and state, so lanes in a warp do the same work. That directly attacks the 22% warp coherence measured above. Worth noting that the hardware fix for this — Shader Execution Reordering — is Ada-only (SM 8.9) and unavailable on this Ampere A3000, so the sorting has to be done by hand.
+
+Also queued: **convergence curves** (RMSE vs spp) to put a number on the Owen-Sobol sampler and the AOV-assisted denoiser, and **adaptive sampling** that reads per-pixel variance out of the accumulation buffer's sample count and stops working on pixels that have already converged.
 
