@@ -1,0 +1,110 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<!-- SSS HERO (untracked): full grace character (head=SSS skin, hair, eyes,
+     eyebrows, eyelashes, shirt) lit from BEHIND by a strong light with a dark
+     front, like the glow demo. The skin transmits light at thin features
+     (nose, nostrils, ear/jaw silhouette) -> warm red glow a surface BRDF
+     cannot fake. Compare to sss_grace_hero_disney.xml (same scene, Disney
+     skin) where those edges stay opaque. Radius bumped to 0.025 so the
+     translucency reads. -->
+<scene>
+	<string name="envmap" value="textures/sunset.hdr"/>
+	<float name="envmapScale" value="0.6"/>
+	<float name="evCompensation" value="1.5"/>
+
+	<camera type="perspective">
+		<float name="fov" value="34"/>
+		<transform name="toWorld">
+			<lookat target="-0.3965, 0.8180, 0.1044" origin="0.0799, 0.8523, 0.9830" up="0.62, 0.71, -0.34"/>
+		</transform>
+		<integer name="height" value="720"/>
+		<integer name="width" value="720"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="160"/>
+	</sampler>
+
+	<!-- HEAD — Disney BRDF (opaque comparison) -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/head.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/head/baked_head_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/head/baked_head_normal.png"/>
+			<string name="roughnessTexture" value="textures/grace_textures/head/head_roughness.png"/>
+			<string name="specularTexture"  value="textures/grace_textures/head/head_specular.png"/>
+			<string name="subsurfaceTexture" value="textures/grace_textures/head/head_subsurface.png"/>
+			<float name="roughness"      value="0.5"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.1"/>
+			<float name="sheenTint"      value="0.3"/>
+			<float name="subsurface"     value="0.4"/>
+			<float name="clearcoatGloss" value="0.5"/>
+		</bsdf>
+	</mesh>
+
+	<!-- EYEBROWS -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyebrows.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.01 0.01 0.001"/>
+			<string name="alphaTexture"     value="textures/grace_textures/eyebrow/eyebrows_alpha.png"/>
+			<float name="roughness"      value="0.4"/>
+			<float name="specular"       value="0.4"/>
+			<float name="specularTint"   value="0.5"/>
+			<float name="sheenTint"      value="1.0"/>
+			<float name="clearcoat"      value="0.3"/>
+			<float name="clearcoatGloss" value="0.8"/>
+		</bsdf>
+	</mesh>
+
+	<!-- EYES -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture"    value="textures/grace_textures/eye/baked_eyes_bc.png"/>
+			<string name="normalTexture"    value="textures/grace_textures/eye/eyes_normal.png"/>
+			<float name="roughness"      value="0.05"/>
+			<float name="specular"       value="0.8"/>
+			<float name="subsurface"     value="0.1"/>
+			<float name="clearcoat"      value="1.0"/>
+			<float name="clearcoatGloss" value="1.0"/>
+		</bsdf>
+	</mesh>
+
+	<!-- EYELASHES -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/eyelashes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="1.0 1.0 1.0"/>
+			<string name="albedoTexture" value="textures/grace_textures/eyelash/eyelash_baked_bc.png"/>
+			<string name="alphaTexture"  value="textures/grace_textures/eyelash/eyelash_baked_alpha.png"/>
+			<float name="roughness"      value="0.191"/>
+			<float name="specular"       value="0.1"/>
+			<float name="clearcoatGloss" value="0.5"/>
+		</bsdf>
+	</mesh>
+
+	<!-- HAIR -->
+	<mesh type="obj">
+		<string name="filename" value="grace_mesh/hair.obj"/>
+		<bsdf type="hair_bsdf">
+			<color name="color" value="0.005 0.001 0.00006"/>
+			<float name="beta_m" value="0.2"/>
+			<float name="beta_n" value="0.3"/>
+			<float name="alpha" value="2.0"/>
+			<float name="eta" value="1.55"/>
+			<string name="alphaTexture" value="textures/grace_textures/hair/hair_alpha1.png"/>
+		</bsdf>
+	</mesh>
+
+	<!-- SIDE BACK LIGHT — behind the head for the profile; nose/ear/jaw glow -->
+	<mesh type="obj">
+		<string name="filename" value="sideback.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="36 34 31"/>
+		</emitter>
+	</mesh>
+</scene>

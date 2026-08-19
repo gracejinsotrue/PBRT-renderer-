@@ -136,6 +136,12 @@ public:
     // Must be called before OnInit() so the query heap gets created.
     void SetProfiling(bool enable) { m_profile = enable; }
 
+    // Present without waiting for vblank (--novsync). Must be called before
+    // OnInit() so CreateSwapChain can request the tearing flag: SyncInterval 0
+    // alone still gets composited at the refresh rate under DWM, so uncapping
+    // for real needs ALLOW_TEARING on both the swap chain and the Present call.
+    void SetVSync(bool enable) { m_vsync = enable; }
+
     void OnKeyDown(UINT8 key);
     void OnKeyUp(UINT8 key);
     void OnMouseDown(UINT button, int x, int y);
@@ -192,6 +198,21 @@ private:
     // --headless which is fully synchronous (or so I h ope); windowed sampling is
     // best-effort and may lag a frame. See PrintProfileSummary for stats.
     bool m_profile = false;
+
+    // Presentation pacing. m_vsync is the user's request (--novsync clears it);
+    // m_allowTearing records whether the adapter/OS actually supports tearing,
+    // decided in CreateSwapChain. Both must hold to present uncapped.
+    bool m_vsync = true;
+    bool m_allowTearing = false;
+
+    // Wall-clock FPS for the windowed loop, printed once a second under
+    // --profile. The GPU-timestamp path above brackets DispatchRays only, so it
+    // is blind to presentation pacing — a vsync A/B moves this number and not
+    // that one. Windowed only; headless already reports ms/spp at the end.
+    std::chrono::high_resolution_clock::time_point m_fpsWindowStart;
+    uint32_t m_fpsFrames = 0;
+    bool m_fpsStarted = false;
+
     ComPtr<ID3D12QueryHeap> m_tsQueryHeap;
     ComPtr<ID3D12Resource> m_tsReadback;
     UINT64 m_tsFrequency = 0;

@@ -89,7 +89,11 @@ void DXRApp::OnRender()
 
     if (!m_headless)
     {
-        ThrowIfFailed(m_swapChain->Present(1, 0), "Present");
+        // SyncInterval 0 + ALLOW_TEARING = present as fast as the GPU finishes.
+        // The tearing flag is only legal if the swap chain was created with it.
+        const UINT syncInterval = m_vsync ? 1 : 0;
+        const UINT presentFlags = (!m_vsync && m_allowTearing) ? DXGI_PRESENT_ALLOW_TEARING : 0;
+        ThrowIfFailed(m_swapChain->Present(syncInterval, presentFlags), "Present");
         const UINT64 cv = m_fenceValues[m_frameIndex];
         ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), cv), "Signal");
         m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
@@ -111,6 +115,29 @@ void DXRApp::OnRender()
             WaitForSingleObject(m_fenceEvent, INFINITE);
         }
         m_fenceValues[m_frameIndex] = cv + 1;
+    }
+
+    // Wall-clock frame pacing (windowed + --profile). Measures the whole loop
+    // including Present, which is the half a vsync change actually moves.
+    if (!m_headless && m_profile)
+    {
+        auto now = std::chrono::high_resolution_clock::now();
+        if (!m_fpsStarted)
+        {
+            m_fpsWindowStart = now;
+            m_fpsStarted = true;
+        }
+        m_fpsFrames++;
+        double elapsedMs = std::chrono::duration<double, std::milli>(now - m_fpsWindowStart).count();
+        if (elapsedMs >= 1000.0)
+        {
+            printf("[fps] %.1f fps (%.2f ms/frame wall, vsync %s)\n",
+                   m_fpsFrames * 1000.0 / elapsedMs, elapsedMs / m_fpsFrames,
+                   m_vsync ? "on" : "off");
+            fflush(stdout);
+            m_fpsWindowStart = now;
+            m_fpsFrames = 0;
+        }
     }
 
     // Read back the DispatchRays timestamps. In headless the fence wait above is
