@@ -88,7 +88,7 @@ file(GLOB SHADER_HEADERS
 set(SHADER_CSO ${CMAKE_BINARY_DIR}/Shaders.cso)
 add_custom_command(
     OUTPUT ${SHADER_CSO}
-    COMMAND ${DXC_EXECUTABLE} -T lib_6_3 -Fo ${SHADER_CSO} ${SHADER_SRC}
+    COMMAND ${DXC_EXECUTABLE} -T lib_6_5 -Fo ${SHADER_CSO} ${SHADER_SRC}
     DEPENDS ${SHADER_SRC} ${SHADER_HEADERS}
     COMMENT "Compiling Shaders.hlsl (+ modular .hlsli)"
     VERBATIM

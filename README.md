@@ -247,7 +247,7 @@ The kernel is bound by **divergence and latency** ( who would have known) not by
 
 **Inline ray tracing (`RayQuery`).** The profiling above says the kernel is shading-bound (SM ≫ RT cores), so I expected inline ray tracing to do approximately nothing and wrote "temper expectations, measure don't assume" in my notes. That prediction was **wrong**, and the reason is the interesting part.
 
-Converting all seven `TraceRay` sites to DXR 1.1 `RayQuery` gives this:
+Converting all seven `TraceRay` sites to DXR 1.1 `RayQuery` gives this (it is now the default build; `-D USE_RAYQUERY=0` restores the `DispatchRays` path for A/B):
 
 | Scene | Geometry / shading | Default | RayQuery | Speedup |
 |---|---|---|---|---|
