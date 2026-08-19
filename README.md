@@ -234,14 +234,24 @@ The kernel is bound by **divergence and latency** ( who would have known) not by
 | Change | Before → After | Result |
 |---|---|---|
 | **Ray payload** shrink | 80 B → 28 B | ~5–10% faster on the hair scene, bit-identical output |
-| **Owen-Sobol sampler** (vs PCG white noise) | — | lower variance per sample; unbiased (64-spp means match to 0.01%) |
+| **Owen-Sobol sampler** (vs PCG white noise) | relMSE at equal spp | **4.9× fewer samples at 2 bounces, only 1.07× at 32** — see below |
 | **64-spp + OIDN** vs 2048-spp reference | relMSE 0.182 → 0.006 | ~30× lower error, near-reference quality at a fraction of the GPU time |
 | **Inline ray tracing** (`RayQuery`, DXR 1.1) | 91.7 → 6.2 ms/frame (cbox) | up to **14.8×** faster GPU dispatch; **1.66×** on the 2.5M-tri hero scene |
 | **Uncapped presentation** (`--novsync`) | 60 → 173 fps (cbox) | the viewport was vsync-locked while the GPU sat idle ~10 ms/frame |
 
 **Ray payload.** The per-ray payload originally carried the geometric normal, environment radiance, shading normal, UV, tangent, and a hair parameter. Most of that is recomputable from what DXR already returns, so the payload now ships two barycentric floats and `RayGen` recomputes normal/UV/tangent from the vertex buffers (geometric normal from the primitive ID, envmap radiance from a miss lookup). Occupancy was unchanged (27.0 → 26.7%), so the hair win came from reduced per-ray state traffic across `TraceRay`, not from freeing registers.
 
-**Sampler.** Independent PCG white noise was replaced with padded, per-pixel-decorrelated Owen-scrambled Sobol for lower variance at equal spp. 
+**Sampler.** Independent PCG white noise was replaced with padded, per-pixel-decorrelated Owen-scrambled Sobol. I finally measured what that bought, by putting the old sampler back behind `-D USE_SOBOL=0` and rendering both against a converged reference — averaged from an 8192-spp render of *each* sampler, so it favours neither. The answer depends entirely on path length, and not in the direction I expected:
+
+![Sampler convergence](images/sampler_convergence.png)
+
+At **2 bounces** the sampler does exactly what low-discrepancy sampling is supposed to do: error falls off at a slope of **−1.30**, comfortably steeper than Monte Carlo's −1.0, and it reaches a given error with up to **4.9× fewer samples**. At the shipped **32-bounce** default that advantage almost completely disappears — slope **−1.02** against white noise's −1.00, and a mere **1.07×** at 512 spp.
+
+The reason is dimensionality. A 32-bounce path draws well over a hundred random numbers, and the sampler is *padded*: each 2D pair is independently scrambled and shuffled, so there is no joint stratification across pads. In high dimensions that degrades toward white noise, and the mirror and dielectric spheres finish the job, since delta scattering destroys whatever stratified structure survives. The sampler is not broken — the renderer's path depth eats it.
+
+That is a useful thing to know rather than a disappointing one. It says the way to cash in this work is to shorten paths (lean harder on the denoiser, or terminate aggressively with adaptive sampling) rather than to reach for a fancier sequence. It also means the honest headline for this change at default settings is "a few percent", not the "lower variance per sample" I had claimed before measuring it.
+
+
 
 **Denoiser.** Rather than brute-forcing samples, a low-spp frame is denoised with Intel OIDN, fed **albedo and shading-normal AOVs** captured at the first non-delta hit (so mirror/glass surfaces carry the surface seen through them and don't get smeared). OIDN runs both offline and in-app (CUDA backend, ~30 ms at 800×600, bit-identical to offline). A **denoise-while-still** mode auto-denoises at power-of-two spp milestones while the camera is stationary. D3D12↔CUDA interop was measured at only ~10% of the 30 ms denoise floor and skipped as not worth the complexity. In short, this just makes life a bit easier.
 
