@@ -17,7 +17,7 @@ class Denoiser
 {
 public:
     // Create a CUDA device, allocate W*H Float3 buffers, and build + commit the RT filter. Returns false if no
-    // device could be created. Commit loads the model weights (~seconds), so call this once and reuse.
+    // device could be created
     bool Init(unsigned width, unsigned height);
     bool Available() const { return (bool)m_device; }
     bool Denoise(const float *beauty, const float *albedo, const float *normal,
