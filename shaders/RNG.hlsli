@@ -54,6 +54,7 @@ struct RNG
     uint sampleIndex; // progressive sample number, same as fram ecount
     uint dim;         // running path-dimension counter
     uint state;       // payload-threaded legacy PCG stream for the any-hit alpha test
+    uint pcgWhite;    // white-noise stream, only used when USE_SOBOL=0
 };
 
 RNG InitRNG(uint2 pixel, uint2 dims, uint frame)
@@ -64,11 +65,27 @@ RNG InitRNG(uint2 pixel, uint2 dims, uint frame)
     rng.sampleIndex = frame;
     rng.dim = 0u;
     rng.state = PCGHash(pid + frame * dims.x * dims.y); // unchanged any-hit seed
+    rng.pcgWhite = PCGHash(pid * 0x9e3779b9u + frame * 0x85ebca6bu + 1u);
     return rng;
 }
 
+// Sampler selection for convergence A/B. Default is the Owen-scrambled Sobol'
+// sequence; -D USE_SOBOL=0 restores the original PCG white-noise stream so the
+// two can be compared at equal spp against a converged reference. Both are
+// unbiased, so they converge to the same image -- the difference is the *rate*.
+#ifndef USE_SOBOL
+#define USE_SOBOL 1
+#endif
+
 float NextFloat(inout RNG rng)
 {
+#if !USE_SOBOL
+    // Original white-noise path: one PCG step per dimension, decorrelated per
+    // pixel and per sample by the seed built in InitRNG.
+    rng.dim++;
+    rng.pcgWhite = PCGHash(rng.pcgWhite);
+    return min(float(rng.pcgWhite) * 2.3283064365386963e-10, 0.99999994);
+#else
     uint d = rng.dim++;
     uint axis = d & 1u;
     uint pad = d >> 1u;
@@ -78,6 +95,7 @@ float NextFloat(inout RNG rng)
     uint v = OwenScramble(Sobol2D(sIdx, axis),
                           PCGHash(rng.pixelSeed + pad * 0x6c8e9cf5u + axis * 0x68bc21ebu));
     return min(float(v) * 2.3283064365386963e-10, 0.99999994); // [0,1)
+#endif
 }
 
 #endif // RNG_HLSLI
