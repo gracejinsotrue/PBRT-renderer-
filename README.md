@@ -25,9 +25,6 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
 - [Performance & Optimization](#performance--optimization)
   - [Megakernel vs wavefront](#megakernel-vs-wavefront)
   - [Measurement setup](#measurement-setup)
-  - [The bottleneck](#the-bottleneck)
-  - [Measured optimizations](#measured-optimizations)
-  - [Next](#next)
 
 ---
 
