@@ -48,24 +48,16 @@ EmitterSample SampleEmitter(inout RNG rng)
     if (emitterCount == 0)
         return es;
 
-    uint pick = min((uint)(NextFloat(rng) * float(emitterCount)), emitterCount - 1);
-
-    uint count = 0;
-    for (uint j = 0; j < meshCount; j++)
-    {
-        if (g_materials[j].isEmitter)
-        {
-            if (count == pick)
-            {
-                es.emitterID = j;
-                es.valid = true;
-                break;
-            }
-            count++;
-        }
-    }
-    if (!es.valid)
-        return es;
+    // Power-weighted emitter selection. Binary-search the CDF at the head of
+    // g_emitterCdf, then jump straight to the mesh through the index table that
+    // follows it (layout documented in DXRApp_Scene.cpp). This used to pick
+    // uniformly and then linear-scan every mesh in the scene to find the k-th
+    // emitter - O(meshCount) per light sample, and RIS draws several of those per
+    // shading point. Now O(log emitterCount) with no scan, and bright lights get
+    // sampled in proportion to their power.
+    uint k = min(CdfSample(0, emitterCount + 1, NextFloat(rng)), emitterCount - 1);
+    es.emitterID = g_emitterCdf.Load((emitterCount + 1 + k) * 4);
+    es.valid = true;
 
     GPUMaterial eMat = g_materials[es.emitterID];
     es.radiance = MatRadiance(eMat);
@@ -84,7 +76,7 @@ EmitterSample SampleEmitter(inout RNG rng)
     float sr1 = sqrt(r1);
     es.position = (1.0 - sr1) * p0 + sr1 * (1.0 - r2) * p1 + sr1 * r2 * p2;
     es.normal = normalize(cross(p1 - p0, p2 - p0));
-    es.pdfArea = 1.0 / (eMat.surfaceArea * float(emitterCount));
+    es.pdfArea = eMat.emitterSelectionProb / eMat.surfaceArea;
     return es;
 }
 
@@ -99,7 +91,7 @@ float EmitterPdfSolidAngle(GPUMaterial emitMat, float3 hitPos, float3 shadingPos
     if (cosL < 1e-8)
         return 0.0;
 
-    return (1.0 / (emitMat.surfaceArea * float(emitterCount))) * dist2 / cosL;
+    return (emitMat.emitterSelectionProb / emitMat.surfaceArea) * dist2 / cosL;
 }
 
 float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float3 B,

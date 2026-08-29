@@ -288,12 +288,30 @@ void DXRApp::CreateSceneBuffers()
         for (uint32_t k = 0; k < m_emitterCount; k++)
             materials[emitterIndices[k]].emitterSelectionProb = powerCdf[k + 1] - powerCdf[k];
 
-        uint32_t shift = m_emitterCount + 1;
+        // Head of g_emitterCdf, in order:
+        //   [0 .. m_emitterCount]                        power CDF (emitterCount+1 floats)
+        //   [m_emitterCount+1 .. 2*m_emitterCount]       emitter index table (uint bits)
+        //   [2*m_emitterCount+1 ..]                      per-emitter triangle CDFs
+        // The index table is what lets the shader go from a CDF sample straight to
+        // the mesh. Without it SampleEmitter had to linear-scan every mesh in the
+        // scene to find the k-th emitter, which is O(meshCount) per light sample -
+        // ruinous once a scene has hundreds of lights.
+        std::vector<float> header(powerCdf.begin(), powerCdf.end());
+        header.reserve(header.size() + m_emitterCount);
+        for (uint32_t k = 0; k < m_emitterCount; k++)
+        {
+            float bits;
+            uint32_t idx = emitterIndices[k];
+            std::memcpy(&bits, &idx, sizeof(bits)); // raw uint through a float slot
+            header.push_back(bits);
+        }
+
+        uint32_t shift = (uint32_t)header.size();
         for (uint32_t i = 0; i < m_meshCount; i++)
             if (materials[i].isEmitter)
                 materials[i].emitterCdfOffset += shift;
 
-        allCdfData.insert(allCdfData.begin(), powerCdf.begin(), powerCdf.end());
+        allCdfData.insert(allCdfData.begin(), header.begin(), header.end());
 
         printf("[scene] Power CDF: %u emitters, totalPower=%.4f\n", m_emitterCount, totalPower);
     }
