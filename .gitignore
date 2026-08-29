@@ -76,3 +76,5 @@ bounce_sweep.csv
 snapshot_*.exr
 *.cso
 *.cso.bak
+_make_*.py
+_restir_scene_preview.png
