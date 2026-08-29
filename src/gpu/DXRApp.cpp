@@ -83,9 +83,18 @@ void DXRApp::OnInit()
 
 void DXRApp::OnRender()
 {
+    // CPU-side record+submit cost. This is the only thing frame pipelining can
+    // hide behind GPU execution, so it is the ceiling on what pipelining can buy.
+    // Measured on the CPU deliberately: GPU thermal throttling makes end-to-end
+    // wall-clock A/Bs on this laptop too noisy to resolve an effect this size.
+    auto _recT0 = std::chrono::high_resolution_clock::now();
     PopulateCommandList();
     ID3D12CommandList *cmdLists[] = {m_commandList.Get()};
     m_commandQueue->ExecuteCommandLists(1, cmdLists);
+    if (m_profile)
+        m_recordMs.push_back(
+            std::chrono::duration<double, std::milli>(
+                std::chrono::high_resolution_clock::now() - _recT0).count());
 
     if (!m_headless)
     {
@@ -106,7 +115,19 @@ void DXRApp::OnRender()
     }
     else
     {
-        // Headless: just signal fence and wait
+        // Headless: signal the fence and wait for this frame to finish.
+        //
+        // This looks like a missed pipelining opportunity - m_frameIndex never
+        // advances (no swap chain to advance it), so we wait on the value we just
+        // signalled and get zero CPU/GPU overlap. It was tried, and measured:
+        // frame pipelining here is worth ~3%, because CPU record+submit is only
+        // ~0.21 ms against a ~6.5 ms dispatch (--profile prints both). The wall
+        // clock gap per frame is fence-wait wakeup latency, which overlapping
+        // frames does not remove.
+        //
+        // The old "~23% CPU overhead" note predates RayQuery, when a frame cost
+        // ~88 ms of GPU; that gap was never CPU record time. Not worth two frames
+        // in flight over the accumulation buffer for 3%.
         const UINT64 cv = m_fenceValues[m_frameIndex];
         ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), cv), "Signal");
         if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
@@ -141,8 +162,8 @@ void DXRApp::OnRender()
     }
 
     // Read back the DispatchRays timestamps. In headless the fence wait above is
-    // fully synchronous so this frame's resolve has completed; in
-    // windowed mode it may lag a frame, which is fine since work is identical.
+    // fully synchronous so this frame's resolve has completed; in windowed mode it
+    // may lag a frame, which is fine since work is identical.
     if (m_profile && m_tsReadback)
     {
         D3D12_RANGE rr{0, 2 * sizeof(UINT64)};
