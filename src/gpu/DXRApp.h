@@ -217,6 +217,7 @@ private:
     ComPtr<ID3D12Resource> m_tsReadback;
     UINT64 m_tsFrequency = 0;
     std::vector<double> m_frameMs;
+    std::vector<double> m_recordMs; // CPU record+submit per frame (--profile)
     bool m_profileSummaryPrinted = false;
 
     // Acceleration structure

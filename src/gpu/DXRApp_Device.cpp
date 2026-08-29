@@ -212,6 +212,25 @@ void DXRApp::PrintProfileSummary()
            mn, median, mean, p95);
     // min is the least thermally-throttled sample
     printf("[profile]   min => %.1f dispatch/s\n", 1000.0 / mn);
+
+    // CPU record+submit cost. A pure CPU measurement, so unlike the GPU numbers
+    // above it is unaffected by thermal throttling. It is also the exact ceiling
+    // on what frame pipelining could hide: the accumulation buffer forces
+    // consecutive dispatches to serialise on the GPU, so overlapping is only ever
+    // worth the CPU side of the frame.
+    if (m_recordMs.size() > warmup)
+    {
+        std::vector<double> r(m_recordMs.begin() + warmup, m_recordMs.end());
+        std::sort(r.begin(), r.end());
+        double rsum = 0.0;
+        for (double v : r)
+            rsum += v;
+        const double rmed = r[r.size() / 2];
+        printf("[profile]   CPU record+submit: min %.4f  median %.4f  mean %.4f  (ms)\n",
+               r.front(), rmed, rsum / (double)r.size());
+        printf("[profile]   -> pipelining could hide at most %.4f ms/frame (%.1f%% of dispatch)\n",
+               rmed, 100.0 * rmed / median);
+    }
 }
 
 ComPtr<ID3D12Resource> DXRApp::CreateBuffer(UINT64 size, D3D12_RESOURCE_FLAGS flags,
