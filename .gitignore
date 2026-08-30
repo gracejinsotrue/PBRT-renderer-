@@ -55,6 +55,11 @@ imgui.ini
 # --- large scene assets (multi-GB source textures/meshes; not distributable) ---
 scenes/hand/
 scenes/diorama_1/
+scenes/san_miguel/
+scenes/smoke_test/
+
+# --- Python virtual environment ---
+venv/
 
 # --- local engineering notes (working docs, deliberately not published) ---
 context.md

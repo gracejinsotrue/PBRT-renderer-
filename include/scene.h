@@ -122,6 +122,9 @@ public:
     /// Return the display exposure in EV stops (default 0.0). Applied as pow(2,ev) before Reinhard tonemapping.
     float getEvCompensation() const { return m_evCompensation; }
 
+    /// Return the envmap yaw rotation in radians (rotates sun/sky horizontally)
+    float getEnvmapRotation() const { return m_envmapRotation; }
+
 private:
     std::vector<Mesh *> m_meshes;
     Integrator *m_integrator = nullptr;
@@ -132,6 +135,7 @@ private:
     std::string m_envmap = "textures/white_furnace.hdr";
     float m_envmapScale = 1.0f;
     float m_evCompensation = 0.0f;
+    float m_envmapRotation = 0.0f;
 };
 
 NORI_NAMESPACE_END

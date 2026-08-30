@@ -681,7 +681,8 @@
         return;
 
     float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
-    float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).r;
+    float4 aTex = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0);
+    float a = aTex.a; // leaf cutout lives in the alpha channel
 
     if (a < 0.01)
     {
@@ -709,7 +710,7 @@
     {
         float2 aUV = GetInterpolatedUV(instanceID, PrimitiveIndex(), attr.barycentrics);
         float4 t = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0);
-        float a = (t.a < 1.0) ? t.a : t.r;
+        float a = t.a;
 
         if (a < 0.01)
         {

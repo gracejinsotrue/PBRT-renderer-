@@ -15,9 +15,8 @@
 float3 EvalEnvmap(float3 dir)
 {
     float3 d = normalize(dir);
-    float phi = atan2(d.z, d.x);
-    if (phi < 0.0)
-        phi += 2.0 * M_PI;
+    float phi = atan2(d.z, d.x) + envmapRotation;
+    phi = phi - 2.0 * M_PI * floor(phi / (2.0 * M_PI)); // wrap to [0, 2pi)
     float theta = acos(clamp(d.y, -1.0, 1.0));
     float2 uv = float2(phi / (2.0 * M_PI), theta / M_PI);
     return g_envmap.SampleLevel(g_envmapSampler, uv, 0).rgb * envmapScale;
@@ -81,7 +80,8 @@ void SampleEnvmap(float u1, float u2, out float3 dir, out float3 radiance, out f
     // 3. Compute the direction at the jittered sub-pixel position.
     float u = ((float)x + jitter_u) / (float)W;
     float v = ((float)y + jitter_v) / (float)H;
-    float phi = 2.0 * M_PI * u;
+    // subtract rotation so the sampled direction is in un-rotated world space
+    float phi = 2.0 * M_PI * u - envmapRotation;
     float theta = M_PI * v;
     float sinTheta = sin(theta);
     float cosTheta = cos(theta);
@@ -112,9 +112,8 @@ float EnvmapPdfDirection(float3 dir)
     g_envmap.GetDimensions(W, H);
 
     float3 d = normalize(dir);
-    float phi = atan2(d.z, d.x);
-    if (phi < 0.0)
-        phi += 2.0 * M_PI;
+    float phi = atan2(d.z, d.x) + envmapRotation;
+    phi = phi - 2.0 * M_PI * floor(phi / (2.0 * M_PI));
     float theta = acos(clamp(d.y, -1.0, 1.0));
     float sinTheta = sin(theta);
 

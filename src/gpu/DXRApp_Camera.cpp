@@ -62,6 +62,7 @@ void DXRApp::SetupCamera()
     m_camera.emitterCount = m_emitterCount;
     m_camera.envmapScale = m_noriScene->getEnvmapScale();
     m_camera.evCompensation = m_noriScene->getEvCompensation();
+    m_camera.envmapRotation = m_noriScene->getEnvmapRotation();
     m_camera.frameCount = 0;
     m_camera.lensRadius = cam->getLensRadius();
     m_camera.focalDistance = cam->getFocalDistance();
