@@ -40,9 +40,10 @@ struct CameraConstants
     float lensRadius; // 0 = pinhole
     float focalDistance;
     uint32_t emitterCount; // number of emitter meshes
-    float envmapScale;     // multiplied on every envmap sample (controls IBL brightness)
-    float evCompensation;  // display EV stops: averaged *= pow(2, ev) before Reinhard
-    float _cbPad2[2];      // pad to 16-byte boundary
+    float envmapScale;      // multiplied on every envmap sample (controls IBL brightness)
+    float evCompensation;   // display EV stops: averaged *= pow(2, ev) before Reinhard
+    float envmapRotation;   // yaw offset in radians applied to envmap phi lookup
+    float _cbPad2;          // pad to 16-byte boundary
 };
 
 // Mirror of the HLSL GPUVolume struct used for ray marching in the presence of participating media.

@@ -47,7 +47,8 @@ cbuffer CameraParams : register(b0)
     uint emitterCount;
     float envmapScale;
     float evCompensation;
-    float2 _cbPad2;
+    float envmapRotation;  // yaw offset in radians applied to envmap phi lookup
+    float _cbPad2;
 };
 
 // Material structure
