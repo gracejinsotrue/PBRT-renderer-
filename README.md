@@ -45,7 +45,7 @@ In terms of the Blender scene assembly, I had some help scanning my face and rec
 This is a popular computer graphics scene to render. The scene is about 10M triangles so it is a nice way to stres-test performance as well as just get a generally very diverse and pretty scene to render. Credits to McGuire Computer Graphics Archive for all the geometry and textures! 
 
 ![Cool Render 1](images/san_miguel_1.png)
-![Cool Render 2](images\bloom_ON_i0.05_16spp_DENOISED.png)
+![Cool Render 2](images/bloom_ON_i0.05_16spp_DENOISED.png)
 
 ---
 
