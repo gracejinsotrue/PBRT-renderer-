@@ -63,6 +63,12 @@ void DXRApp::SetupCamera()
     m_camera.envmapScale = m_noriScene->getEnvmapScale();
     m_camera.evCompensation = m_noriScene->getEvCompensation();
     m_camera.envmapRotation = m_noriScene->getEnvmapRotation();
+    m_bloomThreshold = m_noriScene->getBloomThreshold();
+    m_bloomKnee = m_noriScene->getBloomKnee();
+    m_bloomIntensity = m_noriScene->getBloomIntensity();
+    if (m_bloomIntensity > 0.0f)
+        printf("[bloom] threshold %.2f, knee %.2f, intensity %.3f (B toggles, [ ] adjust)\n",
+               m_bloomThreshold, m_bloomKnee, m_bloomIntensity);
     m_camera.frameCount = 0;
     m_camera.lensRadius = cam->getLensRadius();
     m_camera.focalDistance = cam->getFocalDistance();
@@ -169,6 +175,7 @@ void DXRApp::OnUpdate()
     {
         RecomputeCameraPlane();
         m_frameCount = 0;
+        m_denoiseCacheFrame = 0xFFFFFFFFu; // accumulation restarted; cache is stale
         m_cameraDirty = false;
         m_showDenoised = false; // camera moved, therefore show the live (noisy) render again
         m_nextDenoiseSpp = 16;  // restart the denoise-while-still cadence
@@ -190,6 +197,26 @@ void DXRApp::OnKeyDown(UINT8 key)
         if (!m_autoDenoise)
             m_showDenoised = false;
         printf("[denoise] auto denoise-while-still %s\n", m_autoDenoise ? "ON" : "OFF");
+    }
+    // Bloom tuning. A good intensity is entirely scene-dependent, and because
+    // bloom is the last pass it re-evaluates on the next frame with no re-render
+    // and no re-denoise, so these are meant to be dragged by eye.
+    if (key == 'B')
+    {
+        m_bloomEnabled = !m_bloomEnabled;
+        printf("[bloom] %s (intensity %.3f)\n", m_bloomEnabled ? "ON" : "OFF", m_bloomIntensity);
+        if (m_showDenoised)
+            RefreshDenoisedPreview();
+    }
+    if (key == VK_OEM_4 || key == VK_OEM_6) // '[' and ']'
+    {
+        m_bloomIntensity += (key == VK_OEM_6) ? 0.01f : -0.01f;
+        if (m_bloomIntensity < 0.0f)
+            m_bloomIntensity = 0.0f;
+        printf("[bloom] intensity %.3f%s\n", m_bloomIntensity,
+               m_bloomEnabled ? "" : " (bloom is OFF, press B)");
+        if (m_showDenoised)
+            RefreshDenoisedPreview();
     }
     if (key == 'L')
     {
@@ -275,6 +302,70 @@ void DXRApp::OnMouseMove(int x, int y)
 
         m_cameraDirty = true;
     }
+}
+
+// Read one of the RGBA8 display textures back into tightly packed RGBA bytes.
+// Both live in COPY_SOURCE between frames, which is what CopyTextureRegion wants.
+std::vector<uint8_t> DXRApp::ReadbackRGBA8(ID3D12Resource *res)
+{
+    WaitForGpu(m_frameIndex);
+
+    D3D12_RESOURCE_DESC desc = res->GetDesc();
+    UINT64 rowPitch = ((desc.Width * 4 + 255) & ~255ULL);
+    UINT64 totalSize = rowPitch * desc.Height;
+
+    auto readback = CreateBuffer(totalSize, D3D12_RESOURCE_FLAG_NONE,
+                                 D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
+
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = readback.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    dst.PlacedFootprint.Footprint.Width = (UINT)desc.Width;
+    dst.PlacedFootprint.Footprint.Height = desc.Height;
+    dst.PlacedFootprint.Footprint.Depth = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+
+    src.pResource = res;
+    src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    FlushCommandQueue();
+
+    std::vector<uint8_t> out((size_t)desc.Width * desc.Height * 4);
+    uint8_t *data;
+    readback->Map(0, nullptr, (void **)&data);
+    for (UINT y = 0; y < desc.Height; y++)
+        memcpy(out.data() + (size_t)y * desc.Width * 4,
+               data + (size_t)y * rowPitch, (size_t)desc.Width * 4);
+    readback->Unmap(0, nullptr);
+    return out;
+}
+
+// Save the tonemapped display image as PNG. Unlike the EXR path this is the
+// display-referred result: exposure, bloom, ACES and gamma all applied. It is
+// the only way to get the post-processed image out of a headless run, and hence
+// the only way to regression-test anything downstream of the accumulator.
+void DXRApp::SaveSnapshotPNG(bool denoised)
+{
+    ID3D12Resource *srcRes = denoised ? m_denoisedResource.Get() : m_outputResource.Get();
+    std::vector<uint8_t> rgba = ReadbackRGBA8(srcRes);
+
+    std::string dir = filesystem::path(m_scenePath).parent_path().str();
+    if (!dir.empty())
+        dir += "/";
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u%s.png", dir.c_str(), m_frameCount,
+             denoised ? "_denoised" : "");
+
+    if (stbi_write_png(filename, (int)m_width, (int)m_height, 4, rgba.data(), (int)m_width * 4))
+        printf("[snapshot] Saved %s (%u samples%s)\n", filename, m_frameCount,
+               denoised ? ", denoised" : "");
+    else
+        printf("[snapshot] PNG save failed (%s)\n", filename);
 }
 
 void DXRApp::SaveSnapshot()
@@ -411,6 +502,18 @@ void DXRApp::SaveAccumResourceEXR(ID3D12Resource *res, const char *filename)
 
 bool DXRApp::RunDenoise(std::vector<float> &outRGB)
 {
+    // Denoising the same accumulation twice always produces the same image, and
+    // callers do stack up: `--denoise --png` wants one denoise for the EXR and
+    // another to stage the HDR for the bloom pass. Cache on sample count so the
+    // second caller is free. Invalidated in OnUpdate when the camera moves,
+    // because that resets m_frameCount and a later frame could otherwise collide
+    // with a stale entry at the same count.
+    if (m_denoiseCacheFrame == m_frameCount && !m_denoiseCache.empty())
+    {
+        outRGB = m_denoiseCache;
+        return true;
+    }
+
     if (!m_denoiser)
     {
         m_denoiser = std::make_unique<Denoiser>();
@@ -430,8 +533,12 @@ bool DXRApp::RunDenoise(std::vector<float> &outRGB)
     bool ok = m_denoiser->Denoise(beauty.data(), albedo.data(), normal.data(), outRGB);
     auto t1 = std::chrono::high_resolution_clock::now();
     if (ok)
+    {
         printf("[denoise] %u spp denoised in %.1f ms\n", m_frameCount,
                std::chrono::duration<float, std::milli>(t1 - t0).count());
+        m_denoiseCache = outRGB;
+        m_denoiseCacheFrame = m_frameCount;
+    }
     return ok;
 }
 
@@ -460,55 +567,90 @@ void DXRApp::DenoiseToViewport()
     std::vector<float> rgb;
     if (!RunDenoise(rgb))
         return;
-    const float ev = powf(2.0f, m_camera.evCompensation);
-    const float a = 2.51f, b = 0.03f, c = 2.43f, d = 0.59f, e = 0.14f;
-    auto tonemap = [&](float x) -> uint8_t
-    {
-        x *= ev;
-        x = (x * (a * x + b)) / (x * (c * x + d) + e);
-        x = x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
-        x = powf(x, 1.0f / 2.2f);
-        return (uint8_t)(x * 255.0f + 0.5f);
-    };
 
-    const size_t px = (size_t)m_width * m_height;
-    std::vector<uint8_t> rgba(px * 4);
-    for (size_t i = 0; i < px; i++)
-    {
-        rgba[i * 4 + 0] = tonemap(rgb[i * 3 + 0]);
-        rgba[i * 4 + 1] = tonemap(rgb[i * 3 + 1]);
-        rgba[i * 4 + 2] = tonemap(rgb[i * 3 + 2]);
-        rgba[i * 4 + 3] = 255;
-    }
+    // Stage OIDN's linear HDR output on the GPU, then run the *same* resolve
+    // pass the live render uses. This used to be a hand-rolled copy of the ACES
+    // curve on the CPU, which meant the tonemap existed in two places and could
+    // drift; it also left nowhere for a bloom pass to apply to the denoised
+    // image. Now both paths differ only in which texture pair they bind.
+    UploadHDR(m_denoisedHdrResource.Get(), rgb);
+    RefreshDenoisedPreview();
 
-    UploadRGBA8(m_denoisedResource.Get(), rgba);
     m_showDenoised = true;
     printf("[denoise] showing denoised preview (move camera to resume live render)\n");
 }
 
-void DXRApp::UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba)
+// Re-run bloom + resolve on the already-denoised HDR staging texture, without
+// touching OIDN. Split out of DenoiseToViewport so that adjusting bloom while a
+// denoised preview is frozen on screen updates it for the cost of a few
+// dispatches instead of another ~260 ms denoise.
+void DXRApp::RefreshDenoisedPreview()
+{
+    WaitForGpu(m_frameIndex);
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    ID3D12DescriptorHeap *heaps[] = {m_srvUavHeap.Get()};
+    m_commandList->SetDescriptorHeaps(1, heaps);
+
+    D3D12_RESOURCE_BARRIER toUav{};
+    toUav.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    toUav.Transition.pResource = m_denoisedResource.Get();
+    toUav.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    toUav.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    toUav.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(1, &toUav);
+
+    // Bloom runs on the *denoised* image, never before OIDN. Blurring first
+    // would spread each firefly into a smooth low-frequency blob, which no
+    // longer looks like Monte Carlo noise to the denoiser and so survives it.
+    RecordBloomChain(/*denoisedSource=*/true);
+    RecordResolve(/*denoisedSource=*/true);
+
+    std::swap(toUav.Transition.StateBefore, toUav.Transition.StateAfter);
+    m_commandList->ResourceBarrier(1, &toUav);
+
+    FlushCommandQueue();
+}
+
+// Upload interleaved float3 RGB (OIDN's output layout) into an RGBA32F texture,
+// expanding to float4 with w = 1.0. The alpha matters: the resolve pass divides
+// by .w to turn the path tracer's running sum into a mean, so writing 1.0 here
+// makes that normalization a no-op and lets both paths share one shader.
+void DXRApp::UploadHDR(ID3D12Resource *res, const std::vector<float> &rgb)
 {
     WaitForGpu(m_frameIndex);
 
     const UINT W = m_width, H = m_height;
-    UINT64 rowPitch = ((UINT64)W * 4 + 255) & ~255ULL;
+    UINT64 rowPitch = ((UINT64)W * 16 + 255) & ~255ULL;
     auto upload = CreateBuffer(rowPitch * H, D3D12_RESOURCE_FLAG_NONE,
                                D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
 
     uint8_t *p;
     upload->Map(0, nullptr, (void **)&p);
     for (UINT y = 0; y < H; y++)
-        memcpy(p + (size_t)y * rowPitch, rgba.data() + (size_t)y * W * 4, (size_t)W * 4);
+    {
+        float *row = reinterpret_cast<float *>(p + (size_t)y * rowPitch);
+        const float *srcRow = rgb.data() + (size_t)y * W * 3;
+        for (UINT x = 0; x < W; x++)
+        {
+            row[x * 4 + 0] = srcRow[x * 3 + 0];
+            row[x * 4 + 1] = srcRow[x * 3 + 1];
+            row[x * 4 + 2] = srcRow[x * 3 + 2];
+            row[x * 4 + 3] = 1.0f;
+        }
+    }
     upload->Unmap(0, nullptr);
 
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
 
-    // The target texture sits in COPY_SOURCE between frames, move it to COPY_DEST.
+    // The staging texture rests in UNORDERED_ACCESS (the state the resolve pass
+    // reads it in), so borrow it for the copy and hand it back.
     D3D12_RESOURCE_BARRIER b{};
     b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     b.Transition.pResource = res;
-    b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
     b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &b);
@@ -518,14 +660,13 @@ void DXRApp::UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba)
     dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     src.pResource = upload.Get();
     src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
     src.PlacedFootprint.Footprint.Width = W;
     src.PlacedFootprint.Footprint.Height = H;
     src.PlacedFootprint.Footprint.Depth = 1;
     src.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
     m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 
-    // Back to COPY_SOURCE so RecordPresentHeld can blit it to the backbuffer.
     std::swap(b.Transition.StateBefore, b.Transition.StateAfter);
     m_commandList->ResourceBarrier(1, &b);
 
