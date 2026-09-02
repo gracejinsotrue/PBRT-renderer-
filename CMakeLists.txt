@@ -94,15 +94,22 @@ add_custom_command(
     VERBATIM
 )
 # Compute shaders. Unlike the raytracing library above these are compiled one
-# entry point per .cso with the cs_6_5 profile. Add entries as "<file>:<entry>".
-set(COMPUTE_SHADERS "Resolve:CSResolve")
+# entry point per .cso with the cs_6_5 profile, so a file with several entry
+# points is listed once per entry. The .cso is named after the entry point,
+# which is what DXRApp::CreatePostPipelines loads. Add entries as "<file>:<entry>".
+set(COMPUTE_SHADERS
+    "Resolve:CSResolve"
+    "Bloom:CSBloomPrefilter"
+    "Bloom:CSBloomDownsample"
+    "Bloom:CSBloomUpsample"
+)
 set(COMPUTE_CSOS)
 foreach(cs IN LISTS COMPUTE_SHADERS)
     string(REPLACE ":" ";" cs_parts ${cs})
     list(GET cs_parts 0 cs_name)
     list(GET cs_parts 1 cs_entry)
     set(cs_src ${CMAKE_SOURCE_DIR}/shaders/${cs_name}.hlsl)
-    set(cs_cso ${CMAKE_BINARY_DIR}/${cs_name}.cso)
+    set(cs_cso ${CMAKE_BINARY_DIR}/${cs_entry}.cso)
     add_custom_command(
         OUTPUT ${cs_cso}
         COMMAND ${DXC_EXECUTABLE} -T cs_6_5 -E ${cs_entry} -Fo ${cs_cso} ${cs_src}

@@ -126,23 +126,28 @@ void DXRApp::CreateRaytracingPipeline()
     printf("[pipeline] State object created\n");
 }
 
-// Display resolve pass. Deliberately does NOT reuse m_globalRootSig: that one is
-// shaped around the raytracing pipeline's unbounded texture arrays and static
-// samplers, none of which a post-process pass wants. It does read from
-// m_srvUavHeap though (descriptors appended at the tail by CreateOutputResource),
-// so no SetDescriptorHeaps call is needed between DispatchRays and Dispatch.
-void DXRApp::CreateResolvePipeline()
+// Post-process pipelines: display resolve plus the three bloom chain passes.
+//
+// Deliberately does NOT reuse m_globalRootSig: that one is shaped around the
+// raytracing pipeline's unbounded texture arrays and static samplers, none of
+// which a post-process pass wants. It does read from m_srvUavHeap though
+// (descriptors appended at the tail by CreateOutputResource), so no
+// SetDescriptorHeaps call is needed between DispatchRays and Dispatch.
+//
+// All four passes share one root signature and one 3-wide binding table, which
+// is why they can be dispatched back to back with nothing but a PSO swap.
+void DXRApp::CreatePostPipelines()
 {
     D3D12_DESCRIPTOR_RANGE range{};
     range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    range.NumDescriptors = 2; // u0 = HDR source, u1 = LDR dest
+    range.NumDescriptors = 3; // u0 = source, u1 = dest, u2 = aux (bloom mip 0)
     range.BaseShaderRegister = 0;
     range.OffsetInDescriptorsFromTableStart = 0;
 
     D3D12_ROOT_PARAMETER rp[2]{};
     rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     rp[0].Constants.ShaderRegister = 0;
-    rp[0].Constants.Num32BitValues = 4; // uint2 dims, float ev, float pad
+    rp[0].Constants.Num32BitValues = 8; // see PostParams in PostCommon.hlsli
     rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rp[1].DescriptorTable.NumDescriptorRanges = 1;
@@ -154,18 +159,32 @@ void DXRApp::CreateResolvePipeline()
     rsd.pParameters = rp;
     ComPtr<ID3DBlob> sig, err;
     ThrowIfFailed(D3D12SerializeRootSignature(&rsd, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &err),
-                  "Resolve root sig serialize");
+                  "Post root sig serialize");
     ThrowIfFailed(m_device->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
-                                                IID_PPV_ARGS(&m_resolveRootSig)),
-                  "Resolve root sig");
+                                                IID_PPV_ARGS(&m_postRootSig)),
+                  "Post root sig");
 
-    auto blob = ReadFileBytes(GetExeDirectory() + L"Resolve.cso");
-    D3D12_COMPUTE_PIPELINE_STATE_DESC pd{};
-    pd.pRootSignature = m_resolveRootSig.Get();
-    pd.CS = {blob.data(), blob.size()};
-    ThrowIfFailed(m_device->CreateComputePipelineState(&pd, IID_PPV_ARGS(&m_resolvePSO)),
-                  "Resolve PSO");
-    printf("[pipeline] Resolve compute PSO created (%zu bytes)\n", blob.size());
+    struct PassDesc
+    {
+        const wchar_t *cso;
+        ComPtr<ID3D12PipelineState> *pso;
+    } passes[] = {
+        {L"CSResolve.cso", &m_resolvePSO},
+        {L"CSBloomPrefilter.cso", &m_bloomPrefilterPSO},
+        {L"CSBloomDownsample.cso", &m_bloomDownsamplePSO},
+        {L"CSBloomUpsample.cso", &m_bloomUpsamplePSO},
+    };
+    for (const auto &p : passes)
+    {
+        auto blob = ReadFileBytes(GetExeDirectory() + p.cso);
+        D3D12_COMPUTE_PIPELINE_STATE_DESC pd{};
+        pd.pRootSignature = m_postRootSig.Get();
+        pd.CS = {blob.data(), blob.size()};
+        ThrowIfFailed(m_device->CreateComputePipelineState(
+                          &pd, IID_PPV_ARGS(p.pso->ReleaseAndGetAddressOf())),
+                      "Post PSO");
+    }
+    printf("[pipeline] Post-process compute PSOs created (resolve + 3 bloom passes)\n");
 }
 
 void DXRApp::CreateOutputResource()
@@ -248,6 +267,33 @@ void DXRApp::CreateOutputResource()
                       "Accum tex");
     }
 
+    // Bloom mip chain. Mip 0 is half the render resolution; the level count is
+    // derived rather than fixed so the blur covers a consistent fraction of the
+    // frame instead of getting relatively tighter as the output grows.
+    {
+        UINT minDim = std::min(m_width, m_height);
+        UINT levels = 1;
+        while ((minDim >> (levels + 1)) >= 8 && levels < 6)
+            levels++;
+        m_bloomMipCount = levels;
+
+        D3D12_RESOURCE_DESC td{};
+        td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        td.Width = std::max(1u, m_width / 2);
+        td.Height = std::max(1u, m_height / 2);
+        td.DepthOrArraySize = 1;
+        td.MipLevels = (UINT16)m_bloomMipCount;
+        td.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        td.SampleDesc.Count = 1;
+        td.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
+                                                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
+                                                        IID_PPV_ARGS(&m_bloomResource)),
+                      "Bloom mip chain");
+        printf("[bloom] %u mips, base %ux%u\n", m_bloomMipCount,
+               (UINT)td.Width, (UINT)td.Height);
+    }
+
     // Denoiser AOV textures albedo + shading normal accumulated like accum.
 
     // these get recreated with D3D12_HEAP_FLAG_SHARED + COMMON initial state so CUDA can import them;
@@ -291,18 +337,16 @@ void DXRApp::CreateOutputResource()
     //  [15+N]       t0 (space1) SRV volume StructuredBuffer<GPUVolume>
     //  [16+N..16+N+V) t1+ (space1) SRV volume density Texture3D<float>[]
     //
-    // Everything above is addressed by the raytracing root signature. The four
-    // entries below are the resolve pass's, addressed by m_resolveRootSig as two
-    // (source, dest) pairs starting at m_resolveDescriptorBase. They live at the
-    // tail so none of the offsets above shift.
-    //  [16+N+V] u0  UAV accumulation texture   (live pair source)
-    //  [17+N+V] u1  UAV output texture         (live pair dest)
-    //  [18+N+V] u0  UAV denoised HDR texture   (denoised pair source)
-    //  [19+N+V] u1  UAV denoised display texture (denoised pair dest)
+    // Everything above is addressed by the raytracing root signature. The
+    // entries below belong to the post-process passes, addressed by
+    // m_postRootSig as 3-descriptor slots starting at m_postDescriptorBase (see
+    // the slot map in DXRApp.h). They live at the tail so none of the offsets
+    // above shift.
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
     const UINT rtDescriptors = 16 + m_textureCount + volumeTexCount;
-    m_resolveDescriptorBase = rtDescriptors;
-    UINT totalDescriptors = rtDescriptors + 4;
+    m_postDescriptorBase = rtDescriptors;
+    const UINT postSlots = 4 + 2 * (m_bloomMipCount - 1);
+    UINT totalDescriptors = rtDescriptors + postSlots * 3;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
     dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -490,23 +534,53 @@ void DXRApp::CreateOutputResource()
         }
     }
 
-    // [16+N+V ..] UAV — resolve pass source/dest pairs. Note the ordering within
-    // each pair is (source, dest) to match u0/u1 in Resolve.hlsl, which is the
-    // reverse of the raytracing table's output-then-accum order at [0]/[1].
+    // Post-process slots. Ordering within a slot is (source, dest, aux) to match
+    // u0/u1/u2 in PostCommon.hlsli, which is the reverse of the raytracing
+    // table's output-then-accum order at [0]/[1].
     {
-        ID3D12Resource *resolvePairs[4] = {
-            m_accumResource.Get(), m_outputResource.Get(),
-            m_denoisedHdrResource.Get(), m_denoisedResource.Get()};
-        DXGI_FORMAT resolveFormats[4] = {
-            DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R8G8B8A8_UNORM,
-            DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R8G8B8A8_UNORM};
-        for (int i = 0; i < 4; i++)
+        auto writeUav = [&](ID3D12Resource *res, DXGI_FORMAT fmt, UINT mip)
         {
             D3D12_UNORDERED_ACCESS_VIEW_DESC ud{};
-            ud.Format = resolveFormats[i];
+            ud.Format = fmt;
             ud.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-            m_device->CreateUnorderedAccessView(resolvePairs[i], nullptr, &ud, h);
+            ud.Texture2D.MipSlice = mip;
+            m_device->CreateUnorderedAccessView(res, nullptr, &ud, h);
             h.ptr += m_srvUavDescriptorSize;
+        };
+        const DXGI_FORMAT kHdr = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        const DXGI_FORMAT kLdr = DXGI_FORMAT_R8G8B8A8_UNORM;
+        const DXGI_FORMAT kBloom = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        auto bloomMip0 = [&]() { writeUav(m_bloomResource.Get(), kBloom, 0); };
+
+        // slot 0: resolve, live
+        writeUav(m_accumResource.Get(), kHdr, 0);
+        writeUav(m_outputResource.Get(), kLdr, 0);
+        bloomMip0();
+        // slot 1: resolve, denoised
+        writeUav(m_denoisedHdrResource.Get(), kHdr, 0);
+        writeUav(m_denoisedResource.Get(), kLdr, 0);
+        bloomMip0();
+        // slot 2: prefilter, live  (u2 unused; bind mip 0 as filler)
+        writeUav(m_accumResource.Get(), kHdr, 0);
+        bloomMip0();
+        bloomMip0();
+        // slot 3: prefilter, denoised
+        writeUav(m_denoisedHdrResource.Get(), kHdr, 0);
+        bloomMip0();
+        bloomMip0();
+        // slots 4..: downsample i (mip i -> mip i+1)
+        for (UINT i = 0; i + 1 < m_bloomMipCount; i++)
+        {
+            writeUav(m_bloomResource.Get(), kBloom, i);
+            writeUav(m_bloomResource.Get(), kBloom, i + 1);
+            bloomMip0();
+        }
+        // then upsample i (mip i+1 -> accumulated into mip i), walking back down
+        for (UINT i = 0; i + 1 < m_bloomMipCount; i++)
+        {
+            writeUav(m_bloomResource.Get(), kBloom, i + 1);
+            writeUav(m_bloomResource.Get(), kBloom, i);
+            bloomMip0();
         }
     }
 

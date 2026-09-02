@@ -63,6 +63,12 @@ void DXRApp::SetupCamera()
     m_camera.envmapScale = m_noriScene->getEnvmapScale();
     m_camera.evCompensation = m_noriScene->getEvCompensation();
     m_camera.envmapRotation = m_noriScene->getEnvmapRotation();
+    m_bloomThreshold = m_noriScene->getBloomThreshold();
+    m_bloomKnee = m_noriScene->getBloomKnee();
+    m_bloomIntensity = m_noriScene->getBloomIntensity();
+    if (m_bloomIntensity > 0.0f)
+        printf("[bloom] threshold %.2f, knee %.2f, intensity %.3f (B toggles, [ ] adjust)\n",
+               m_bloomThreshold, m_bloomKnee, m_bloomIntensity);
     m_camera.frameCount = 0;
     m_camera.lensRadius = cam->getLensRadius();
     m_camera.focalDistance = cam->getFocalDistance();
@@ -190,6 +196,26 @@ void DXRApp::OnKeyDown(UINT8 key)
         if (!m_autoDenoise)
             m_showDenoised = false;
         printf("[denoise] auto denoise-while-still %s\n", m_autoDenoise ? "ON" : "OFF");
+    }
+    // Bloom tuning. A good intensity is entirely scene-dependent, and because
+    // bloom is the last pass it re-evaluates on the next frame with no re-render
+    // and no re-denoise, so these are meant to be dragged by eye.
+    if (key == 'B')
+    {
+        m_bloomEnabled = !m_bloomEnabled;
+        printf("[bloom] %s (intensity %.3f)\n", m_bloomEnabled ? "ON" : "OFF", m_bloomIntensity);
+        if (m_showDenoised)
+            RefreshDenoisedPreview();
+    }
+    if (key == VK_OEM_4 || key == VK_OEM_6) // '[' and ']'
+    {
+        m_bloomIntensity += (key == VK_OEM_6) ? 0.01f : -0.01f;
+        if (m_bloomIntensity < 0.0f)
+            m_bloomIntensity = 0.0f;
+        printf("[bloom] intensity %.3f%s\n", m_bloomIntensity,
+               m_bloomEnabled ? "" : " (bloom is OFF, press B)");
+        if (m_showDenoised)
+            RefreshDenoisedPreview();
     }
     if (key == 'L')
     {
@@ -467,7 +493,18 @@ void DXRApp::DenoiseToViewport()
     // drift; it also left nowhere for a bloom pass to apply to the denoised
     // image. Now both paths differ only in which texture pair they bind.
     UploadHDR(m_denoisedHdrResource.Get(), rgb);
+    RefreshDenoisedPreview();
 
+    m_showDenoised = true;
+    printf("[denoise] showing denoised preview (move camera to resume live render)\n");
+}
+
+// Re-run bloom + resolve on the already-denoised HDR staging texture, without
+// touching OIDN. Split out of DenoiseToViewport so that adjusting bloom while a
+// denoised preview is frozen on screen updates it for the cost of a few
+// dispatches instead of another ~260 ms denoise.
+void DXRApp::RefreshDenoisedPreview()
+{
     WaitForGpu(m_frameIndex);
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
@@ -483,15 +520,16 @@ void DXRApp::DenoiseToViewport()
     toUav.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &toUav);
 
-    RecordResolve(kResolvePairDenoised);
+    // Bloom runs on the *denoised* image, never before OIDN. Blurring first
+    // would spread each firefly into a smooth low-frequency blob, which no
+    // longer looks like Monte Carlo noise to the denoiser and so survives it.
+    RecordBloomChain(/*denoisedSource=*/true);
+    RecordResolve(/*denoisedSource=*/true);
 
     std::swap(toUav.Transition.StateBefore, toUav.Transition.StateAfter);
     m_commandList->ResourceBarrier(1, &toUav);
 
     FlushCommandQueue();
-
-    m_showDenoised = true;
-    printf("[denoise] showing denoised preview (move camera to resume live render)\n");
 }
 
 // Upload interleaved float3 RGB (OIDN's output layout) into an RGBA32F texture,

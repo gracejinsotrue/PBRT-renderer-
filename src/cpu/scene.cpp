@@ -18,6 +18,10 @@ Scene::Scene(const PropertyList &propList)
     m_envmapScale = propList.getFloat("envmapScale", 1.0f);
     m_evCompensation = propList.getFloat("evCompensation", 0.0f);
     m_envmapRotation = propList.getFloat("envmapRotation", 0.0f);
+    // Bloom is display-referred post-processing, off unless a scene asks for it.
+    m_bloomThreshold = propList.getFloat("bloomThreshold", 1.0f);
+    m_bloomKnee = propList.getFloat("bloomKnee", 0.5f);
+    m_bloomIntensity = propList.getFloat("bloomIntensity", 0.0f);
     m_accel = new Accel();
 }
 
