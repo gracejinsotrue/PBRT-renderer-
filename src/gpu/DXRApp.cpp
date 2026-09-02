@@ -203,6 +203,7 @@ void DXRApp::OnDestroy()
     PrintProfileSummary();
     for (UINT i = 0; i < FrameCount; i++)
         WaitForGpu(i);
+    DrainDebugMessages("shutdown");
     if (m_fenceEvent)
         CloseHandle(m_fenceEvent);
 }

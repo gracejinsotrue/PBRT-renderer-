@@ -200,6 +200,12 @@ private:
     // best-effort and may lag a frame. See PrintProfileSummary for stats.
     bool m_profile = false;
 
+    // Whether the D3D12 debug layer is running (Debug builds only). Its messages
+    // go to OutputDebugString, which a console run never sees, so DrainDebugMessages
+    // pulls them explicitly — otherwise a clean-looking Debug run proves nothing.
+    bool m_debugLayerActive = false;
+    uint32_t DrainDebugMessages(const char *tag);
+
     // Presentation pacing. m_vsync is the user's request (--novsync clears it);
     // m_allowTearing records whether the adapter/OS actually supports tearing,
     // decided in CreateSwapChain. Both must hold to present uncapped.

@@ -146,7 +146,11 @@ if(MSVC)
         __TBB_NO_IMPLICIT_LINKAGE
         NOMINMAX
     )
-    target_compile_options(nori-dxr PRIVATE /O2)
+    # /O2 collides with Debug's /RTC1, which made -DCMAKE_BUILD_TYPE=Debug fail
+    # to compile at all — and with it the D3D12 debug layer in CreateDevice,
+    # which is gated on _DEBUG. Keep the optimisation out of Debug so descriptor,
+    # barrier and root-signature validation is actually reachable.
+    target_compile_options(nori-dxr PRIVATE $<$<NOT:$<CONFIG:Debug>>:/O2>)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(nori-dxr PRIVATE -O3)
 endif()
