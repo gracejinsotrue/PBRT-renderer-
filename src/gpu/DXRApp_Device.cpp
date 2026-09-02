@@ -20,6 +20,7 @@ void DXRApp::CreateDevice()
     }
 #endif
     ThrowIfFailed(CreateDXGIFactory2(flags, IID_PPV_ARGS(&m_factory)), "Factory");
+    m_debugLayerActive = (flags & DXGI_CREATE_FACTORY_DEBUG) != 0;
     ComPtr<IDXGIAdapter1> adapter;
     std::string dxrProbeLog;
     for (UINT i = 0; m_factory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
@@ -269,4 +270,52 @@ void DXRApp::WaitForGpu(UINT fi)
     ThrowIfFailed(m_fence->SetEventOnCompletion(v, m_fenceEvent), "Fence");
     WaitForSingleObject(m_fenceEvent, INFINITE);
     m_fenceValues[fi]++;
+}
+
+// Drain the D3D12 debug layer's message queue to stdout.
+//
+// The debug layer reports via OutputDebugString, which is invisible to a plain
+// console run — so a Debug build that prints no errors proves nothing unless the
+// queue is pulled explicitly. Called at shutdown, where the retained queue holds
+// everything raised during the run: descriptor-table mismatches, wrong resource
+// states at draw/dispatch, missing barriers, root-signature/shader disagreements.
+// Returns the number of error-or-worse messages seen.
+uint32_t DXRApp::DrainDebugMessages(const char *tag)
+{
+    if (!m_debugLayerActive || !m_device)
+        return 0;
+
+    ComPtr<ID3D12InfoQueue> iq;
+    if (FAILED(m_device->QueryInterface(IID_PPV_ARGS(&iq))))
+        return 0;
+
+    const UINT64 n = iq->GetNumStoredMessages();
+    uint32_t errors = 0;
+    std::vector<uint8_t> buf;
+    for (UINT64 i = 0; i < n; i++)
+    {
+        SIZE_T len = 0;
+        if (FAILED(iq->GetMessage(i, nullptr, &len)) || len == 0)
+            continue;
+        buf.resize(len);
+        auto *msg = reinterpret_cast<D3D12_MESSAGE *>(buf.data());
+        if (FAILED(iq->GetMessage(i, msg, &len)))
+            continue;
+
+        const char *sev = "INFO";
+        switch (msg->Severity)
+        {
+        case D3D12_MESSAGE_SEVERITY_CORRUPTION: sev = "CORRUPTION"; errors++; break;
+        case D3D12_MESSAGE_SEVERITY_ERROR:      sev = "ERROR";      errors++; break;
+        case D3D12_MESSAGE_SEVERITY_WARNING:    sev = "WARNING";    break;
+        default: continue; // skip INFO/MESSAGE chatter
+        }
+        printf("[d3d12:%s] %s: %.*s\n", tag, sev, (int)msg->DescriptionByteLength,
+               msg->pDescription);
+    }
+    iq->ClearStoredMessages();
+    printf("[d3d12:%s] debug layer: %llu messages, %u error+\n",
+           tag, (unsigned long long)n, errors);
+    fflush(stdout);
+    return errors;
 }
