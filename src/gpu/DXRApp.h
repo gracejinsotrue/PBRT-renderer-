@@ -359,6 +359,10 @@ private:
     bool m_showDenoised = false;
     bool m_autoDenoise = true;
     uint32_t m_nextDenoiseSpp = 16;
+    // Last denoise result, keyed on the sample count it was produced at, so
+    // repeat callers at the same accumulation state don't re-run OIDN.
+    std::vector<float> m_denoiseCache;
+    uint32_t m_denoiseCacheFrame = 0xFFFFFFFFu;
     static constexpr uint32_t kMaxDenoiseSpp = 2048;
     UINT m_srvUavDescriptorSize = 0;
 

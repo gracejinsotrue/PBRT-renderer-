@@ -175,6 +175,7 @@ void DXRApp::OnUpdate()
     {
         RecomputeCameraPlane();
         m_frameCount = 0;
+        m_denoiseCacheFrame = 0xFFFFFFFFu; // accumulation restarted; cache is stale
         m_cameraDirty = false;
         m_showDenoised = false; // camera moved, therefore show the live (noisy) render again
         m_nextDenoiseSpp = 16;  // restart the denoise-while-still cadence
@@ -501,6 +502,18 @@ void DXRApp::SaveAccumResourceEXR(ID3D12Resource *res, const char *filename)
 
 bool DXRApp::RunDenoise(std::vector<float> &outRGB)
 {
+    // Denoising the same accumulation twice always produces the same image, and
+    // callers do stack up: `--denoise --png` wants one denoise for the EXR and
+    // another to stage the HDR for the bloom pass. Cache on sample count so the
+    // second caller is free. Invalidated in OnUpdate when the camera moves,
+    // because that resets m_frameCount and a later frame could otherwise collide
+    // with a stale entry at the same count.
+    if (m_denoiseCacheFrame == m_frameCount && !m_denoiseCache.empty())
+    {
+        outRGB = m_denoiseCache;
+        return true;
+    }
+
     if (!m_denoiser)
     {
         m_denoiser = std::make_unique<Denoiser>();
@@ -520,8 +533,12 @@ bool DXRApp::RunDenoise(std::vector<float> &outRGB)
     bool ok = m_denoiser->Denoise(beauty.data(), albedo.data(), normal.data(), outRGB);
     auto t1 = std::chrono::high_resolution_clock::now();
     if (ok)
+    {
         printf("[denoise] %u spp denoised in %.1f ms\n", m_frameCount,
                std::chrono::duration<float, std::milli>(t1 - t0).count());
+        m_denoiseCache = outRGB;
+        m_denoiseCacheFrame = m_frameCount;
+    }
     return ok;
 }
 
