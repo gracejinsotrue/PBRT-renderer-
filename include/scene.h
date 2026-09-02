@@ -125,6 +125,16 @@ public:
     /// Return the envmap yaw rotation in radians (rotates sun/sky horizontally)
     float getEnvmapRotation() const { return m_envmapRotation; }
 
+    /// Luminance above which a texel contributes to bloom (default 1.0)
+    float getBloomThreshold() const { return m_bloomThreshold; }
+
+    /// Width of the soft ramp into the bloom threshold (default 0.5). A hard
+    /// cutoff makes texels pop in and out as the estimate converges.
+    float getBloomKnee() const { return m_bloomKnee; }
+
+    /// How much bloom to composite before tonemapping (default 0.0 = off)
+    float getBloomIntensity() const { return m_bloomIntensity; }
+
 private:
     std::vector<Mesh *> m_meshes;
     Integrator *m_integrator = nullptr;
@@ -136,6 +146,9 @@ private:
     float m_envmapScale = 1.0f;
     float m_evCompensation = 0.0f;
     float m_envmapRotation = 0.0f;
+    float m_bloomThreshold = 1.0f;
+    float m_bloomKnee = 0.5f;
+    float m_bloomIntensity = 0.0f;
 };
 
 NORI_NAMESPACE_END

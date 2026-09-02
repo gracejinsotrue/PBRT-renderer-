@@ -150,6 +150,9 @@ public:
     void OnMouseMove(int x, int y);
 
     void SaveSnapshot();
+    // Display-referred PNG (exposure, bloom, ACES, gamma applied), unlike the
+    // scene-linear EXR paths. `denoised` reads the denoised display texture.
+    void SaveSnapshotPNG(bool denoised = false);
     void SaveSnapshotEXR();
     void SaveAccumResourceEXR(ID3D12Resource *res, const char *filename);
     void DenoiseAndSaveEXR();
@@ -199,6 +202,12 @@ private:
     // --headless which is fully synchronous (or so I h ope); windowed sampling is
     // best-effort and may lag a frame. See PrintProfileSummary for stats.
     bool m_profile = false;
+
+    // Whether the D3D12 debug layer is running (Debug builds only). Its messages
+    // go to OutputDebugString, which a console run never sees, so DrainDebugMessages
+    // pulls them explicitly — otherwise a clean-looking Debug run proves nothing.
+    bool m_debugLayerActive = false;
+    uint32_t DrainDebugMessages(const char *tag);
 
     // Presentation pacing. m_vsync is the user's request (--novsync clears it);
     // m_allowTearing records whether the adapter/OS actually supports tearing,
@@ -282,15 +291,78 @@ private:
     ComPtr<ID3D12Resource> m_normalResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
 
+    // Display resolve pass (Resolve.hlsl / CSResolve). Turns an HDR
+    // accumulation texture into the RGBA8 image that gets blitted to the
+    // backbuffer: normalize by .w, exposure, ACES, gamma. RayGen used to do
+    // this inline; it was split out so the curve lives in one place and so a
+    // neighbourhood pass (bloom) has somewhere to sit between HDR and tonemap.
+    //
+    // The pass has its own root signature — the raytracing one is built around
+    // unbounded texture arrays it has no use for — but it reads descriptors
+    // from the tail of m_srvUavHeap so no heap swap is needed mid-frame.
+    ComPtr<ID3D12RootSignature> m_postRootSig;
+    ComPtr<ID3D12PipelineState> m_resolvePSO;
+    ComPtr<ID3D12PipelineState> m_bloomPrefilterPSO;
+    ComPtr<ID3D12PipelineState> m_bloomDownsamplePSO;
+    ComPtr<ID3D12PipelineState> m_bloomUpsamplePSO;
+
+    // Bloom mip chain: one RGBA16F texture, mip 0 at half the render
+    // resolution, with a UAV per mip. RGBA16F rather than the more compact
+    // R11G11B10 because the chain does typed UAV *loads*, which need
+    // TypedUAVLoadAdditionalFormats — a cap this app already relies on, since
+    // g_accum is R32G32B32A32_FLOAT and RayGen loads it.
+    ComPtr<ID3D12Resource> m_bloomResource;
+    UINT m_bloomMipCount = 0;
+
+    // Scene-authored bloom controls (see Scene::getBloom*). Intensity is
+    // runtime-adjustable with [ and ]; B toggles bloom off entirely.
+    float m_bloomThreshold = 1.0f;
+    float m_bloomKnee = 0.5f;
+    float m_bloomIntensity = 0.0f;
+    bool m_bloomEnabled = true;
+
+    // Descriptor-heap index of the first post-process UAV. Every post pass binds
+    // a 3-descriptor slot (u0 source, u1 dest, u2 aux) so they can share one
+    // root signature; the bloom passes ignore u2. Slot layout, in units of 3:
+    //   0                        resolve, live       (accum, output, bloom mip 0)
+    //   1                        resolve, denoised   (denoisedHdr, denoised, bloom mip 0)
+    //   2                        prefilter, live     (accum, bloom mip 0, -)
+    //   3                        prefilter, denoised (denoisedHdr, bloom mip 0, -)
+    //   4 .. 4+(M-2)             downsample i        (mip i, mip i+1, -)
+    //   4+(M-1) .. 4+2(M-1)-1    upsample i          (mip i+1, mip i, -)
+    UINT m_postDescriptorBase = 0;
+    static constexpr UINT kPostSlotResolveLive = 0;
+    static constexpr UINT kPostSlotResolveDenoised = 1;
+    static constexpr UINT kPostSlotPrefilterLive = 2;
+    static constexpr UINT kPostSlotPrefilterDenoised = 3;
+    static constexpr UINT kPostSlotDownsampleFirst = 4;
+    UINT PostSlotUpsampleFirst() const { return kPostSlotDownsampleFirst + (m_bloomMipCount - 1); }
+
+    // Dimensions of bloom mip `level` (level 0 is half the render resolution).
+    void BloomMipDims(UINT level, UINT &w, UINT &h) const
+    {
+        w = m_width >> (level + 1);
+        h = m_height >> (level + 1);
+        if (w == 0) w = 1;
+        if (h == 0) h = 1;
+    }
+
     // In-app denoiser with OIDN, this is lazily initialized on first denoise request.
     // when the camera is stationary, the accumulator keeps running and we periodically denoise the current mean into m_denoisedResource
     // and display THAT, which is a clean preview that refines as spp grows.
     // if you move the camera, it resets it back to the live progressive view.
     std::unique_ptr<Denoiser> m_denoiser;
     ComPtr<ID3D12Resource> m_denoisedResource;
+    // OIDN's linear HDR output, uploaded with w = 1.0 so the resolve pass can
+    // normalize it by .w exactly like the accumulation buffer and share one shader.
+    ComPtr<ID3D12Resource> m_denoisedHdrResource;
     bool m_showDenoised = false;
     bool m_autoDenoise = true;
     uint32_t m_nextDenoiseSpp = 16;
+    // Last denoise result, keyed on the sample count it was produced at, so
+    // repeat callers at the same accumulation state don't re-run OIDN.
+    std::vector<float> m_denoiseCache;
+    uint32_t m_denoiseCacheFrame = 0xFFFFFFFFu;
     static constexpr uint32_t kMaxDenoiseSpp = 2048;
     UINT m_srvUavDescriptorSize = 0;
 
@@ -330,6 +402,7 @@ private:
     void CreateSceneBuffers();
     void CreateTextures();
     void CreateRaytracingPipeline();
+    void CreatePostPipelines();
     void CreateOutputResource();
     void CreateShaderTable();
     void SetupCamera();
@@ -359,10 +432,36 @@ private:
     void WaitForGpu(UINT frameIndex);
     void FlushCommandQueue();
 
+    // Record one post-process dispatch into m_commandList. `slot` is a
+    // 3-descriptor slot index (see m_postDescriptorBase). Caller owns the
+    // surrounding barriers.
+    void RecordPostPass(ID3D12PipelineState *pso, UINT slot,
+                        UINT srcW, UINT srcH, UINT dstW, UINT dstH,
+                        float bloomIntensity);
+
+    // Record the full bloom mip chain (prefilter, downsample, upsample) for the
+    // given HDR source. No-op when bloom is disabled. Caller owns the barrier
+    // that makes the HDR source visible.
+    void RecordBloomChain(bool denoisedSource);
+
+    // Record the display resolve. `denoisedSource` picks which HDR texture and
+    // LDR destination to bind.
+    void RecordResolve(bool denoisedSource);
+
+    // Re-run bloom + resolve on the already-denoised HDR texture without
+    // re-running OIDN, so bloom tweaks are visible while a preview is frozen.
+    void RefreshDenoisedPreview();
+
+    // Effective bloom intensity: zero when the user has toggled bloom off, which
+    // makes the resolve shader skip the composite entirely.
+    float EffectiveBloomIntensity() const { return m_bloomEnabled ? m_bloomIntensity : 0.0f; }
+
     // Denoiser helpers
     std::vector<float> ReadbackAccumResource(ID3D12Resource *res);
+    std::vector<uint8_t> ReadbackRGBA8(ID3D12Resource *res);
     bool RunDenoise(std::vector<float> &outRGB);
-    void UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba);
+    // Upload interleaved float3 RGB into an RGBA32F texture, setting w = 1.0.
+    void UploadHDR(ID3D12Resource *res, const std::vector<float> &rgb);
 
     // Resource helpers
     ComPtr<ID3D12Resource> CreateBuffer(
