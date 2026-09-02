@@ -282,12 +282,34 @@ private:
     ComPtr<ID3D12Resource> m_normalResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
 
+    // Display resolve pass (Resolve.hlsl / CSResolve). Turns an HDR
+    // accumulation texture into the RGBA8 image that gets blitted to the
+    // backbuffer: normalize by .w, exposure, ACES, gamma. RayGen used to do
+    // this inline; it was split out so the curve lives in one place and so a
+    // neighbourhood pass (bloom) has somewhere to sit between HDR and tonemap.
+    //
+    // The pass has its own root signature — the raytracing one is built around
+    // unbounded texture arrays it has no use for — but it reads descriptors
+    // from the tail of m_srvUavHeap so no heap swap is needed mid-frame.
+    ComPtr<ID3D12RootSignature> m_resolveRootSig;
+    ComPtr<ID3D12PipelineState> m_resolvePSO;
+
+    // Descriptor-heap index of the first resolve UAV. Two consecutive pairs:
+    //   [base+0] HDR source = m_accumResource       [base+1] LDR dest = m_outputResource
+    //   [base+2] HDR source = m_denoisedHdrResource [base+3] LDR dest = m_denoisedResource
+    UINT m_resolveDescriptorBase = 0;
+    static constexpr UINT kResolvePairLive = 0;
+    static constexpr UINT kResolvePairDenoised = 2;
+
     // In-app denoiser with OIDN, this is lazily initialized on first denoise request.
     // when the camera is stationary, the accumulator keeps running and we periodically denoise the current mean into m_denoisedResource
     // and display THAT, which is a clean preview that refines as spp grows.
     // if you move the camera, it resets it back to the live progressive view.
     std::unique_ptr<Denoiser> m_denoiser;
     ComPtr<ID3D12Resource> m_denoisedResource;
+    // OIDN's linear HDR output, uploaded with w = 1.0 so the resolve pass can
+    // normalize it by .w exactly like the accumulation buffer and share one shader.
+    ComPtr<ID3D12Resource> m_denoisedHdrResource;
     bool m_showDenoised = false;
     bool m_autoDenoise = true;
     uint32_t m_nextDenoiseSpp = 16;
@@ -330,6 +352,7 @@ private:
     void CreateSceneBuffers();
     void CreateTextures();
     void CreateRaytracingPipeline();
+    void CreateResolvePipeline();
     void CreateOutputResource();
     void CreateShaderTable();
     void SetupCamera();
@@ -359,10 +382,16 @@ private:
     void WaitForGpu(UINT frameIndex);
     void FlushCommandQueue();
 
+    // Record the resolve dispatch into m_commandList. `pairIndex` selects which
+    // (HDR source, LDR dest) descriptor pair to bind: kResolvePairLive or
+    // kResolvePairDenoised. Caller owns the surrounding barriers.
+    void RecordResolve(UINT pairIndex);
+
     // Denoiser helpers
     std::vector<float> ReadbackAccumResource(ID3D12Resource *res);
     bool RunDenoise(std::vector<float> &outRGB);
-    void UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba);
+    // Upload interleaved float3 RGB into an RGBA32F texture, setting w = 1.0.
+    void UploadHDR(ID3D12Resource *res, const std::vector<float> &rgb);
 
     // Resource helpers
     ComPtr<ID3D12Resource> CreateBuffer(

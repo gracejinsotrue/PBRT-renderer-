@@ -93,7 +93,27 @@ add_custom_command(
     COMMENT "Compiling Shaders.hlsl (+ modular .hlsli)"
     VERBATIM
 )
-add_custom_target(compile_shaders DEPENDS ${SHADER_CSO})
+# Compute shaders. Unlike the raytracing library above these are compiled one
+# entry point per .cso with the cs_6_5 profile. Add entries as "<file>:<entry>".
+set(COMPUTE_SHADERS "Resolve:CSResolve")
+set(COMPUTE_CSOS)
+foreach(cs IN LISTS COMPUTE_SHADERS)
+    string(REPLACE ":" ";" cs_parts ${cs})
+    list(GET cs_parts 0 cs_name)
+    list(GET cs_parts 1 cs_entry)
+    set(cs_src ${CMAKE_SOURCE_DIR}/shaders/${cs_name}.hlsl)
+    set(cs_cso ${CMAKE_BINARY_DIR}/${cs_name}.cso)
+    add_custom_command(
+        OUTPUT ${cs_cso}
+        COMMAND ${DXC_EXECUTABLE} -T cs_6_5 -E ${cs_entry} -Fo ${cs_cso} ${cs_src}
+        DEPENDS ${cs_src} ${SHADER_HEADERS}
+        COMMENT "Compiling ${cs_name}.hlsl (${cs_entry})"
+        VERBATIM
+    )
+    list(APPEND COMPUTE_CSOS ${cs_cso})
+endforeach()
+
+add_custom_target(compile_shaders DEPENDS ${SHADER_CSO} ${COMPUTE_CSOS})
 
 add_executable(nori-dxr
     ${CMAKE_SOURCE_DIR}/src/gpu/main.cpp
@@ -133,6 +153,11 @@ target_link_libraries(nori-dxr PRIVATE
 add_custom_command(TARGET nori-dxr POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_CSO} $<TARGET_FILE_DIR:nori-dxr>/Shaders.cso
 )
+foreach(cs_cso IN LISTS COMPUTE_CSOS)
+    add_custom_command(TARGET nori-dxr POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${cs_cso} $<TARGET_FILE_DIR:nori-dxr>
+    )
+endforeach()
 add_custom_command(TARGET nori-dxr POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${OIDN_ROOT}/bin/OpenImageDenoise.dll

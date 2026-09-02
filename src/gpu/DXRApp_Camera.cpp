@@ -460,55 +460,78 @@ void DXRApp::DenoiseToViewport()
     std::vector<float> rgb;
     if (!RunDenoise(rgb))
         return;
-    const float ev = powf(2.0f, m_camera.evCompensation);
-    const float a = 2.51f, b = 0.03f, c = 2.43f, d = 0.59f, e = 0.14f;
-    auto tonemap = [&](float x) -> uint8_t
-    {
-        x *= ev;
-        x = (x * (a * x + b)) / (x * (c * x + d) + e);
-        x = x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
-        x = powf(x, 1.0f / 2.2f);
-        return (uint8_t)(x * 255.0f + 0.5f);
-    };
 
-    const size_t px = (size_t)m_width * m_height;
-    std::vector<uint8_t> rgba(px * 4);
-    for (size_t i = 0; i < px; i++)
-    {
-        rgba[i * 4 + 0] = tonemap(rgb[i * 3 + 0]);
-        rgba[i * 4 + 1] = tonemap(rgb[i * 3 + 1]);
-        rgba[i * 4 + 2] = tonemap(rgb[i * 3 + 2]);
-        rgba[i * 4 + 3] = 255;
-    }
+    // Stage OIDN's linear HDR output on the GPU, then run the *same* resolve
+    // pass the live render uses. This used to be a hand-rolled copy of the ACES
+    // curve on the CPU, which meant the tonemap existed in two places and could
+    // drift; it also left nowhere for a bloom pass to apply to the denoised
+    // image. Now both paths differ only in which texture pair they bind.
+    UploadHDR(m_denoisedHdrResource.Get(), rgb);
 
-    UploadRGBA8(m_denoisedResource.Get(), rgba);
+    WaitForGpu(m_frameIndex);
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    ID3D12DescriptorHeap *heaps[] = {m_srvUavHeap.Get()};
+    m_commandList->SetDescriptorHeaps(1, heaps);
+
+    D3D12_RESOURCE_BARRIER toUav{};
+    toUav.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    toUav.Transition.pResource = m_denoisedResource.Get();
+    toUav.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    toUav.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    toUav.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(1, &toUav);
+
+    RecordResolve(kResolvePairDenoised);
+
+    std::swap(toUav.Transition.StateBefore, toUav.Transition.StateAfter);
+    m_commandList->ResourceBarrier(1, &toUav);
+
+    FlushCommandQueue();
+
     m_showDenoised = true;
     printf("[denoise] showing denoised preview (move camera to resume live render)\n");
 }
 
-void DXRApp::UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba)
+// Upload interleaved float3 RGB (OIDN's output layout) into an RGBA32F texture,
+// expanding to float4 with w = 1.0. The alpha matters: the resolve pass divides
+// by .w to turn the path tracer's running sum into a mean, so writing 1.0 here
+// makes that normalization a no-op and lets both paths share one shader.
+void DXRApp::UploadHDR(ID3D12Resource *res, const std::vector<float> &rgb)
 {
     WaitForGpu(m_frameIndex);
 
     const UINT W = m_width, H = m_height;
-    UINT64 rowPitch = ((UINT64)W * 4 + 255) & ~255ULL;
+    UINT64 rowPitch = ((UINT64)W * 16 + 255) & ~255ULL;
     auto upload = CreateBuffer(rowPitch * H, D3D12_RESOURCE_FLAG_NONE,
                                D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
 
     uint8_t *p;
     upload->Map(0, nullptr, (void **)&p);
     for (UINT y = 0; y < H; y++)
-        memcpy(p + (size_t)y * rowPitch, rgba.data() + (size_t)y * W * 4, (size_t)W * 4);
+    {
+        float *row = reinterpret_cast<float *>(p + (size_t)y * rowPitch);
+        const float *srcRow = rgb.data() + (size_t)y * W * 3;
+        for (UINT x = 0; x < W; x++)
+        {
+            row[x * 4 + 0] = srcRow[x * 3 + 0];
+            row[x * 4 + 1] = srcRow[x * 3 + 1];
+            row[x * 4 + 2] = srcRow[x * 3 + 2];
+            row[x * 4 + 3] = 1.0f;
+        }
+    }
     upload->Unmap(0, nullptr);
 
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
 
-    // The target texture sits in COPY_SOURCE between frames, move it to COPY_DEST.
+    // The staging texture rests in UNORDERED_ACCESS (the state the resolve pass
+    // reads it in), so borrow it for the copy and hand it back.
     D3D12_RESOURCE_BARRIER b{};
     b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     b.Transition.pResource = res;
-    b.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    b.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     b.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
     b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     m_commandList->ResourceBarrier(1, &b);
@@ -518,14 +541,13 @@ void DXRApp::UploadRGBA8(ID3D12Resource *res, const std::vector<uint8_t> &rgba)
     dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     src.pResource = upload.Get();
     src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    src.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
     src.PlacedFootprint.Footprint.Width = W;
     src.PlacedFootprint.Footprint.Height = H;
     src.PlacedFootprint.Footprint.Depth = 1;
     src.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
     m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 
-    // Back to COPY_SOURCE so RecordPresentHeld can blit it to the backbuffer.
     std::swap(b.Transition.StateBefore, b.Transition.StateAfter);
     m_commandList->ResourceBarrier(1, &b);
 

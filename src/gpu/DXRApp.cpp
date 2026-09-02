@@ -72,6 +72,7 @@ void DXRApp::OnInit()
     CreateSceneBuffers();
     CreateTextures();
     CreateRaytracingPipeline();
+    CreateResolvePipeline();
     CreateOutputResource();
     CreateShaderTable();
     SetupCamera();
@@ -217,6 +218,30 @@ void DXRApp::OnDestroy()
 // are defined in DXRApp_Pipeline.cpp.
 // SetupCamera, RecomputeCameraPlane are defined in DXRApp_Camera.cpp.
 
+// Record the display resolve dispatch. Assumes the descriptor heap is already
+// bound and both textures of the selected pair are in UNORDERED_ACCESS.
+void DXRApp::RecordResolve(UINT pairIndex)
+{
+    struct ResolveConstants
+    {
+        uint32_t dims[2];
+        float ev;
+        float pad;
+    } rc{{m_width, m_height}, m_camera.evCompensation, 0.0f};
+
+    m_commandList->SetComputeRootSignature(m_resolveRootSig.Get());
+    m_commandList->SetPipelineState(m_resolvePSO.Get());
+    m_commandList->SetComputeRoot32BitConstants(0, sizeof(rc) / 4, &rc, 0);
+
+    auto table = m_srvUavHeap->GetGPUDescriptorHandleForHeapStart();
+    table.ptr += (UINT64)(m_resolveDescriptorBase + pairIndex) * m_srvUavDescriptorSize;
+    m_commandList->SetComputeRootDescriptorTable(1, table);
+
+    // Matches [numthreads(8, 8, 1)] in Resolve.hlsl; the shader bounds-checks
+    // the ragged edge when the resolution is not a multiple of 8.
+    m_commandList->Dispatch((m_width + 7) / 8, (m_height + 7) / 8, 1);
+}
+
 void DXRApp::PopulateCommandList()
 {
     auto *a = m_commandAllocators[m_frameIndex].Get();
@@ -265,6 +290,20 @@ void DXRApp::PopulateCommandList()
     m_commandList->DispatchRays(&dr);
     if (m_profile)
         m_commandList->EndQuery(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+
+    // The timestamp pair deliberately brackets DispatchRays only, not the
+    // resolve below, so --profile keeps reporting the same path-tracing kernel
+    // cost as before this pass existed and the recorded numbers stay comparable.
+
+    // Resolve g_accum into the RGBA8 output. The UAV barrier is what makes the
+    // path tracer's writes visible to the resolve dispatch.
+    {
+        D3D12_RESOURCE_BARRIER accumDone{};
+        accumDone.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        accumDone.UAV.pResource = m_accumResource.Get();
+        m_commandList->ResourceBarrier(1, &accumDone);
+        RecordResolve(kResolvePairLive);
+    }
 
     bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     bb[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;

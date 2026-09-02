@@ -47,6 +47,8 @@
         float3 averaged = accum.xyz / accum.w;
         averaged /= 10.0;
         averaged *= 0.5;
+        // NOTE: CSResolve overwrites g_output every frame, so enabling this
+        // debug mode also requires skipping the resolve dispatch.
         g_output[pixel] = float4(saturate(averaged), 1.0);
         return;
     }
@@ -637,17 +639,10 @@
     float4 prevN = (frameCount == 0) ? float4(0, 0, 0, 0) : g_normal[pixel];
     g_normal[pixel] = prevN + float4(aovNormal, 1.0);
 
-    float3 averaged = accum.xyz / accum.w;
-    averaged = averaged * pow(2.0, evCompensation); // exposure compensation in EV stops (0 = no change)
-
-    // ACES filmic tonemapper (Hill 2016 approximation).
-    // Preserves saturation and contrast in midtones better than Reinhard.
-    // Input is assumed to be in scene-linear AP1-ish space.
-    float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
-    averaged = saturate((averaged * (a * averaged + b)) / (averaged * (c * averaged + d) + e));
-
-    averaged = pow(averaged, 1.0 / 2.2); // gamma 2.2
-    g_output[pixel] = float4(averaged, 1.0);
+    // Exposure, tonemapping and gamma now live in Resolve.hlsl (CSResolve),
+    // dispatched right after this one. RayGen only produces scene-linear
+    // radiance; everything display-referred happens downstream, which is what
+    // lets a neighbourhood pass like bloom sit between the two.
 }
 
     [shader("closesthit")] void ClosestHit(inout HitPayload payload, in BuiltInTriangleIntersectionAttributes attr)

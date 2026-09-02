@@ -126,6 +126,48 @@ void DXRApp::CreateRaytracingPipeline()
     printf("[pipeline] State object created\n");
 }
 
+// Display resolve pass. Deliberately does NOT reuse m_globalRootSig: that one is
+// shaped around the raytracing pipeline's unbounded texture arrays and static
+// samplers, none of which a post-process pass wants. It does read from
+// m_srvUavHeap though (descriptors appended at the tail by CreateOutputResource),
+// so no SetDescriptorHeaps call is needed between DispatchRays and Dispatch.
+void DXRApp::CreateResolvePipeline()
+{
+    D3D12_DESCRIPTOR_RANGE range{};
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    range.NumDescriptors = 2; // u0 = HDR source, u1 = LDR dest
+    range.BaseShaderRegister = 0;
+    range.OffsetInDescriptorsFromTableStart = 0;
+
+    D3D12_ROOT_PARAMETER rp[2]{};
+    rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    rp[0].Constants.ShaderRegister = 0;
+    rp[0].Constants.Num32BitValues = 4; // uint2 dims, float ev, float pad
+    rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    rp[1].DescriptorTable.NumDescriptorRanges = 1;
+    rp[1].DescriptorTable.pDescriptorRanges = &range;
+    rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    D3D12_ROOT_SIGNATURE_DESC rsd{};
+    rsd.NumParameters = 2;
+    rsd.pParameters = rp;
+    ComPtr<ID3DBlob> sig, err;
+    ThrowIfFailed(D3D12SerializeRootSignature(&rsd, D3D_ROOT_SIGNATURE_VERSION_1, &sig, &err),
+                  "Resolve root sig serialize");
+    ThrowIfFailed(m_device->CreateRootSignature(0, sig->GetBufferPointer(), sig->GetBufferSize(),
+                                                IID_PPV_ARGS(&m_resolveRootSig)),
+                  "Resolve root sig");
+
+    auto blob = ReadFileBytes(GetExeDirectory() + L"Resolve.cso");
+    D3D12_COMPUTE_PIPELINE_STATE_DESC pd{};
+    pd.pRootSignature = m_resolveRootSig.Get();
+    pd.CS = {blob.data(), blob.size()};
+    ThrowIfFailed(m_device->CreateComputePipelineState(&pd, IID_PPV_ARGS(&m_resolvePSO)),
+                  "Resolve PSO");
+    printf("[pipeline] Resolve compute PSO created (%zu bytes)\n", blob.size());
+}
+
 void DXRApp::CreateOutputResource()
 {
     D3D12_HEAP_PROPERTIES hp{};
@@ -147,9 +189,13 @@ void DXRApp::CreateOutputResource()
                       "Output tex");
     }
 
-    // this is a denoised-preview display texture of RGBA8. Not shader-bound. only a copy
-    // target for UploadRGBA8 and a copy source for the backbuffer blit when the
-    // denoise-while-still preview is active. Same format as the output texture.
+    // Denoised-preview display texture (RGBA8), and a copy source for the
+    // backbuffer blit when the denoise-while-still preview is active. Same
+    // format as the output texture.
+    //
+    // It is now a UAV: the resolve pass writes it directly, so the denoised
+    // preview goes through the exact same exposure/ACES/gamma code as the live
+    // render instead of a duplicated CPU tonemap loop.
     {
         D3D12_RESOURCE_DESC td{};
         td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -159,11 +205,30 @@ void DXRApp::CreateOutputResource()
         td.MipLevels = 1;
         td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         td.SampleDesc.Count = 1;
-        td.Flags = D3D12_RESOURCE_FLAG_NONE;
+        td.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
                                                         D3D12_RESOURCE_STATE_COMMON, nullptr,
                                                         IID_PPV_ARGS(&m_denoisedResource)),
                       "Denoised display tex");
+    }
+
+    // OIDN's linear HDR output, staged on the GPU so the resolve pass can read
+    // it. Uploaded with w = 1.0 (see UploadHDR) so the shader's divide-by-.w
+    // normalization is a no-op for this path.
+    {
+        D3D12_RESOURCE_DESC td{};
+        td.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        td.Width = m_width;
+        td.Height = m_height;
+        td.DepthOrArraySize = 1;
+        td.MipLevels = 1;
+        td.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        td.SampleDesc.Count = 1;
+        td.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &td,
+                                                        D3D12_RESOURCE_STATE_COMMON, nullptr,
+                                                        IID_PPV_ARGS(&m_denoisedHdrResource)),
+                      "Denoised HDR tex");
     }
 
     // Accumulation UAV texture
@@ -206,27 +271,38 @@ void DXRApp::CreateOutputResource()
                       "Normal AOV tex");
     }
 
-    // Descriptor heap layout:
+    // Descriptor heap layout (N = m_textureCount, V = volumeTexCount):
     //  [0]  u0  UAV output texture
     //  [1]  u1  UAV accumulation texture
     //  [2]  u2  UAV albedo AOV texture
     //  [3]  u3  UAV normal AOV texture
     //  [4]  t0  SRV TLAS
-    //  [3]  t1  SRV material structured buffer
-    //  [4]  t2  SRV global vertex normals (raw)
-    //  [5]  t3  SRV global index buffer (raw)
-    //  [6]  t4  SRV global vertex positions (raw)
-    //  [7]  t5  SRV emitter CDF (raw)
-    //  [8]  t6  SRV global UV buffer (raw)
-    //  [9]  t7  SRV environment map (RGBA32F)
-    //  [10] t8  SRV envmap marginal CDF (raw)
-    //  [11] t9  SRV envmap conditional CDF (raw)
-    //  [12] t10 SRV global fiber tangent buffer (raw, hair only)
-    //  [13..13+N) t11+ SRV material textures
-    //  [13+N]     t0 (space1) SRV volume StructuredBuffer<GPUVolume>
-    //  [14+N..)   t1+ (space1) SRV volume density Texture3D<float>[]
+    //  [5]  t1  SRV material structured buffer
+    //  [6]  t2  SRV global vertex normals (raw)
+    //  [7]  t3  SRV global index buffer (raw)
+    //  [8]  t4  SRV global vertex positions (raw)
+    //  [9]  t5  SRV emitter CDF (raw)
+    //  [10] t6  SRV global UV buffer (raw)
+    //  [11] t7  SRV environment map (RGBA32F)
+    //  [12] t8  SRV envmap marginal CDF (raw)
+    //  [13] t9  SRV envmap conditional CDF (raw)
+    //  [14] t10 SRV global fiber tangent buffer (raw, hair only)
+    //  [15..15+N)   t11+ SRV material textures
+    //  [15+N]       t0 (space1) SRV volume StructuredBuffer<GPUVolume>
+    //  [16+N..16+N+V) t1+ (space1) SRV volume density Texture3D<float>[]
+    //
+    // Everything above is addressed by the raytracing root signature. The four
+    // entries below are the resolve pass's, addressed by m_resolveRootSig as two
+    // (source, dest) pairs starting at m_resolveDescriptorBase. They live at the
+    // tail so none of the offsets above shift.
+    //  [16+N+V] u0  UAV accumulation texture   (live pair source)
+    //  [17+N+V] u1  UAV output texture         (live pair dest)
+    //  [18+N+V] u0  UAV denoised HDR texture   (denoised pair source)
+    //  [19+N+V] u1  UAV denoised display texture (denoised pair dest)
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
-    UINT totalDescriptors = 16 + m_textureCount + volumeTexCount;
+    const UINT rtDescriptors = 16 + m_textureCount + volumeTexCount;
+    m_resolveDescriptorBase = rtDescriptors;
+    UINT totalDescriptors = rtDescriptors + 4;
     D3D12_DESCRIPTOR_HEAP_DESC dhd{};
     dhd.NumDescriptors = totalDescriptors;
     dhd.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -414,9 +490,29 @@ void DXRApp::CreateOutputResource()
         }
     }
 
+    // [16+N+V ..] UAV — resolve pass source/dest pairs. Note the ordering within
+    // each pair is (source, dest) to match u0/u1 in Resolve.hlsl, which is the
+    // reverse of the raytracing table's output-then-accum order at [0]/[1].
+    {
+        ID3D12Resource *resolvePairs[4] = {
+            m_accumResource.Get(), m_outputResource.Get(),
+            m_denoisedHdrResource.Get(), m_denoisedResource.Get()};
+        DXGI_FORMAT resolveFormats[4] = {
+            DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R8G8B8A8_UNORM,
+            DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R8G8B8A8_UNORM};
+        for (int i = 0; i < 4; i++)
+        {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC ud{};
+            ud.Format = resolveFormats[i];
+            ud.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+            m_device->CreateUnorderedAccessView(resolvePairs[i], nullptr, &ud, h);
+            h.ptr += m_srvUavDescriptorSize;
+        }
+    }
+
     ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
-    D3D12_RESOURCE_BARRIER ib[2]{};
+    D3D12_RESOURCE_BARRIER ib[3]{};
     ID3D12Resource *initToCopySrc[2] = {m_outputResource.Get(), m_denoisedResource.Get()};
     for (int i = 0; i < 2; i++)
     {
@@ -426,7 +522,14 @@ void DXRApp::CreateOutputResource()
         ib[i].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
         ib[i].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     }
-    m_commandList->ResourceBarrier(2, ib);
+    // The HDR staging texture rests in UNORDERED_ACCESS (the state the resolve
+    // pass reads it in); UploadHDR transitions it to COPY_DEST and back.
+    ib[2].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    ib[2].Transition.pResource = m_denoisedHdrResource.Get();
+    ib[2].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+    ib[2].Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    ib[2].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    m_commandList->ResourceBarrier(3, ib);
     FlushCommandQueue();
     printf("[output] Output + accum textures + %u descriptors created\n", totalDescriptors);
 }
