@@ -303,6 +303,70 @@ void DXRApp::OnMouseMove(int x, int y)
     }
 }
 
+// Read one of the RGBA8 display textures back into tightly packed RGBA bytes.
+// Both live in COPY_SOURCE between frames, which is what CopyTextureRegion wants.
+std::vector<uint8_t> DXRApp::ReadbackRGBA8(ID3D12Resource *res)
+{
+    WaitForGpu(m_frameIndex);
+
+    D3D12_RESOURCE_DESC desc = res->GetDesc();
+    UINT64 rowPitch = ((desc.Width * 4 + 255) & ~255ULL);
+    UINT64 totalSize = rowPitch * desc.Height;
+
+    auto readback = CreateBuffer(totalSize, D3D12_RESOURCE_FLAG_NONE,
+                                 D3D12_RESOURCE_STATE_COPY_DEST, D3D12_HEAP_TYPE_READBACK);
+
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "A");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "C");
+
+    D3D12_TEXTURE_COPY_LOCATION dst{}, src{};
+    dst.pResource = readback.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    dst.PlacedFootprint.Footprint.Width = (UINT)desc.Width;
+    dst.PlacedFootprint.Footprint.Height = desc.Height;
+    dst.PlacedFootprint.Footprint.Depth = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = (UINT)rowPitch;
+
+    src.pResource = res;
+    src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+
+    m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    FlushCommandQueue();
+
+    std::vector<uint8_t> out((size_t)desc.Width * desc.Height * 4);
+    uint8_t *data;
+    readback->Map(0, nullptr, (void **)&data);
+    for (UINT y = 0; y < desc.Height; y++)
+        memcpy(out.data() + (size_t)y * desc.Width * 4,
+               data + (size_t)y * rowPitch, (size_t)desc.Width * 4);
+    readback->Unmap(0, nullptr);
+    return out;
+}
+
+// Save the tonemapped display image as PNG. Unlike the EXR path this is the
+// display-referred result: exposure, bloom, ACES and gamma all applied. It is
+// the only way to get the post-processed image out of a headless run, and hence
+// the only way to regression-test anything downstream of the accumulator.
+void DXRApp::SaveSnapshotPNG(bool denoised)
+{
+    ID3D12Resource *srcRes = denoised ? m_denoisedResource.Get() : m_outputResource.Get();
+    std::vector<uint8_t> rgba = ReadbackRGBA8(srcRes);
+
+    std::string dir = filesystem::path(m_scenePath).parent_path().str();
+    if (!dir.empty())
+        dir += "/";
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%ssnapshot_%u%s.png", dir.c_str(), m_frameCount,
+             denoised ? "_denoised" : "");
+
+    if (stbi_write_png(filename, (int)m_width, (int)m_height, 4, rgba.data(), (int)m_width * 4))
+        printf("[snapshot] Saved %s (%u samples%s)\n", filename, m_frameCount,
+               denoised ? ", denoised" : "");
+    else
+        printf("[snapshot] PNG save failed (%s)\n", filename);
+}
+
 void DXRApp::SaveSnapshot()
 {
     WaitForGpu(m_frameIndex);

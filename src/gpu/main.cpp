@@ -11,6 +11,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: nori-dxr <scene.xml> [--headless] [--denoise]\n");
         fprintf(stderr, "  --headless  : render and exit (respects sampler sampleCount)\n");
         fprintf(stderr, "  --denoise   : also run OIDN on the result, save snapshot_N_denoised.exr\n");
+        fprintf(stderr, "  --png       : also save the tonemapped display image (exposure/bloom/ACES) as PNG\n");
         fprintf(stderr, "  --profile   : GPU-timestamp the DispatchRays call, print ms/frame stats\n");
         fprintf(stderr, "  --novsync   : present without waiting for vblank (windowed; pair with --profile)\n");
         fprintf(stderr, "Example: nori-dxr ..\\scenes\\a4\\cbox\\cbox_mis.xml\n");
@@ -19,6 +20,7 @@ int main(int argc, char **argv)
 
     bool headless = false;
     bool denoise = false;
+    bool png = false;
     bool profile = false;
     bool vsync = true;
     for (int i = 2; i < argc; i++)
@@ -34,6 +36,10 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--denoise") == 0)
         {
             denoise = true;
+        }
+        else if (strcmp(argv[i], "--png") == 0)
+        {
+            png = true;
         }
         else if (strcmp(argv[i], "--profile") == 0)
         {
@@ -88,10 +94,20 @@ int main(int argc, char **argv)
 
             fprintf(stderr, "[headless] Saving EXR...\n");
             app.SaveSnapshotEXR();
+            // The EXR is scene-linear radiance and deliberately carries no
+            // bloom; the PNG is the display-referred image, where exposure,
+            // bloom, ACES and gamma have been applied.
+            if (png)
+                app.SaveSnapshotPNG(false);
             if (denoise)
             {
                 fprintf(stderr, "[headless] Denoising (OIDN)...\n");
                 app.DenoiseAndSaveEXR();
+                if (png)
+                {
+                    app.DenoiseToViewport(); // stages the HDR, blooms, resolves
+                    app.SaveSnapshotPNG(true);
+                }
             }
             app.OnDestroy();
             fprintf(stderr, "[headless] Done.\n");

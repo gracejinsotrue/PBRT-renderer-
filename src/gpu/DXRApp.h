@@ -150,6 +150,9 @@ public:
     void OnMouseMove(int x, int y);
 
     void SaveSnapshot();
+    // Display-referred PNG (exposure, bloom, ACES, gamma applied), unlike the
+    // scene-linear EXR paths. `denoised` reads the denoised display texture.
+    void SaveSnapshotPNG(bool denoised = false);
     void SaveSnapshotEXR();
     void SaveAccumResourceEXR(ID3D12Resource *res, const char *filename);
     void DenoiseAndSaveEXR();
@@ -451,6 +454,7 @@ private:
 
     // Denoiser helpers
     std::vector<float> ReadbackAccumResource(ID3D12Resource *res);
+    std::vector<uint8_t> ReadbackRGBA8(ID3D12Resource *res);
     bool RunDenoise(std::vector<float> &outRGB);
     // Upload interleaved float3 RGB into an RGBA32F texture, setting w = 1.0.
     void UploadHDR(ID3D12Resource *res, const std::vector<float> &rgb);
