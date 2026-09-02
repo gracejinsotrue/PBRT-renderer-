@@ -72,7 +72,7 @@ void DXRApp::OnInit()
     CreateSceneBuffers();
     CreateTextures();
     CreateRaytracingPipeline();
-    CreateResolvePipeline();
+    CreatePostPipelines();
     CreateOutputResource();
     CreateShaderTable();
     SetupCamera();
@@ -218,28 +218,86 @@ void DXRApp::OnDestroy()
 // are defined in DXRApp_Pipeline.cpp.
 // SetupCamera, RecomputeCameraPlane are defined in DXRApp_Camera.cpp.
 
-// Record the display resolve dispatch. Assumes the descriptor heap is already
-// bound and both textures of the selected pair are in UNORDERED_ACCESS.
-void DXRApp::RecordResolve(UINT pairIndex)
+// Record one post-process dispatch. Assumes the descriptor heap is already bound
+// and every texture in the slot is in UNORDERED_ACCESS.
+void DXRApp::RecordPostPass(ID3D12PipelineState *pso, UINT slot,
+                            UINT srcW, UINT srcH, UINT dstW, UINT dstH,
+                            float bloomIntensity)
 {
-    struct ResolveConstants
+    // Mirrors PostParams in PostCommon.hlsli.
+    struct PostConstants
     {
-        uint32_t dims[2];
+        uint32_t srcDims[2];
+        uint32_t dstDims[2];
         float ev;
-        float pad;
-    } rc{{m_width, m_height}, m_camera.evCompensation, 0.0f};
+        float bloomThreshold;
+        float bloomKnee;
+        float bloomIntensity;
+    } pc{{srcW, srcH}, {dstW, dstH}, m_camera.evCompensation,
+         m_bloomThreshold, m_bloomKnee, bloomIntensity};
 
-    m_commandList->SetComputeRootSignature(m_resolveRootSig.Get());
-    m_commandList->SetPipelineState(m_resolvePSO.Get());
-    m_commandList->SetComputeRoot32BitConstants(0, sizeof(rc) / 4, &rc, 0);
+    m_commandList->SetComputeRootSignature(m_postRootSig.Get());
+    m_commandList->SetPipelineState(pso);
+    m_commandList->SetComputeRoot32BitConstants(0, sizeof(pc) / 4, &pc, 0);
 
     auto table = m_srvUavHeap->GetGPUDescriptorHandleForHeapStart();
-    table.ptr += (UINT64)(m_resolveDescriptorBase + pairIndex) * m_srvUavDescriptorSize;
+    table.ptr += (UINT64)(m_postDescriptorBase + slot * 3) * m_srvUavDescriptorSize;
     m_commandList->SetComputeRootDescriptorTable(1, table);
 
-    // Matches [numthreads(8, 8, 1)] in Resolve.hlsl; the shader bounds-checks
-    // the ragged edge when the resolution is not a multiple of 8.
-    m_commandList->Dispatch((m_width + 7) / 8, (m_height + 7) / 8, 1);
+    // Matches [numthreads(8, 8, 1)]; the shaders bounds-check the ragged edge
+    // when a mip dimension is not a multiple of 8.
+    m_commandList->Dispatch((dstW + 7) / 8, (dstH + 7) / 8, 1);
+}
+
+// Prefilter, then walk the mip chain down and back up. Every level is a separate
+// dispatch against the same resource, so a UAV barrier between each is what
+// orders them — no state transitions, because the chain never leaves
+// UNORDERED_ACCESS.
+void DXRApp::RecordBloomChain(bool denoisedSource)
+{
+    if (EffectiveBloomIntensity() <= 0.0f)
+        return;
+
+    D3D12_RESOURCE_BARRIER bloomDone{};
+    bloomDone.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+    bloomDone.UAV.pResource = m_bloomResource.Get();
+
+    UINT w0, h0;
+    BloomMipDims(0, w0, h0);
+    RecordPostPass(m_bloomPrefilterPSO.Get(),
+                   denoisedSource ? kPostSlotPrefilterDenoised : kPostSlotPrefilterLive,
+                   m_width, m_height, w0, h0, EffectiveBloomIntensity());
+
+    for (UINT i = 0; i + 1 < m_bloomMipCount; i++)
+    {
+        m_commandList->ResourceBarrier(1, &bloomDone);
+        UINT sw, sh, dw, dh;
+        BloomMipDims(i, sw, sh);
+        BloomMipDims(i + 1, dw, dh);
+        RecordPostPass(m_bloomDownsamplePSO.Get(), kPostSlotDownsampleFirst + i,
+                       sw, sh, dw, dh, EffectiveBloomIntensity());
+    }
+
+    // Upsample walks back down the slot list so the coarsest level is folded in
+    // first and each finer mip accumulates everything above it.
+    for (UINT i = m_bloomMipCount - 1; i-- > 0;)
+    {
+        m_commandList->ResourceBarrier(1, &bloomDone);
+        UINT sw, sh, dw, dh;
+        BloomMipDims(i + 1, sw, sh);
+        BloomMipDims(i, dw, dh);
+        RecordPostPass(m_bloomUpsamplePSO.Get(), PostSlotUpsampleFirst() + i,
+                       sw, sh, dw, dh, EffectiveBloomIntensity());
+    }
+
+    m_commandList->ResourceBarrier(1, &bloomDone);
+}
+
+void DXRApp::RecordResolve(bool denoisedSource)
+{
+    RecordPostPass(m_resolvePSO.Get(),
+                   denoisedSource ? kPostSlotResolveDenoised : kPostSlotResolveLive,
+                   m_width, m_height, m_width, m_height, EffectiveBloomIntensity());
 }
 
 void DXRApp::PopulateCommandList()
@@ -295,14 +353,15 @@ void DXRApp::PopulateCommandList()
     // resolve below, so --profile keeps reporting the same path-tracing kernel
     // cost as before this pass existed and the recorded numbers stay comparable.
 
-    // Resolve g_accum into the RGBA8 output. The UAV barrier is what makes the
-    // path tracer's writes visible to the resolve dispatch.
+    // Bloom the accumulated radiance, then resolve it into the RGBA8 output. The
+    // UAV barrier is what makes the path tracer's writes visible downstream.
     {
         D3D12_RESOURCE_BARRIER accumDone{};
         accumDone.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
         accumDone.UAV.pResource = m_accumResource.Get();
         m_commandList->ResourceBarrier(1, &accumDone);
-        RecordResolve(kResolvePairLive);
+        RecordBloomChain(/*denoisedSource=*/false);
+        RecordResolve(/*denoisedSource=*/false);
     }
 
     bb[0].Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
