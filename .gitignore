@@ -83,3 +83,8 @@ snapshot_*.exr
 *.cso.bak
 _make_*.py
 _restir_scene_preview.png
+
+# --- bmw-m6: meshes + envmap are regenerated from mmp/pbrt-v4-scenes by
+#     _pbrt_bmw_to_nori.py, so only scene.xml/license/renders are tracked ---
+scenes/bmw_m6/meshes/
+scenes/bmw_m6/textures/
