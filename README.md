@@ -49,6 +49,12 @@ This is a popular computer graphics scene to render. The scene is about 10M tria
 ![Cool Render 2](images/san_miguel_3.png)
 
 
+# BMW M6
+
+![Cool Render 1](images/bmw_m6.png)
+![Cool Render 2](images/bmw_2.png)
+
+
 ---
 
 ## Architecture
