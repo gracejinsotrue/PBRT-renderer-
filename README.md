@@ -36,19 +36,20 @@ In terms of the Blender scene assembly, I had some help scanning my face and rec
 
 ![Final Denoised Scene](images/snapshot_68_denoised.png)
 
-![Blender Scene Layout](images/blender_ss.png)
-
-![Blender Wireframe](images/blender_wireframe.png)
+| Blender Scene Layout | Blender Wireframe |
+|---|---|
+| ![Blender Scene Layout](images/blender_ss.png) | ![Blender Wireframe](images/blender_wireframe.png) |
 
 # San Miguel Renders
 
 This is a popular computer graphics scene to render. The scene is about 10M triangles so it is a nice way to stres-test performance as well as just get a generally very diverse and pretty scene to render. Credits to McGuire Computer Graphics Archive for all the geometry and textures! 
 
 <!-- ![Cool Render 1](images/san_miguel_1.png) -->
-![Cool Render 1](images/bloom_ON_i0.05_16spp_DENOISED.png)
-![Cool Render 2](images/san_miguel_3.png)
-![Cool Render 3](images/san_miguel_4.png)
-![Cool Render 3](images/san_miguel_5.png)
+
+| | |
+|---|---|
+| ![Cool Render 1](images/bloom_ON_i0.05_16spp_DENOISED.png) | ![Cool Render 2](images/san_miguel_3.png) |
+| ![Cool Render 3](images/san_miguel_4.png) | ![Cool Render 4](images/san_miguel_5.png) |
 
 
 
@@ -57,8 +58,9 @@ This is a popular computer graphics scene to render. The scene is about 10M tria
 
 The model and texture is from  [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes) collection. The car itself is "BMW M6 2006" by tyrant monkey, released CC0 on BlendSwap.
 
-![Cool Render 1](images/bmw_m6.png)
-![Cool Render 2](images/bmw_2.png)
+| | |
+|---|---|
+| ![Cool Render 1](images/bmw_m6.png) | ![Cool Render 2](images/bmw_2.png) |
 
 This one not only looks cool but serves as a material stress test. It leans on [Disney BRDF](#disney-principled-brdf) primarily, where nearly every knob on it gets used somewhere on the car. There are about 26 different materials resolved to a few different categories:
 
