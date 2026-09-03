@@ -51,8 +51,19 @@ This is a popular computer graphics scene to render. The scene is about 10M tria
 
 # BMW M6
 
+The model and texture is from  [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes) collection. The car itself is "BMW M6 2006" by tyrant monkey, released CC0 on BlendSwap.
+
 ![Cool Render 1](images/bmw_m6.png)
 ![Cool Render 2](images/bmw_2.png)
+
+This one not only looks cool but serves as a material stress test. It leans on [Disney BRDF](#disney-principled-brdf) primarily, where nearly every knob on it gets used somewhere on the car. There are about 26 different materials resolved to a few different categories:
+
+- dieletric coat over diffuse base: body paint, tires, leather, brake discs, studio floor
+- bare metal: chrome trim, kidney grille, silver in roundel
+- metal under clearcoat: wheel rims
+- specular glass for glass objects
+- flat lambertian 
+
 
 
 ---
