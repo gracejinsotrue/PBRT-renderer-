@@ -170,6 +170,8 @@ The combined BRDF is $f = (1-\text{metallic})\,f_\text{diffuse} + f_\text{specul
 
 ### Volumetric Participating Media
 
+![cool image](images/bunny_cloud.png)
+
 Volumetrics are objects that are not solid, and they are another rendering challenge mathematically, accurately, performance-wise, whatever. Fog, smoke, and clouds scatter or absorb light as rays travel through them, not just at surfaces. A homogeneous medium has three parameters: absorption $\sigma_a$, scattering $\sigma_s$, and an asymmetry parameter $g$ that controls how directional the scattering is.
 
 The probability that a ray makes it distance $d$ without interacting follows Beer's law:

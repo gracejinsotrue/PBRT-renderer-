@@ -88,3 +88,23 @@ _restir_scene_preview.png
 #     _pbrt_bmw_to_nori.py, so only scene.xml/license/renders are tracked ---
 scenes/bmw_m6/meshes/
 scenes/bmw_m6/textures/
+
+# --- sssdragon: 298 MB of converted geometry + the envmap, both regenerated
+#     from mmp/pbrt-v4-scenes by _pbrt_sssdragon_to_nori.py ---
+scenes/sssdragon/meshes/
+scenes/sssdragon/textures/
+
+# --- head: geometry, albedo map and envmaps are regenerated from
+#     mmp/pbrt-v4-scenes by _pbrt_head_to_nori.py, so only the scene XMLs and
+#     the renders are tracked ---
+scenes/head/_src/
+scenes/head/meshes/
+scenes/head/textures/
+
+# --- sportscar: 687 MB of converted geometry + the envmap, both regenerated
+#     from mmp/pbrt-v4-scenes by _pbrt_sportscar_to_nori.py ---
+scenes/sportscar/meshes/
+scenes/sportscar/textures/
+scenes/bunny_cloud/volumes/
+scenes/bunny_cloud/textures/
+scenes/bunny_cloud/meshes/
