@@ -365,8 +365,16 @@ float3 RatioTracking(GPUVolume v, float3 origin, float3 dir,
         float density = SampleVolumeDensity(v, newPos);
         float3 sigmaN_c = localMu - density * sigmaT_v;
         tr *= sigmaN_c / max(localMu, 1e-20);
-        if (max(tr.r, max(tr.g, tr.b)) < 1e-6)
-            return float3(0, 0, 0);
+
+        // Russian roulette on the accumulated transmittance.
+        float trMax = max(tr.r, max(tr.g, tr.b));
+        if (trMax < 0.05)
+        {
+            const float q = 0.75;
+            if (NextFloat(rng) < q)
+                return float3(0, 0, 0);
+            tr /= (1.0 - q);
+        }
     }
     return tr;
 }

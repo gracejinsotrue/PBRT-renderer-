@@ -327,14 +327,7 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, uint volumeIndex, inout 
 {
 
     GPUVolume vol = g_volumes[volumeIndex];
-    float3 sigmaT = VolumeSigmaT(vol);
-    float sigmaTmin = min(sigmaT.r, min(sigmaT.g, sigmaT.b));
     float phaseG = vol.phaseG;
-    float3 dMin = scatterPos - vol.vMin;
-    float3 dMax = vol.vMax - scatterPos;
-    float minDist = min(min(dMin.x, dMin.y), min(dMin.z, min(dMax.x, min(dMax.y, dMax.z))));
-    if (minDist * sigmaTmin > 8.0)
-        return float3(0, 0, 0);
 
     EmitterSample es = SampleEmitter(rng);
     if (!es.valid)
@@ -383,17 +376,12 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, uint volumeIndex, inout 
 
 float3 VolumeNEEEnvmap(float3 scatterPos, float3 wo, uint volumeIndex, inout RNG rng)
 {
-    // envmap shadow rays must traverse the full remaining volume.
-    // If the scatter point is deep inside every channel, transmittance will be negligible.
+    // Envmap shadow rays traverse the full remaining volume; RatioTracking
+    // gives an unbiased estimate of that transmittance and Russian-roulettes
+    // itself once the estimate gets small, so there is deliberately no
+    // geometric early-out here .
     GPUVolume vol = g_volumes[volumeIndex];
-    float3 sigmaT = VolumeSigmaT(vol);
-    float sigmaTmin = min(sigmaT.r, min(sigmaT.g, sigmaT.b));
     float phaseG = vol.phaseG;
-    float3 dMin = scatterPos - vol.vMin;
-    float3 dMax = vol.vMax - scatterPos;
-    float minDist = min(min(dMin.x, dMin.y), min(dMin.z, min(dMax.x, min(dMax.y, dMax.z))));
-    if (minDist * sigmaTmin > 8.0)
-        return float3(0, 0, 0);
 
     float u1 = NextFloat(rng);
     float u2 = NextFloat(rng);

@@ -39,9 +39,10 @@ void SubsurfaceParams(float3 A, float d, out float sigmaT, out float3 alpha)
 //
 //   startPos  : point inside boundary
 //   startDir  : refracted direction heading into the medium (unit)
-//   sssMatID  : InstanceID/materialID of THIS object, interior rays must hit
-//               its own boundary, not other geometry (closed-mesh assumption;
-//               foreign hits terminate the walk conservatively)
+//   sssMatID  : InstanceID/materialID of THIS object. Only its own boundary
+//               counts as an exit; geometry belonging to anything else is
+//               treated as an opaque Lambertian occluder INSIDE the medium and
+//               the walk diffusely reflects off it and continues.
 //   sigmaT    : scalar extinction (1/d). 0 => no scattering (clear).
 //   alpha     : per-channel single-scattering albedo (sigmaS/sigmaT). 0 in inc2.
 //   g         : Henyey-Greenstein phase anisotropy
@@ -87,8 +88,24 @@ bool SubsurfaceWalk(
             // reached a surface before scattering.
             if (p.materialID != sssMatID)
             {
-                throughputMul = float3(0, 0, 0);
-                return false;
+
+                GPUMaterial fmat = g_materials[p.materialID];
+                float3 fAlbedo = saturate(float3(fmat.albedoR, fmat.albedoG, fmat.albedoB));
+
+                float3 fPos = pos + dir * p.hitT;
+                float3 Nf = normalize(GetInterpolatedNormal(p.materialID, p.primitiveID,
+                                                            float2(p.baryX, p.baryY)));
+                if (dot(Nf, dir) > 0.0)
+                    Nf = -Nf; // face back toward the arriving ray
+
+                throughputMul *= fAlbedo;
+
+                float3 Tf, Bf;
+                BuildONB(Nf, Tf, Bf);
+                float3 fLocal = CosineSampleHemisphere(float2(NextFloat(rng), NextFloat(rng)));
+                dir = normalize(ToWorld(fLocal, Tf, Bf, Nf));
+                pos = fPos + Nf * 1e-4;
+                continue;
             }
 
             float3 bPos = pos + dir * p.hitT;
