@@ -13,12 +13,16 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
 ## Contents
 
 - [Final Render (CS5630 Rendering Competition)](#final-render-that-i-submitted-for-cs5630-rendering-competition)
+- [San Miguel Renders](#san-miguel-renders)
+- [BMW M6](#bmw-m6)
+- [Sportscar](#sportscar)
 - [Architecture](#architecture)
 - [Rendering Techniques](#rendering-techniques)
   - [Hair (Chiang et al. 2016 BCSDF)](#hair-chiang-et-al-2016-bcsdf)
   - [Disney "Principled" BRDF](#disney-principled-brdf)
   - [Volumetric Participating Media](#volumetric-participating-media)
-  - [Textures](#textures)
+  - [Subsurface Scattering: Random-Walk BSSRDF](#subsurface-scattering-random-walk-bssrdf)
+  - [More Boring and but Fundamental Stuff: Textures](#more-boring-and-but-fundamental-stuff-textures)
   - [Normal Mapping](#normal-mapping)
   - [Depth of Field (Thin Lens Model)](#depth-of-field-thin-lens-model)
   - [Image-Based Lighting (IBL)](#image-based-lighting-ibl)
@@ -46,10 +50,18 @@ This is a popular computer graphics scene to render. The scene is about 10M tria
 
 <!-- ![Cool Render 1](images/san_miguel_1.png) -->
 
-| | |
-|---|---|
-| ![Cool Render 1](images/bloom_ON_i0.05_16spp_DENOISED.png) | ![Cool Render 2](images/san_miguel_3.png) |
-| ![Cool Render 3](images/san_miguel_4.png) | ![Cool Render 4](images/san_miguel_5.png) |
+<table>
+  <tr>
+    <td><img src="images/bloom_ON_i0.05_16spp_DENOISED.png" alt="Cool Render 1"></td>
+    <td rowspan="2"><img src="images/san_miguel_5.png" alt="Cool Render 4"></td>
+  </tr>
+  <tr>
+    <td><img src="images/san_miguel_3.png" alt="Cool Render 2"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="images/san_miguel_4.png" alt="Cool Render 3"></td>
+  </tr>
+</table>
 
 
 
@@ -70,6 +82,12 @@ This one not only looks cool but serves as a material stress test. It leans on [
 - specular glass for glass objects
 - flat lambertian 
 
+# Sportscar
+
+Also from the [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes) collection. 
+
+
+ ![Cool Render 1](images/sportscar_front3q.png) 
 
 
 ---
@@ -172,7 +190,45 @@ Free-flight distances are sampled via **Woodcock (null-collision) tracking**: pr
 
 ---
 
-### Textures
+### Subsurface Scattering: Random-Walk BSSRDF
+
+A BRDF assumes light leaves where it entered, so for general opaque materials this holds. However this does not hold for skin, where ight sinks into the skin, scatters, and surfaces from some other angle. This is the reason why why ears and fingers glow red when backlit.
+
+So I simulate the photon directly, reusing the [participating media](#volumetric-participating-media) transport with the medium bounded by the mesh:
+
+1. Refract in at the hit point and Fresnel decides reflect vs. transmit.
+2. Sample a free-flight distance under the medium.
+3. Reaching the boundary from inside, refract out or turn back on total internal reflection.
+4. Otherwise scatter with Henyey-Greenstein and go back to 2.
+
+Path tracing resumes where the photon escapes.
+
+| Parameter | What it is |
+|---|---|
+| **albedo** $A$ | The color you want coming back out  |
+| **radius** | Mean free path: distance travelled between scattering events. |
+
+You hand it a color, not physical coefficients, which is how both columns below can use the same albedo texture. An interesting note is that the conversion is not obvious, though: a photon collides many times before it escapes, so its survival odds per collision must run much higher than the color you want back, and $A = 0.62$ needs $\alpha = 0.959$. Chiang, Kutz and Burley fitted that curve in their subsurface paper:
+
+$$\alpha = 1 - \exp\left(-5.09406A + 2.61188A^2 - 4.31805A^3\right)$$
+
+with $\sigma_t = 1/\text{radius}$ and $\sigma_s = \alpha\,\sigma_t$. It runs per channel, wehre red survives the most collisions (therefore light that leaks into shadow soemtimes has a red tint!)
+
+Head from [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes/tree/master/head). Generally, Disney BRDF can render a lot of materials, including cartoon character skin. but for more realistic skin, you can see where it falls short. Both columns share geometry, albedo, camera, light, 1024 spp, etcv etc and only the diffuse model changes:
+
+| Sky HDRI, Disney | Sky HDRI, random walk |
+|---|---|
+| ![head sky disney](images/sss_head_sky_disney.png) | ![head sky sss](images/sss_head_sky_sss.png) |
+
+| Single key, Disney | Single key, random walk |
+|---|---|
+| ![head dark disney](images/sss_head_dark_disney.png) | ![head dark sss](images/sss_head_dark_sss.png) |
+
+
+
+---
+
+### More Boring and but Fundamental Stuff: Textures
 
 At the hit point, the shader computes the UV by barycentrically interpolating the three vertex UVs of the struck triangle. Albedo textures decode sRGB automatically (the hardware handles the gamma); normal and roughness maps are loaded as linear data. The sampled value then replaces the material's flat scalar before the BSDF runs.
 
@@ -244,5 +300,4 @@ The tradeoff is that a wavefront tracer spills path state to global memory betwe
 
 ### Measurement setup
 
-Two properties make measurement cheap. The renderer is **byte-for-byte deterministic** (the RNG is seeded only from the frame counter), so any render-identical change is verified by hashing the output EXR instead of eyeballing it. And because it's a progressive accumulator, every frame is ~1 spp of identical work, so per-frame `DispatchRays` GPU time is the per-sample metric, captured with a `TIMESTAMP` query heap behind a `--profile` flag. That matters because wall-clock is misleading in the **headless** batch path: on a 64-spp material scene wall-clock reads **114.8 ms/spp** against a pure GPU dispatch of **88.0 ms**. That ~23% gap is specific to headless, which blocks on a fence every frame with no CPU/GPU overlap; the windowed path is properly double-buffered and shows no such gap (wall 5.83 ms against a 5.83 ms dispatch). Frame-to-frame spread is ~0.4%, so min-of-N GPU time is a stable A/B reference.
-
+to come
