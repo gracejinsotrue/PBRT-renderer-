@@ -146,8 +146,10 @@
     if (restirRadius > 0.0)
         g_reservoirs[ReservoirIndex(pixel, dims, frameCount & 1u)].valid = 0.0;
 
+    uint pathLen = 0;
     for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
     {
+        pathLen++;
         HitPayload payload;
         payload.hit = 0;
         payload.rngState = rng.state;
@@ -688,7 +690,21 @@
     if (any(isnan(Lo)) || any(isinf(Lo)))
         Lo = float3(0, 0, 0);
 
+#if PROFILE_WAVES
+    // R = path length, G = wave utilisation, B = lanes that reached the end.
+    // WaveActiveSum/Max count only lanes still active here, which is the right
+    // denominator: a lane that returned early (converged pixel) never entered
+    // the loop and should not be charged for it.
+    uint waveSum = WaveActiveSum(pathLen);
+    uint waveMax = WaveActiveMax(pathLen);
+    uint waveLanes = WaveActiveCountBits(true);
+    float util = (waveMax > 0u)
+                     ? float(waveSum) / (float(WaveGetLaneCount()) * float(waveMax))
+                     : 0.0;
+    g_accum[pixel] = accumPrev + float4(float(pathLen), util, float(waveLanes), 1.0);
+#else
     g_accum[pixel] = accumPrev + float4(Lo, 1.0);
+#endif
     float4 prevA = (frameCount == 0) ? float4(0, 0, 0, 0) : g_albedo[pixel];
     g_albedo[pixel] = prevA + float4(aovAlbedo, 1.0);
     float4 prevN = (frameCount == 0) ? float4(0, 0, 0, 0) : g_normal[pixel];

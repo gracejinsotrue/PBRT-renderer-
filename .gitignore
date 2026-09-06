@@ -131,3 +131,4 @@ Claude outputs/
 
 # ReSTIR A/B outputs (regenerate with the harness; EXRs are already ignored)
 /_ris_ab/
+/_wave/

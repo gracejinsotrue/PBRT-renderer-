@@ -201,6 +201,33 @@ static const float M_INV_PI = 0.31830988618379067154;
 #ifndef MAX_BOUNCES
 #define MAX_BOUNCES 32
 #endif
+
+// Wave-utilisation probe (-D PROFILE_WAVES=1).
+//
+// The standing profiling conclusion is that this megakernel is divergence bound:
+// ~22% warp coherence, roughly 7 of 32 lanes active, shading-bound rather than
+// trace-bound. What that number does not say is *which* divergence, and that
+// decides what a rewrite has to do:
+//
+//   - path-length divergence: lanes whose path terminated early sit dead inside
+//     the bounce loop while their wave keeps iterating for the survivors. Fixed
+//     by compaction alone, which is the cheap half of a wavefront design.
+//   - material divergence: live lanes taking different BSDF branches in the same
+//     iteration. Needs sorting by material, the expensive half.
+//
+// This probe measures the first one exactly. A wave runs the bounce loop
+// max(pathLen) times and does sum(pathLen) lanes' worth of useful work, so
+//
+//     utilisation = sum(pathLen) / (laneCount * max(pathLen))
+//
+// is the fraction of lane-iterations that were not wasted, and 1/utilisation is
+// the ceiling on what perfect compaction could return. It writes its results
+// through g_accum instead of radiance so it needs no new resource and no root
+// signature change; the EXR readback already divides by the sample count, so
+// each channel comes back as a per-pixel mean.
+#ifndef PROFILE_WAVES
+#define PROFILE_WAVES 0
+#endif
 // Firefly control.
 //
 // A path tracer's variance is dominated by rare, enormous samples: a caustic
