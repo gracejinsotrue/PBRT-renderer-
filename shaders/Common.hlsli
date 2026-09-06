@@ -26,6 +26,13 @@ RWTexture2D<float4> g_accum : register(u1);
 RWTexture2D<float4> g_albedo : register(u2);
 RWTexture2D<float4> g_normal : register(u3);
 
+// Per-pixel luminance moments for adaptive sampling: x = sum of sample
+// luminance, y = sum of squared sample luminance. The sample count is not
+// duplicated here; it is g_accum[pixel].w. Only written when adaptive sampling
+// is compiled in, but the resource is always bound so the root signature does
+// not depend on a shader define.
+RWTexture2D<float2> g_moments : register(u4);
+
 // Constant buffer
 
 cbuffer CameraParams : register(b0)
@@ -48,7 +55,17 @@ cbuffer CameraParams : register(b0)
     float envmapScale;
     float evCompensation;
     float envmapRotation;  // yaw offset in radians applied to envmap phi lookup
+
+    // Firefly clamp: maximum luminance of a single indirect contribution.
+    // <= 0 disables it, which is the default and the validated offline path.
+    float fireflyClamp;
+
+    // Adaptive sampling: stop refining a pixel once the standard error of its
+    // mean falls below adaptiveThreshold (relative). <= 0 disables it.
+    float adaptiveThreshold;
+    uint adaptiveMinSamples; // warm-up before the variance estimate is trusted
     float _cbPad2;
+    float _cbPad3;
 };
 
 // Material structure
@@ -152,7 +169,64 @@ static const float M_INV_PI = 0.31830988618379067154;
 #ifndef MAX_BOUNCES
 #define MAX_BOUNCES 32
 #endif
-static const float kFireflyClamp = 3.402823466e+38;
+// Firefly control.
+//
+// A path tracer's variance is dominated by rare, enormous samples: a caustic
+// path that finds a small bright light through a low-pdf chain, or (with RIS)
+// a light picked by an unshadowed target that turns out to be barely visible,
+// so the survivor carries a large unbiased weight W. One such sample can
+// outweigh thousands of ordinary ones, and the mean it corrupts stays corrupted
+// for the rest of the render.
+//
+// Clamping the luminance of each contribution caps that. It is *biased* -- it
+// removes energy that genuinely belongs in the image -- so it is off by default
+// and the offline reference path is unaffected.
+//
+// Two deliberate choices:
+//  - it clamps each contribution as it is added, not the final per-sample sum,
+//    so one runaway NEE term is capped without also crushing a pixel that is
+//    legitimately bright because many ordinary terms added up.
+//  - it never touches bounce 0. Directly visible emitters and the environment
+//    seen down the primary ray are not fireflies, they are the picture; the
+//    variance lives in what happens after the first scatter.
+float3 ClampContribution(float3 c, int bounce)
+{
+    if (fireflyClamp <= 0.0 || bounce == 0)
+        return c;
+    float l = dot(c, float3(0.2126, 0.7152, 0.0722));
+    return (l > fireflyClamp) ? c * (fireflyClamp / l) : c;
+}
+
+// Adaptive sampling stop test.
+//
+// Given n samples of a pixel with running sums of luminance and squared
+// luminance, estimate the standard error of the mean and compare it against a
+// relative target. A pixel that passes stops being sampled for the rest of the
+// render, so the cost per frame falls as the image converges and the remaining
+// samples land where the noise actually is.
+//
+// The absolute floor matters: a near-black pixel has a tiny mean, so a purely
+// relative test would chase precision there forever. kAdaptiveFloor is in
+// scene-linear radiance, below which a pixel is considered good enough on
+// absolute terms regardless of its relative error.
+//
+// Caveat, stated because it is easy to forget: deciding to stop using the same
+// samples that form the estimate correlates the decision with the value, which
+// biases the result slightly toward pixels that got lucky early. The warm-up
+// (adaptiveMinSamples) is what keeps that negligible; do not set it low.
+static const float kAdaptiveFloor = 1e-3;
+
+bool PixelConverged(float2 moments, float n)
+{
+    if (adaptiveThreshold <= 0.0 || n < 2.0 || n < float(adaptiveMinSamples))
+        return false;
+    float mean = moments.x / n;
+    // Sample variance, computed from the running sums. max() guards the
+    // cancellation when every sample is identical and the two terms match.
+    float var = max(0.0, (moments.y - moments.x * moments.x / n) / (n - 1.0));
+    float stdErr = sqrt(var / n); // standard error of the mean
+    return stdErr < max(adaptiveThreshold * mean, kAdaptiveFloor * adaptiveThreshold);
+}
 
 // Ray payloads
 

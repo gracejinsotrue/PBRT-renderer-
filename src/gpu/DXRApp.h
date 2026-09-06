@@ -43,7 +43,16 @@ struct CameraConstants
     float envmapScale;      // multiplied on every envmap sample (controls IBL brightness)
     float evCompensation;   // display EV stops: averaged *= pow(2, ev) before Reinhard
     float envmapRotation;   // yaw offset in radians applied to envmap phi lookup
-    float _cbPad2;          // pad to 16-byte boundary
+
+    // Firefly clamp: max luminance of one indirect contribution (0 = off).
+    float fireflyClamp;
+
+    // Adaptive sampling: relative standard-error target (0 = off) and the
+    // warm-up sample count before the per-pixel variance estimate is trusted.
+    float adaptiveThreshold;
+    uint32_t adaptiveMinSamples;
+    float _cbPad2; // pad to 16-byte boundary
+    float _cbPad3;
 };
 
 // Mirror of the HLSL GPUVolume struct used for ray marching in the presence of participating media.
@@ -143,6 +152,24 @@ public:
     // for real needs ALLOW_TEARING on both the swap chain and the Present call.
     void SetVSync(bool enable) { m_vsync = enable; }
 
+    // Firefly clamp (--clamp). Caps the luminance of any single contribution
+    // added at bounce >= 1. This is a biased estimator, so it is off by
+    // default and every existing reference render is unaffected.
+    void SetFireflyClamp(float v) { m_fireflyClamp = v; }
+
+    // Adaptive sampling (--adaptive). `threshold` is the relative standard
+    // error at which a pixel stops being sampled; `minSamples` is the warm-up
+    // before that test is allowed to fire.
+    void SetAdaptive(float threshold, uint32_t minSamples)
+    {
+        m_adaptiveThreshold = threshold;
+        m_adaptiveMinSamples = minSamples;
+    }
+
+    // Mean samples/pixel and converged fraction, read back from the
+    // accumulator's .w channel. Only meaningful with adaptive sampling on.
+    void ReportAdaptiveStats();
+
     void OnKeyDown(UINT8 key);
     void OnKeyUp(UINT8 key);
     void OnMouseDown(UINT button, int x, int y);
@@ -213,6 +240,9 @@ private:
     // m_allowTearing records whether the adapter/OS actually supports tearing,
     // decided in CreateSwapChain. Both must hold to present uncapped.
     bool m_vsync = true;
+    float m_fireflyClamp = 0.0f;      // 0 = disabled
+    float m_adaptiveThreshold = 0.0f; // 0 = disabled
+    uint32_t m_adaptiveMinSamples = 32;
     bool m_allowTearing = false;
 
     // Wall-clock FPS for the windowed loop, printed once a second under
@@ -289,6 +319,9 @@ private:
     ComPtr<ID3D12Resource> m_accumResource;
     ComPtr<ID3D12Resource> m_albedoResource;
     ComPtr<ID3D12Resource> m_normalResource;
+    // Per-pixel (sum of luminance, sum of luminance^2) for adaptive sampling.
+    // Always created and bound; only written when adaptive sampling is on.
+    ComPtr<ID3D12Resource> m_momentsResource;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
 
     // Display resolve pass (Resolve.hlsl / CSResolve). Turns an HDR
@@ -457,6 +490,7 @@ private:
     float EffectiveBloomIntensity() const { return m_bloomEnabled ? m_bloomIntensity : 0.0f; }
 
     // Denoiser helpers
+    std::vector<float> ReadbackAccumRGBA(ID3D12Resource *res);
     std::vector<float> ReadbackAccumResource(ID3D12Resource *res);
     std::vector<uint8_t> ReadbackRGBA8(ID3D12Resource *res);
     bool RunDenoise(std::vector<float> &outRGB);

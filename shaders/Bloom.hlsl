@@ -8,9 +8,10 @@
 // The firefly problem
 // -------------------
 // Most bloom implementations blur a rasterized image, where the input is clean.
-// Here the input is a Monte Carlo mean with the firefly clamp effectively
-// disabled (kFireflyClamp is FLT_MAX), so at low sample counts a single unlucky
-// path can leave a 1000x outlier in one texel. A naive bright-pass would latch
+// Here the input is a Monte Carlo mean, and the firefly clamp is off by
+// default (see ClampContribution in Common.hlsli), so at low sample counts a
+// single unlucky path can leave a 1000x outlier in one texel. The defence below
+// has to stand on its own: it cannot assume a clamp is enabled upstream. A naive bright-pass would latch
 // onto it and the blur would smear it into a large soft halo that slowly
 // deflates as the estimate converges — the image would visibly breathe.
 //

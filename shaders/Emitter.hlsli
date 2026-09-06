@@ -310,11 +310,12 @@ float3 EnvmapDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, fl
 #else
     float3 volTr = float3(1, 1, 1);
 #endif
-    float3 contrib = Lenv * f * absCosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
-    float contribLum = dot(contrib, float3(0.2126, 0.7152, 0.0722));
-    if (contribLum > kFireflyClamp)
-        contrib *= kFireflyClamp / contribLum;
-    return contrib;
+    // Firefly control is not applied here. It lives at the call site in RayGen
+    // (ClampContribution), where the contribution has been scaled by the path
+    // throughput and the bounce index is known -- clamping the raw term here
+    // would cap a bright light seen directly as hard as one seen through
+    // sixteen bounces.
+    return Lenv * f * absCosTheta / max(pdfEnv, 1e-20) * w * volTr * shadow.transmission;
 }
 
 // Volume NEE

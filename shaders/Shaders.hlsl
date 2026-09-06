@@ -26,7 +26,32 @@
 {
     uint2 pixel = DispatchRaysIndex().xy;
     uint2 dims = DispatchRaysDimensions().xy;
-    RNG rng = InitRNG(pixel, dims, frameCount);
+
+    // Read this pixel's own history before doing any work. With adaptive
+    // sampling on, pixels stop at different frames, so accum.w is no longer the
+    // same number as frameCount.
+    float4 accumPrev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
+    float2 momentsPrev = (frameCount == 0) ? float2(0, 0) : g_moments[pixel];
+
+    // Converged pixels cost nothing: no rays, no accumulator write, no AOV
+    // write. Their sample count stays where it stopped and the resolve pass
+    // divides by it, so a partially converged image is still a correct mean
+    // everywhere -- just computed from a different number of samples per pixel.
+    if (PixelConverged(momentsPrev, accumPrev.w))
+        return;
+
+    // The sampler is indexed by the pixel's own sample count, not by
+    // frameCount. Owen-scrambled Sobol' is only stratified over a contiguous
+    // prefix of its sequence, so a pixel that sat out some frames must still
+    // walk 0, 1, 2, ... of its own rather than inherit the global frame number
+    // and sample a sparse subset. With adaptive sampling off the two numbers
+    // are identical for every pixel, so the sample sequence is unchanged and
+    // the render is numerically identical to before -- measured at relMSE
+    // 8.3e-16 on cbox. Not *bit*-identical: wrapping the contributions below in
+    // ClampContribution() and adding these two loads reorders enough float math
+    // to move the last bits, so the EXR hash changes.
+    uint sampleIndex = (uint)accumPrev.w;
+    RNG rng = InitRNG(pixel, dims, sampleIndex);
 
 #if ENVMAP_DEBUG_SAMPLER
     {
@@ -159,10 +184,12 @@
                 throughput *= scVol.sigmaS / max(scSigmaT, float3(1e-20, 1e-20, 1e-20));
 
                 // [Marschner] §5 "Direct lighting for volumes": NEE
-                Lo += throughput * VolumeNEEAreaLight(scatterPos,
-                                                      ray.Direction, scatterVolIdx, rng);
-                Lo += throughput * VolumeNEEEnvmap(scatterPos,
-                                                   ray.Direction, scatterVolIdx, rng);
+                Lo += ClampContribution(throughput * VolumeNEEAreaLight(scatterPos,
+                                                                        ray.Direction, scatterVolIdx, rng),
+                                        bounce);
+                Lo += ClampContribution(throughput * VolumeNEEEnvmap(scatterPos,
+                                                                     ray.Direction, scatterVolIdx, rng),
+                                        bounce);
 
                 // [Marschner] §5: importance-sample phase function
                 // for the indirect bounce direction.
@@ -190,10 +217,6 @@
         else if (!payload.hit)
         {
             float3 env = EvalEnvmap(ray.Direction);
-            // Clamp to suppress fireflies from bright HDRI sun disks on high-variance paths.
-            float envLum = dot(env, float3(0.2126, 0.7152, 0.0722));
-            if (envLum > kFireflyClamp)
-                env *= kFireflyClamp / envLum;
             if (!aovDone)
             {
                 aovAlbedo = env;
@@ -202,13 +225,13 @@
             }
             if (lastBsdfPdf == 0.0)
             {
-                Lo += throughput * env;
+                Lo += ClampContribution(throughput * env, bounce);
             }
             else
             {
                 float pdfEnv = EnvmapPdfDirection(ray.Direction);
                 float w = BalanceHeuristic(lastBsdfPdf, pdfEnv);
-                Lo += throughput * env * w;
+                Lo += ClampContribution(throughput * env * w, bounce);
             }
             break;
         }
@@ -326,12 +349,13 @@
                     aovDone = true;
                 }
                 if (lastBsdfPdf == 0.0)
-                    Lo += throughput * MatRadiance(mat);
+                    Lo += ClampContribution(throughput * MatRadiance(mat), bounce);
                 else
                 {
 
                     float pdfEms = EmitterPdfSolidAngle(mat, hitPos, ray.Origin, N);
-                    Lo += throughput * MatRadiance(mat) * BalanceHeuristic(lastBsdfPdf, pdfEms);
+                    Lo += ClampContribution(
+                        throughput * MatRadiance(mat) * BalanceHeuristic(lastBsdfPdf, pdfEms), bounce);
                 }
                 break;
             }
@@ -484,11 +508,14 @@
 #define USE_RIS 0
 #endif
 #if USE_RIS
-                Lo += throughput * RISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+                Lo += ClampContribution(
+                    throughput * RISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
 #else
-                Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+                Lo += ClampContribution(
+                    throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
 #endif
-                Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+                Lo += ClampContribution(
+                    throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
 
                 float3 wo_local;
                 float bsdfPdf;
@@ -542,8 +569,10 @@
                 float G1i = (rough > 1e-3) ? SmithG1(wiL, wmL, aR) : 1.0;
                 float Fr = FresnelDielectric(cosThetaM, mat.extIOR, mat.intIOR);
 
-                Lo += throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
-                Lo += throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng);
+                Lo += ClampContribution(
+                    throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
+                Lo += ClampContribution(
+                    throughput * EnvmapDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
 
                 if (NextFloat(rng) < Fr)
                 {
@@ -631,13 +660,17 @@
     if (any(isnan(Lo)) || any(isinf(Lo)))
         Lo = float3(0, 0, 0);
 
-    float4 prev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
-    float4 accum = prev + float4(Lo, 1.0);
-    g_accum[pixel] = accum;
+    g_accum[pixel] = accumPrev + float4(Lo, 1.0);
     float4 prevA = (frameCount == 0) ? float4(0, 0, 0, 0) : g_albedo[pixel];
     g_albedo[pixel] = prevA + float4(aovAlbedo, 1.0);
     float4 prevN = (frameCount == 0) ? float4(0, 0, 0, 0) : g_normal[pixel];
     g_normal[pixel] = prevN + float4(aovNormal, 1.0);
+
+    // Moments track the clamped radiance that actually entered the
+    // accumulator, so the variance estimate describes the image being formed
+    // rather than an unclamped one nobody sees.
+    float lum = dot(Lo, float3(0.2126, 0.7152, 0.0722));
+    g_moments[pixel] = momentsPrev + float2(lum, lum * lum);
 
     // Exposure, tonemapping and gamma now live in Resolve.hlsl (CSResolve),
     // dispatched right after this one. RayGen only produces scene-linear

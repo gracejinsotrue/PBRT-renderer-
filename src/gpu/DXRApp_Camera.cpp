@@ -5,9 +5,12 @@
 #include <scene.h>
 #include <filesystem/resolver.h>
 
+#include <algorithm>
+#include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 // stb_image_write and tinyexr headers without _IMPLEMENTATION —
@@ -63,6 +66,15 @@ void DXRApp::SetupCamera()
     m_camera.envmapScale = m_noriScene->getEnvmapScale();
     m_camera.evCompensation = m_noriScene->getEvCompensation();
     m_camera.envmapRotation = m_noriScene->getEnvmapRotation();
+    m_camera.fireflyClamp = m_fireflyClamp;
+    m_camera.adaptiveThreshold = m_adaptiveThreshold;
+    m_camera.adaptiveMinSamples = m_adaptiveMinSamples;
+    if (m_fireflyClamp > 0.0f)
+        printf("[firefly] indirect contributions clamped at %.2f luminance (biased)\n",
+               m_fireflyClamp);
+    if (m_adaptiveThreshold > 0.0f)
+        printf("[adaptive] sampling on: rel. standard error %.4f, warm-up %u spp\n",
+               m_adaptiveThreshold, m_adaptiveMinSamples);
     m_bloomThreshold = m_noriScene->getBloomThreshold();
     m_bloomKnee = m_noriScene->getBloomKnee();
     m_bloomIntensity = m_noriScene->getBloomIntensity();
@@ -423,7 +435,10 @@ void DXRApp::SaveSnapshot()
     readback->Unmap(0, nullptr);
 }
 
-std::vector<float> DXRApp::ReadbackAccumResource(ID3D12Resource *res)
+// Raw RGBA32F readback of an accumulation-shaped texture. Kept separate from
+// ReadbackAccumResource because .w (the per-pixel sample count) is the whole
+// point for adaptive-sampling stats, and the normalizing wrapper throws it away.
+std::vector<float> DXRApp::ReadbackAccumRGBA(ID3D12Resource *res)
 {
     WaitForGpu(m_frameIndex);
 
@@ -470,23 +485,81 @@ std::vector<float> DXRApp::ReadbackAccumResource(ID3D12Resource *res)
     const UINT W = (UINT)desc.Width;
     const UINT H = desc.Height;
 
-    std::vector<float> rgb((size_t)W * H * 3);
+    std::vector<float> rgba((size_t)W * H * 4);
     for (UINT y = 0; y < H; y++)
     {
         const float *row = data + y * (rowPitch / sizeof(float));
-        for (UINT x = 0; x < W; x++)
-        {
-            float w = row[x * 4 + 3];
-            float inv = (w > 0.0f) ? (1.0f / w) : 0.0f;
-            size_t idx = (size_t)y * W + x;
-            rgb[idx * 3 + 0] = row[x * 4 + 0] * inv;
-            rgb[idx * 3 + 1] = row[x * 4 + 1] * inv;
-            rgb[idx * 3 + 2] = row[x * 4 + 2] * inv;
-        }
+        memcpy(&rgba[(size_t)y * W * 4], row, (size_t)W * 4 * sizeof(float));
     }
 
     readback->Unmap(0, nullptr);
+    return rgba;
+}
+
+// Normalized RGB: each pixel divided by its own sample count. Dividing
+// per-pixel rather than by a global frame count is what makes adaptive
+// sampling transparent to every consumer -- pixels that stopped early hold
+// fewer samples, but the mean they encode is still correct.
+std::vector<float> DXRApp::ReadbackAccumResource(ID3D12Resource *res)
+{
+    std::vector<float> rgba = ReadbackAccumRGBA(res);
+    const size_t n = (size_t)m_width * m_height;
+    std::vector<float> rgb(n * 3);
+    for (size_t i = 0; i < n; i++)
+    {
+        float w = rgba[i * 4 + 3];
+        float inv = (w > 0.0f) ? (1.0f / w) : 0.0f;
+        rgb[i * 3 + 0] = rgba[i * 4 + 0] * inv;
+        rgb[i * 3 + 1] = rgba[i * 4 + 1] * inv;
+        rgb[i * 3 + 2] = rgba[i * 4 + 2] * inv;
+    }
     return rgb;
+}
+
+// Where the samples actually went. With adaptive sampling on, the interesting
+// number is not the frame count but the distribution of per-pixel sample
+// counts: the mean is the real cost of the render, and the spread is the
+// evidence that the sampler moved work off the converged regions.
+void DXRApp::ReportAdaptiveStats()
+{
+    if (m_adaptiveThreshold <= 0.0f)
+        return;
+
+    std::vector<float> rgba = ReadbackAccumRGBA(m_accumResource.Get());
+    const size_t n = (size_t)m_width * m_height;
+    if (n == 0)
+        return;
+
+    std::vector<float> counts(n);
+    double sum = 0.0;
+    float lo = FLT_MAX, hi = 0.0f;
+    size_t stopped = 0;
+    for (size_t i = 0; i < n; i++)
+    {
+        float w = rgba[i * 4 + 3];
+        counts[i] = w;
+        sum += w;
+        lo = std::min(lo, w);
+        hi = std::max(hi, w);
+        if (w < (float)m_frameCount)
+            stopped++;
+    }
+    std::sort(counts.begin(), counts.end());
+    float median = counts[n / 2];
+    double mean = sum / (double)n;
+
+    // Fraction of the work a non-adaptive render of the same frame count would
+    // have done. This is the speedup, and it is the honest one: it counts
+    // samples, not wall clock, so it is immune to this laptop's throttling.
+    double budget = (double)m_frameCount;
+    double frac = (budget > 0.0) ? mean / budget : 1.0;
+    printf("[adaptive] threshold %.4f, warm-up %u | spp per pixel: min %.0f, "
+           "median %.0f, mean %.1f, max %.0f\n",
+           m_adaptiveThreshold, m_adaptiveMinSamples, lo, median, mean, hi);
+    printf("[adaptive] %.1f%% of pixels stopped early; %.1f%% of the %u-spp "
+           "sample budget spent (%.2fx fewer samples)\n",
+           100.0 * (double)stopped / (double)n, 100.0 * frac, m_frameCount,
+           (frac > 0.0) ? 1.0 / frac : 1.0);
 }
 
 void DXRApp::SaveAccumResourceEXR(ID3D12Resource *res, const char *filename)

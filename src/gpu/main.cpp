@@ -1,8 +1,9 @@
 #include "Win32Application.h"
 #include "DXRApp.h"
-#include <cstdio>
-#include <cstring>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 int main(int argc, char **argv)
 {
@@ -14,6 +15,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "  --png       : also save the tonemapped display image (exposure/bloom/ACES) as PNG\n");
         fprintf(stderr, "  --profile   : GPU-timestamp the DispatchRays call, print ms/frame stats\n");
         fprintf(stderr, "  --novsync   : present without waiting for vblank (windowed; pair with --profile)\n");
+        fprintf(stderr, "  --clamp N   : clamp indirect contributions to luminance N (biased; default off)\n");
+        fprintf(stderr, "  --adaptive T[,W] : stop refining a pixel once its relative standard\n");
+        fprintf(stderr, "                     error falls below T, after a W-sample warm-up (default 32)\n");
         fprintf(stderr, "Example: nori-dxr ..\\scenes\\a4\\cbox\\cbox_mis.xml\n");
         return 1;
     }
@@ -23,6 +27,9 @@ int main(int argc, char **argv)
     bool png = false;
     bool profile = false;
     bool vsync = true;
+    float clamp = 0.0f;    // 0 = firefly clamp disabled
+    float adaptive = 0.0f; // 0 = adaptive sampling disabled
+    uint32_t adaptiveWarmup = 32;
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "--novsync") == 0)
@@ -45,6 +52,23 @@ int main(int argc, char **argv)
         {
             profile = true;
         }
+        else if (strcmp(argv[i], "--clamp") == 0 && i + 1 < argc)
+        {
+            clamp = (float)atof(argv[++i]);
+        }
+        else if (strcmp(argv[i], "--adaptive") == 0 && i + 1 < argc)
+        {
+            // "T" or "T,W": threshold, then an optional warm-up sample count.
+            const char *arg = argv[++i];
+            adaptive = (float)atof(arg);
+            if (const char *comma = strchr(arg, ','))
+                adaptiveWarmup = (uint32_t)atoi(comma + 1);
+            if (adaptiveWarmup < 2)
+            {
+                fprintf(stderr, "[adaptive] warm-up raised to 2 (a variance estimate needs two samples)\n");
+                adaptiveWarmup = 2;
+            }
+        }
     }
 
     try
@@ -52,6 +76,8 @@ int main(int argc, char **argv)
         HINSTANCE hInstance = GetModuleHandle(nullptr);
         DXRApp app(argv[1], headless);
         app.SetProfiling(profile);
+        app.SetFireflyClamp(clamp);
+        app.SetAdaptive(adaptive, adaptiveWarmup);
         app.SetVSync(vsync); // before OnInit: CreateSwapChain needs the tearing flag
 
         if (headless)
@@ -92,6 +118,7 @@ int main(int argc, char **argv)
                         target, _ms, _ms / (double)target, (double)target * 1000.0 / _ms);
             }
 
+            app.ReportAdaptiveStats();
             fprintf(stderr, "[headless] Saving EXR...\n");
             app.SaveSnapshotEXR();
             // The EXR is scene-linear radiance and deliberately carries no
