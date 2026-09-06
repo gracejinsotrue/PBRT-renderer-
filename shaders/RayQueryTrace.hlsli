@@ -53,7 +53,7 @@ void TraceClosestInline(RaytracingAccelerationStructure as, RayDesc ray, inout H
             }
             float2 aUV = GetInterpolatedUV(iid, q.CandidatePrimitiveIndex(),
                                            q.CandidateTriangleBarycentrics());
-            float a = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0).a;
+            float a = g_textures[NonUniformResourceIndex(mat.alphaTexIndex)].SampleLevel(g_sampler, aUV, 0).a;
             if (a < 0.01)
                 continue; // IgnoreHit
             rngState = PCGHash(rngState);
@@ -101,7 +101,7 @@ void TraceShadowInline(RaytracingAccelerationStructure as, RayDesc ray, inout Sh
             {
                 float2 aUV = GetInterpolatedUV(iid, q.CandidatePrimitiveIndex(),
                                                q.CandidateTriangleBarycentrics());
-                float4 t = g_textures[mat.alphaTexIndex].SampleLevel(g_sampler, aUV, 0);
+                float4 t = g_textures[NonUniformResourceIndex(mat.alphaTexIndex)].SampleLevel(g_sampler, aUV, 0);
                 float a = t.a;
                 if (a < 0.01)
                     continue; // IgnoreHit

@@ -18,6 +18,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "  --clamp N   : clamp indirect contributions to luminance N (biased; default off)\n");
         fprintf(stderr, "  --adaptive T[,W] : stop refining a pixel once its relative standard\n");
         fprintf(stderr, "  --restir R[,K] : ReSTIR DI spatial reuse, radius R px, K neighbours\n");
+        fprintf(stderr, "  --wavefront [G] : persistent-thread path tracer, G resident 64-thread groups\n");
         fprintf(stderr, "                   (no-op unless the shader was built -D USE_RIS=1)\n");
         fprintf(stderr, "                     error falls below T, after a W-sample warm-up (default 32)\n");
         fprintf(stderr, "Example: nori-dxr ..\\scenes\\a4\\cbox\\cbox_mis.xml\n");
@@ -34,6 +35,7 @@ int main(int argc, char **argv)
     uint32_t adaptiveWarmup = 32;
     float restirRadius = 0.0f; // 0 = ReSTIR spatial reuse disabled
     uint32_t restirNeighbours = 4;
+    uint32_t wavefrontGroups = 0; // 0 = DispatchRays megakernel
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "--novsync") == 0)
@@ -59,6 +61,14 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--clamp") == 0 && i + 1 < argc)
         {
             clamp = (float)atof(argv[++i]);
+        }
+        else if (strcmp(argv[i], "--wavefront") == 0)
+        {
+            // Optional group count; the default keeps roughly the A3000's worth
+            // of warps resident without relying on a device query.
+            wavefrontGroups = 512;
+            if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9')
+                wavefrontGroups = (uint32_t)atoi(argv[++i]);
         }
         else if (strcmp(argv[i], "--restir") == 0 && i + 1 < argc)
         {
@@ -92,6 +102,7 @@ int main(int argc, char **argv)
         app.SetFireflyClamp(clamp);
         app.SetAdaptive(adaptive, adaptiveWarmup);
         app.SetReSTIR(restirRadius, restirNeighbours);
+        app.SetWavefront(wavefrontGroups);
         app.SetVSync(vsync); // before OnInit: CreateSwapChain needs the tearing flag
 
         if (headless)

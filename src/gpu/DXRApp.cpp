@@ -334,6 +334,28 @@ void DXRApp::PopulateCommandList()
     }
     m_commandList->ResourceBarrier(5, uavBarriers);
 
+    if (m_wavefrontGroups > 0)
+    {
+        // Persistent threads: reset the queue counter, then keep a fixed pool of
+        // groups resident, each pulling pixels off it until it drains. The
+        // timestamp brackets the tracing dispatch only, so --profile stays
+        // comparable with the DispatchRays numbers.
+        m_commandList->SetPipelineState(m_resetQueuePSO.Get());
+        m_commandList->Dispatch(1, 1, 1);
+        D3D12_RESOURCE_BARRIER queueReady{};
+        queueReady.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        queueReady.UAV.pResource = m_pathQueueResource.Get();
+        m_commandList->ResourceBarrier(1, &queueReady);
+
+        m_commandList->SetPipelineState(m_wavefrontPSO.Get());
+        if (m_profile)
+            m_commandList->EndQuery(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 0);
+        m_commandList->Dispatch(m_wavefrontGroups, 1, 1);
+        if (m_profile)
+            m_commandList->EndQuery(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+    }
+    else
+    {
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
     const UINT sa = D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
     auto ta = m_shaderTable->GetGPUVirtualAddress();
@@ -351,6 +373,7 @@ void DXRApp::PopulateCommandList()
     m_commandList->DispatchRays(&dr);
     if (m_profile)
         m_commandList->EndQuery(m_tsQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 1);
+    }
 
     // The timestamp pair deliberately brackets DispatchRays only, not the
     // resolve below, so --profile keeps reporting the same path-tracing kernel

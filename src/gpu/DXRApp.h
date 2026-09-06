@@ -181,6 +181,11 @@ public:
         m_restirNeighbours = neighbours;
     }
 
+    // Persistent-thread path tracer instead of DispatchRays (--wavefront [G]).
+    // G is the number of 64-thread groups to keep resident; 0 leaves the
+    // megakernel in charge.
+    void SetWavefront(uint32_t groups) { m_wavefrontGroups = groups; }
+
     void OnKeyDown(UINT8 key);
     void OnKeyUp(UINT8 key);
     void OnMouseDown(UINT button, int x, int y);
@@ -256,6 +261,7 @@ private:
     uint32_t m_adaptiveMinSamples = 32;
     float m_restirRadius = 0.0f; // 0 = spatial reuse disabled
     uint32_t m_restirNeighbours = 4;
+    uint32_t m_wavefrontGroups = 0; // 0 = use the DispatchRays megakernel
     bool m_allowTearing = false;
 
     // Wall-clock FPS for the windowed loop, printed once a second under
@@ -340,6 +346,11 @@ private:
     static constexpr UINT kReservoirStride = 80;
     ComPtr<ID3D12Resource> m_reservoirResource;
     UINT64 m_reservoirCount = 0;
+    // Persistent-thread path tracer: a one-dword work queue plus the two compute
+    // PSOs that reset and drain it.
+    ComPtr<ID3D12Resource> m_pathQueueResource;
+    ComPtr<ID3D12PipelineState> m_wavefrontPSO;
+    ComPtr<ID3D12PipelineState> m_resetQueuePSO;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
 
     // Display resolve pass (Resolve.hlsl / CSResolve). Turns an HDR

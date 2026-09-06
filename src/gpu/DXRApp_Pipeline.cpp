@@ -12,8 +12,8 @@ void DXRApp::CreateRaytracingPipeline()
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
 
     // u0=output, u1=accum, u2=albedo AOV, u3=normal AOV, u4=luminance moments,
-    // u5=ReSTIR reservoirs
-    const UINT numUAV = 6;
+    // u5=ReSTIR reservoirs, u6=persistent-thread work queue
+    const UINT numUAV = 7;
 
     D3D12_DESCRIPTOR_RANGE ranges[4]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -187,6 +187,32 @@ void DXRApp::CreatePostPipelines()
                       "Post PSO");
     }
     printf("[pipeline] Post-process compute PSOs created (resolve + 3 bloom passes)\n");
+
+    // The persistent-thread path tracer runs against the *raytracing* root
+    // signature, not the post one: it touches the whole scene, every texture and
+    // the acceleration structure, exactly as RayGen does. Inline ray tracing is
+    // what makes that legal from a compute shader.
+    {
+        struct
+        {
+            const wchar_t *cso;
+            ComPtr<ID3D12PipelineState> *pso;
+        } wf[] = {
+            {L"CSPathTracePersistent.cso", &m_wavefrontPSO},
+            {L"CSResetQueue.cso", &m_resetQueuePSO},
+        };
+        for (const auto &p : wf)
+        {
+            auto blob = ReadFileBytes(GetExeDirectory() + p.cso);
+            D3D12_COMPUTE_PIPELINE_STATE_DESC pd{};
+            pd.pRootSignature = m_globalRootSig.Get();
+            pd.CS = {blob.data(), blob.size()};
+            ThrowIfFailed(m_device->CreateComputePipelineState(
+                              &pd, IID_PPV_ARGS(p.pso->ReleaseAndGetAddressOf())),
+                          "Wavefront PSO");
+        }
+        printf("[pipeline] Persistent-thread path tracer PSOs created\n");
+    }
 }
 
 void DXRApp::CreateOutputResource()
@@ -351,6 +377,11 @@ void DXRApp::CreateOutputResource()
         m_reservoirResource = CreateBuffer(bytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
                                            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                            D3D12_HEAP_TYPE_DEFAULT);
+        // Work queue for the persistent-thread driver. One dword is all it needs;
+        // 16 keeps the raw UAV comfortably aligned.
+        m_pathQueueResource = CreateBuffer(16, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                                           D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                           D3D12_HEAP_TYPE_DEFAULT);
         printf("[restir] reservoirs: %llu entries x %u B = %.1f MB\n",
                (unsigned long long)m_reservoirCount, kReservoirStride,
                (double)bytes / (1024.0 * 1024.0));
@@ -363,7 +394,8 @@ void DXRApp::CreateOutputResource()
     //  [3]  u3  UAV normal AOV texture
     //  [4]  u4  UAV luminance moments (adaptive sampling)
     //  [5]  u5  UAV ReSTIR reservoirs (structured buffer)
-    //  [6]  t0  SRV TLAS
+    //  [6]  u6  UAV persistent-thread work queue (one dword counter)
+    //  [7]  t0  SRV TLAS
     //  [7]  t1  SRV material structured buffer
     //  [8]  t2  SRV global vertex normals (raw)
     //  [9]  t3  SRV global index buffer (raw)
@@ -384,7 +416,7 @@ void DXRApp::CreateOutputResource()
     // the slot map in DXRApp.h). They live at the tail so none of the offsets
     // above shift.
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
-    const UINT rtDescriptors = 18 + m_textureCount + volumeTexCount;
+    const UINT rtDescriptors = 19 + m_textureCount + volumeTexCount;
     m_postDescriptorBase = rtDescriptors;
     const UINT postSlots = 4 + 2 * (m_bloomMipCount - 1);
     UINT totalDescriptors = rtDescriptors + postSlots * 3;
@@ -443,6 +475,18 @@ void DXRApp::CreateOutputResource()
         ud.Buffer.NumElements = (UINT)m_reservoirCount;
         ud.Buffer.StructureByteStride = kReservoirStride;
         m_device->CreateUnorderedAccessView(m_reservoirResource.Get(), nullptr, &ud, h);
+        h.ptr += m_srvUavDescriptorSize;
+    }
+
+    // [6] UAV — persistent-thread work queue (RWByteAddressBuffer: raw, R32_TYPELESS)
+    {
+        D3D12_UNORDERED_ACCESS_VIEW_DESC ud{};
+        ud.Format = DXGI_FORMAT_R32_TYPELESS;
+        ud.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        ud.Buffer.FirstElement = 0;
+        ud.Buffer.NumElements = 4;
+        ud.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+        m_device->CreateUnorderedAccessView(m_pathQueueResource.Get(), nullptr, &ud, h);
         h.ptr += m_srvUavDescriptorSize;
     }
 

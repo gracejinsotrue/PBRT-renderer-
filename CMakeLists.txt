@@ -102,6 +102,8 @@ set(COMPUTE_SHADERS
     "Bloom:CSBloomPrefilter"
     "Bloom:CSBloomDownsample"
     "Bloom:CSBloomUpsample"
+    "WavefrontPT:CSPathTracePersistent"
+    "WavefrontPT:CSResetQueue"
 )
 set(COMPUTE_CSOS)
 foreach(cs IN LISTS COMPUTE_SHADERS)

@@ -101,7 +101,7 @@ float SampleVolumeDensity(GPUVolume v, float3 worldPos)
         return 1.0;
 
     float3 uvw = (worldPos - v.vMin) / max(v.vMax - v.vMin, float3(1e-6, 1e-6, 1e-6));
-    return g_volumeDensities[v.densityTexIndex].SampleLevel(g_volumeSampler, uvw, 0);
+    return g_volumeDensities[NonUniformResourceIndex(v.densityTexIndex)].SampleLevel(g_volumeSampler, uvw, 0);
 }
 
 // Tracked majorants = local μ + brick boundary distance
@@ -129,7 +129,7 @@ void SampleLocalMajorant(GPUVolume v, float3 pos, float3 dir,
     }
 
     // majorant texture dimensions.
-    Texture3D<float> mtex = g_volumeDensities[v.majorantTexIndex];
+    Texture3D<float> mtex = g_volumeDensities[NonUniformResourceIndex(v.majorantTexIndex)];
     uint mW, mH, mD, mLevels;
     mtex.GetDimensions(0, mW, mH, mD, mLevels);
     float3 mres = float3(mW, mH, mD);
