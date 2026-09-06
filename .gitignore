@@ -128,3 +128,6 @@ Claude outputs/
 /_export_done.txt
 *.bak
 *.bak_*
+
+# ReSTIR A/B outputs (regenerate with the harness; EXRs are already ignored)
+/_ris_ab/

@@ -323,15 +323,16 @@ void DXRApp::PopulateCommandList()
     m_commandList->ResourceBarrier(1, &bb[0]);
 
     // UAV barriers for the accumulation + AOV + moments textures because we are doing a lot of cross-frame read-modify-write bullshit
-    D3D12_RESOURCE_BARRIER uavBarriers[4]{};
-    ID3D12Resource *uavRes[4] = {m_accumResource.Get(), m_albedoResource.Get(),
-                                 m_normalResource.Get(), m_momentsResource.Get()};
-    for (int i = 0; i < 4; i++)
+    D3D12_RESOURCE_BARRIER uavBarriers[5]{};
+    ID3D12Resource *uavRes[5] = {m_accumResource.Get(), m_albedoResource.Get(),
+                                 m_normalResource.Get(), m_momentsResource.Get(),
+                                 m_reservoirResource.Get()};
+    for (int i = 0; i < 5; i++)
     {
         uavBarriers[i].Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
         uavBarriers[i].UAV.pResource = uavRes[i];
     }
-    m_commandList->ResourceBarrier(4, uavBarriers);
+    m_commandList->ResourceBarrier(5, uavBarriers);
 
     m_commandList->SetPipelineState1(m_rtStateObject.Get());
     const UINT sa = D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;

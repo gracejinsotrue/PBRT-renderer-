@@ -51,8 +51,11 @@ struct CameraConstants
     // warm-up sample count before the per-pixel variance estimate is trusted.
     float adaptiveThreshold;
     uint32_t adaptiveMinSamples;
-    float _cbPad2; // pad to 16-byte boundary
-    float _cbPad3;
+
+    // ReSTIR DI spatial reuse: neighbour search radius in pixels (0 = off) and
+    // how many neighbours to combine.
+    float restirRadius;
+    uint32_t restirNeighbours;
 };
 
 // Mirror of the HLSL GPUVolume struct used for ray marching in the presence of participating media.
@@ -170,6 +173,14 @@ public:
     // accumulator's .w channel. Only meaningful with adaptive sampling on.
     void ReportAdaptiveStats();
 
+    // ReSTIR DI spatial reuse (--restir R[,K]). Only has an effect on a shader
+    // built with -D USE_RIS=1; radius 0 leaves plain RIS untouched.
+    void SetReSTIR(float radius, uint32_t neighbours)
+    {
+        m_restirRadius = radius;
+        m_restirNeighbours = neighbours;
+    }
+
     void OnKeyDown(UINT8 key);
     void OnKeyUp(UINT8 key);
     void OnMouseDown(UINT button, int x, int y);
@@ -243,6 +254,8 @@ private:
     float m_fireflyClamp = 0.0f;      // 0 = disabled
     float m_adaptiveThreshold = 0.0f; // 0 = disabled
     uint32_t m_adaptiveMinSamples = 32;
+    float m_restirRadius = 0.0f; // 0 = spatial reuse disabled
+    uint32_t m_restirNeighbours = 4;
     bool m_allowTearing = false;
 
     // Wall-clock FPS for the windowed loop, printed once a second under
@@ -322,6 +335,11 @@ private:
     // Per-pixel (sum of luminance, sum of luminance^2) for adaptive sampling.
     // Always created and bound; only written when adaptive sampling is on.
     ComPtr<ID3D12Resource> m_momentsResource;
+    // ReSTIR reservoirs: 2 * width * height entries, one parity slice per frame.
+    // Must match sizeof(GPUReservoir) in shaders/Common.hlsli.
+    static constexpr UINT kReservoirStride = 80;
+    ComPtr<ID3D12Resource> m_reservoirResource;
+    UINT64 m_reservoirCount = 0;
     ComPtr<ID3D12DescriptorHeap> m_srvUavHeap;
 
     // Display resolve pass (Resolve.hlsl / CSResolve). Turns an HDR

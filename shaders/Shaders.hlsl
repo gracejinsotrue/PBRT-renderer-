@@ -132,6 +132,20 @@
     float3 aovAlbedo = float3(0, 0, 0);
     float3 aovNormal = float3(0, 0, 0);
 
+    // ReSTIR reuse happens once per path, at the first non-delta surface. That
+    // is the surface the reservoir buffer is indexed for: it is a screen-space
+    // technique, and a pixel only has one primary visible shading point to share
+    // with its neighbours. Deeper bounces fall back to plain RIS or NEE.
+    bool restirDone = false;
+
+    // Stamp this pixel's slot invalid up front. A path that never reaches a
+    // non-delta surface writes no reservoir, and without this its slot would
+    // still hold the entry from two frames ago -- which after a camera move
+    // describes a shading point that no longer exists, and which
+    // NeighbourCompatible would happily accept.
+    if (restirRadius > 0.0)
+        g_reservoirs[ReservoirIndex(pixel, dims, frameCount & 1u)].valid = 0.0;
+
     for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
     {
         HitPayload payload;
@@ -508,8 +522,22 @@
 #define USE_RIS 0
 #endif
 #if USE_RIS
-                Lo += ClampContribution(
-                    throughput * RISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
+                // restirRadius > 0 turns on spatial reuse for the first
+                // non-delta hit; everything after it, and every hit when reuse
+                // is off, is plain RIS. Both paths write nothing the other
+                // reads, so the toggle is a pure runtime switch.
+                if (!restirDone && restirRadius > 0.0)
+                {
+                    restirDone = true;
+                    Lo += ClampContribution(
+                        throughput * ReSTIRDirectIllumination(pixel, dims, hitPos, N, Ng, T, B,
+                                                              wi_local, mat, h, rng), bounce);
+                }
+                else
+                {
+                    Lo += ClampContribution(
+                        throughput * RISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);
+                }
 #else
                 Lo += ClampContribution(
                     throughput * MISDirectIllumination(hitPos, N, Ng, T, B, wi_local, mat, h, rng), bounce);

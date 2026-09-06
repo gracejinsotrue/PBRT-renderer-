@@ -17,6 +17,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "  --novsync   : present without waiting for vblank (windowed; pair with --profile)\n");
         fprintf(stderr, "  --clamp N   : clamp indirect contributions to luminance N (biased; default off)\n");
         fprintf(stderr, "  --adaptive T[,W] : stop refining a pixel once its relative standard\n");
+        fprintf(stderr, "  --restir R[,K] : ReSTIR DI spatial reuse, radius R px, K neighbours\n");
+        fprintf(stderr, "                   (no-op unless the shader was built -D USE_RIS=1)\n");
         fprintf(stderr, "                     error falls below T, after a W-sample warm-up (default 32)\n");
         fprintf(stderr, "Example: nori-dxr ..\\scenes\\a4\\cbox\\cbox_mis.xml\n");
         return 1;
@@ -30,6 +32,8 @@ int main(int argc, char **argv)
     float clamp = 0.0f;    // 0 = firefly clamp disabled
     float adaptive = 0.0f; // 0 = adaptive sampling disabled
     uint32_t adaptiveWarmup = 32;
+    float restirRadius = 0.0f; // 0 = ReSTIR spatial reuse disabled
+    uint32_t restirNeighbours = 4;
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "--novsync") == 0)
@@ -56,6 +60,15 @@ int main(int argc, char **argv)
         {
             clamp = (float)atof(argv[++i]);
         }
+        else if (strcmp(argv[i], "--restir") == 0 && i + 1 < argc)
+        {
+            // "R" or "R,K": neighbour radius in pixels, optional neighbour count.
+            const char *arg = argv[++i];
+            restirRadius = (float)atof(arg);
+            if (const char *comma = strchr(arg, ','))
+                restirNeighbours = (uint32_t)atoi(comma + 1);
+            restirNeighbours = restirNeighbours > 8u ? 8u : restirNeighbours;
+        }
         else if (strcmp(argv[i], "--adaptive") == 0 && i + 1 < argc)
         {
             // "T" or "T,W": threshold, then an optional warm-up sample count.
@@ -78,6 +91,7 @@ int main(int argc, char **argv)
         app.SetProfiling(profile);
         app.SetFireflyClamp(clamp);
         app.SetAdaptive(adaptive, adaptiveWarmup);
+        app.SetReSTIR(restirRadius, restirNeighbours);
         app.SetVSync(vsync); // before OnInit: CreateSwapChain needs the tearing flag
 
         if (headless)

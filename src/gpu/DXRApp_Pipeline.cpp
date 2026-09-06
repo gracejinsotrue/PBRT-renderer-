@@ -11,8 +11,9 @@ void DXRApp::CreateRaytracingPipeline()
     UINT totalSRVs = 7 + 1 + 2 + 1 + m_textureCount; // +1 for tangent buffer
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
 
-    // u0=output, u1=accum, u2=albedo AOV, u3=normal AOV, u4=luminance moments
-    const UINT numUAV = 5;
+    // u0=output, u1=accum, u2=albedo AOV, u3=normal AOV, u4=luminance moments,
+    // u5=ReSTIR reservoirs
+    const UINT numUAV = 6;
 
     D3D12_DESCRIPTOR_RANGE ranges[4]{};
     ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
@@ -338,26 +339,44 @@ void DXRApp::CreateOutputResource()
                       "Adaptive moments tex");
     }
 
+    // ReSTIR reservoirs. Two parity slices in one buffer: a frame writes
+    // (frameCount & 1) and reads the other, so ping-ponging needs no descriptor
+    // swap -- which matters here because the descriptor heap is shared with the
+    // post-process passes and their slots are addressed by fixed offsets.
+    // Created unconditionally, like the moments texture, so the root signature
+    // never depends on a runtime flag.
+    {
+        m_reservoirCount = (UINT64)m_width * m_height * 2;
+        UINT64 bytes = m_reservoirCount * kReservoirStride;
+        m_reservoirResource = CreateBuffer(bytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+                                           D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                           D3D12_HEAP_TYPE_DEFAULT);
+        printf("[restir] reservoirs: %llu entries x %u B = %.1f MB\n",
+               (unsigned long long)m_reservoirCount, kReservoirStride,
+               (double)bytes / (1024.0 * 1024.0));
+    }
+
     // Descriptor heap layout (N = m_textureCount, V = volumeTexCount):
     //  [0]  u0  UAV output texture
     //  [1]  u1  UAV accumulation texture
     //  [2]  u2  UAV albedo AOV texture
     //  [3]  u3  UAV normal AOV texture
     //  [4]  u4  UAV luminance moments (adaptive sampling)
-    //  [5]  t0  SRV TLAS
-    //  [6]  t1  SRV material structured buffer
-    //  [7]  t2  SRV global vertex normals (raw)
-    //  [8]  t3  SRV global index buffer (raw)
-    //  [9]  t4  SRV global vertex positions (raw)
-    //  [10] t5  SRV emitter CDF (raw)
-    //  [11] t6  SRV global UV buffer (raw)
-    //  [12] t7  SRV environment map (RGBA32F)
-    //  [13] t8  SRV envmap marginal CDF (raw)
-    //  [14] t9  SRV envmap conditional CDF (raw)
-    //  [15] t10 SRV global fiber tangent buffer (raw, hair only)
-    //  [16..16+N)   t11+ SRV material textures
-    //  [16+N]       t0 (space1) SRV volume StructuredBuffer<GPUVolume>
-    //  [17+N..17+N+V) t1+ (space1) SRV volume density Texture3D<float>[]
+    //  [5]  u5  UAV ReSTIR reservoirs (structured buffer)
+    //  [6]  t0  SRV TLAS
+    //  [7]  t1  SRV material structured buffer
+    //  [8]  t2  SRV global vertex normals (raw)
+    //  [9]  t3  SRV global index buffer (raw)
+    //  [10] t4  SRV global vertex positions (raw)
+    //  [11] t5  SRV emitter CDF (raw)
+    //  [12] t6  SRV global UV buffer (raw)
+    //  [13] t7  SRV environment map (RGBA32F)
+    //  [14] t8  SRV envmap marginal CDF (raw)
+    //  [15] t9  SRV envmap conditional CDF (raw)
+    //  [16] t10 SRV global fiber tangent buffer (raw, hair only)
+    //  [17..17+N)   t11+ SRV material textures
+    //  [17+N]       t0 (space1) SRV volume StructuredBuffer<GPUVolume>
+    //  [18+N..18+N+V) t1+ (space1) SRV volume density Texture3D<float>[]
     //
     // Everything above is addressed by the raytracing root signature. The
     // entries below belong to the post-process passes, addressed by
@@ -365,7 +384,7 @@ void DXRApp::CreateOutputResource()
     // the slot map in DXRApp.h). They live at the tail so none of the offsets
     // above shift.
     UINT volumeTexCount = (UINT)std::max<size_t>(1, m_volumeTextures.size());
-    const UINT rtDescriptors = 17 + m_textureCount + volumeTexCount;
+    const UINT rtDescriptors = 18 + m_textureCount + volumeTexCount;
     m_postDescriptorBase = rtDescriptors;
     const UINT postSlots = 4 + 2 * (m_bloomMipCount - 1);
     UINT totalDescriptors = rtDescriptors + postSlots * 3;
@@ -412,6 +431,18 @@ void DXRApp::CreateOutputResource()
         ud.Format = DXGI_FORMAT_R32G32_FLOAT;
         ud.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
         m_device->CreateUnorderedAccessView(m_momentsResource.Get(), nullptr, &ud, h);
+        h.ptr += m_srvUavDescriptorSize;
+    }
+
+    // [5] UAV — ReSTIR reservoirs (structured buffer, no append counter)
+    {
+        D3D12_UNORDERED_ACCESS_VIEW_DESC ud{};
+        ud.Format = DXGI_FORMAT_UNKNOWN;
+        ud.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        ud.Buffer.FirstElement = 0;
+        ud.Buffer.NumElements = (UINT)m_reservoirCount;
+        ud.Buffer.StructureByteStride = kReservoirStride;
+        m_device->CreateUnorderedAccessView(m_reservoirResource.Get(), nullptr, &ud, h);
         h.ptr += m_srvUavDescriptorSize;
     }
 

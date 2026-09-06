@@ -33,6 +33,35 @@ RWTexture2D<float4> g_normal : register(u3);
 // not depend on a shader define.
 RWTexture2D<float2> g_moments : register(u4);
 
+// ReSTIR DI reservoir storage.
+//
+// One entry per pixel per parity slice: the buffer holds 2 * width * height
+// entries and a frame writes slice (frameCount & 1) while reading slice
+// (frameCount & 1) ^ 1. Ping-ponging inside one resource rather than swapping
+// two descriptors keeps the descriptor table fixed, which matters because the
+// heap layout is shared with the post-process passes.
+//
+// The G-buffer fields (hitPos, hitNormal) travel with the reservoir instead of
+// living in their own texture. A neighbour's shading point is needed for two
+// things -- the geometric similarity test and the unbiased Z normalisation --
+// and both are needed exactly when the reservoir is read, so splitting them
+// into a second resource would only double the number of loads.
+struct GPUReservoir
+{
+    float3 lightPos;    // sampled point on the emitter
+    float pdfArea;      // area-measure pdf it was drawn with
+    float3 lightNormal; // emitter normal there
+    float W;            // unbiased contribution weight; 0 = occluded or empty
+    float3 radiance;    // emitted radiance at that point
+    float M;            // number of candidates this reservoir represents
+    float3 hitPos;      // shading point that produced it
+    float valid;        // 1 = usable, 0 = miss / delta surface / converged pixel
+    float3 hitNormal;   // shading normal there
+    float pad0;
+};
+
+RWStructuredBuffer<GPUReservoir> g_reservoirs : register(u5);
+
 // Constant buffer
 
 cbuffer CameraParams : register(b0)
@@ -64,8 +93,11 @@ cbuffer CameraParams : register(b0)
     // mean falls below adaptiveThreshold (relative). <= 0 disables it.
     float adaptiveThreshold;
     uint adaptiveMinSamples; // warm-up before the variance estimate is trusted
-    float _cbPad2;
-    float _cbPad3;
+
+    // ReSTIR DI spatial reuse. Radius is in pixels; <= 0 disables reuse and
+    // leaves RISDirectIllumination behaving exactly as it did.
+    float restirRadius;
+    uint restirNeighbours;
 };
 
 // Material structure

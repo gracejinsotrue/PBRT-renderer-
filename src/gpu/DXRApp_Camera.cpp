@@ -69,12 +69,17 @@ void DXRApp::SetupCamera()
     m_camera.fireflyClamp = m_fireflyClamp;
     m_camera.adaptiveThreshold = m_adaptiveThreshold;
     m_camera.adaptiveMinSamples = m_adaptiveMinSamples;
+    m_camera.restirRadius = m_restirRadius;
+    m_camera.restirNeighbours = m_restirNeighbours;
     if (m_fireflyClamp > 0.0f)
         printf("[firefly] indirect contributions clamped at %.2f luminance (biased)\n",
                m_fireflyClamp);
     if (m_adaptiveThreshold > 0.0f)
         printf("[adaptive] sampling on: rel. standard error %.4f, warm-up %u spp\n",
                m_adaptiveThreshold, m_adaptiveMinSamples);
+    if (m_restirRadius > 0.0f)
+        printf("[restir] spatial reuse: radius %.1f px, %u neighbours (needs -D USE_RIS=1)\n",
+               m_restirRadius, m_restirNeighbours);
     m_bloomThreshold = m_noriScene->getBloomThreshold();
     m_bloomKnee = m_noriScene->getBloomKnee();
     m_bloomIntensity = m_noriScene->getBloomIntensity();
