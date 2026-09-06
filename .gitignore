@@ -108,3 +108,23 @@ scenes/sportscar/textures/
 scenes/bunny_cloud/volumes/
 scenes/bunny_cloud/textures/
 scenes/bunny_cloud/meshes/
+
+# --- large untracked scene assets (meshes/textures/EXR snapshots; multi-GB, not distributable) ---
+scenes/_sss_furnace/
+scenes/_suntest/
+scenes/bmw_m6/
+scenes/bunny_cloud/
+scenes/head/
+scenes/liminal_bed/
+scenes/pool_store/
+scenes/sportscar/
+scenes/sssdragon/
+Claude outputs/
+
+# --- local scratch: previews, run logs, editor backups ---
+/_*.png
+/_*.log
+/_*.pid
+/_export_done.txt
+*.bak
+*.bak_*
