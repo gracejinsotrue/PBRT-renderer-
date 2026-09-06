@@ -22,134 +22,79 @@
 
 // Ray Generation
 
-[shader("raygeneration")] void RayGen()
+// Path state that has to survive from one bounce to the next. Everything else
+// inside PathStep is scratch that dies with the iteration, which is the point:
+// the whole path fits in registers and never spills to a global buffer the way a
+// classical wavefront tracer's would.
+struct PathState
 {
-    uint2 pixel = DispatchRaysIndex().xy;
-    uint2 dims = DispatchRaysDimensions().xy;
-
-    // Read this pixel's own history before doing any work. With adaptive
-    // sampling on, pixels stop at different frames, so accum.w is no longer the
-    // same number as frameCount.
-    float4 accumPrev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
-    float2 momentsPrev = (frameCount == 0) ? float2(0, 0) : g_moments[pixel];
-
-    // Converged pixels cost nothing: no rays, no accumulator write, no AOV
-    // write. Their sample count stays where it stopped and the resolve pass
-    // divides by it, so a partially converged image is still a correct mean
-    // everywhere -- just computed from a different number of samples per pixel.
-    if (PixelConverged(momentsPrev, accumPrev.w))
-        return;
-
-    // The sampler is indexed by the pixel's own sample count, not by
-    // frameCount. Owen-scrambled Sobol' is only stratified over a contiguous
-    // prefix of its sequence, so a pixel that sat out some frames must still
-    // walk 0, 1, 2, ... of its own rather than inherit the global frame number
-    // and sample a sparse subset. With adaptive sampling off the two numbers
-    // are identical for every pixel, so the sample sequence is unchanged and
-    // the render is numerically identical to before -- measured at relMSE
-    // 8.3e-16 on cbox. Not *bit*-identical: wrapping the contributions below in
-    // ClampContribution() and adding these two loads reorders enough float math
-    // to move the last bits, so the EXR hash changes.
-    uint sampleIndex = (uint)accumPrev.w;
-    RNG rng = InitRNG(pixel, dims, sampleIndex);
-
-#if ENVMAP_DEBUG_SAMPLER
-    {
-        float u1 = NextFloat(rng);
-        float u2 = NextFloat(rng);
-        float3 dirE, radE;
-        float pdfE;
-        SampleEnvmap(u1, u2, dirE, radE, pdfE);
-        float3 est = (pdfE > 1e-12) ? radE / pdfE : float3(0, 0, 0);
-
-        if (any(isnan(est)) || any(isinf(est)))
-            est = float3(0, 0, 0);
-
-        float4 prev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
-        float4 accum = prev + float4(est, 1.0);
-        g_accum[pixel] = accum;
-
-        float3 averaged = accum.xyz / accum.w;
-        averaged /= 10.0;
-        averaged *= 0.5;
-        // NOTE: CSResolve overwrites g_output every frame, so enabling this
-        // debug mode also requires skipping the resolve dispatch.
-        g_output[pixel] = float4(saturate(averaged), 1.0);
-        return;
-    }
-#endif
-
-    float2 jitter = float2(NextFloat(rng), NextFloat(rng));
-    float2 uv = (float2(pixel) + jitter) / float2(dims);
-    uv.y = 1.0 - uv.y;
-
-    float3 dir = normalize(
-        camLowerLeftCorner + uv.x * camHorizontal + uv.y * camVertical - camPos);
-
     RayDesc ray;
-    ray.Origin = camPos;
-    ray.Direction = dir;
-    ray.TMin = 0.001;
-    ray.TMax = 1e20;
+    float3 throughput;
+    float3 Lo;
+    float3 aovAlbedo;
+    float3 aovNormal;
+    RNG rng;
+    float lastBsdfPdf;
+    float eta;
+    int bounce;
+    uint pathLen;
+    bool aovDone;
+    bool restirDone;
+};
 
-    if (lensRadius > 0.0)
+PathState InitPathState(RayDesc ray, RNG rng)
+{
+    PathState P;
+    P.ray = ray;
+    P.throughput = float3(1, 1, 1);
+    P.Lo = float3(0, 0, 0);
+    // Denoiser feature buffers. Captured at the FIRST non-delta interaction along
+    // the path, where mirror/dielectric are skipped so the albedo / normal describe
+    // the surface seen *through* the reflection/refraction.
+    P.aovAlbedo = float3(0, 0, 0);
+    P.aovNormal = float3(0, 0, 0);
+    P.rng = rng;
+    P.lastBsdfPdf = 0.0;
+    P.eta = 1.0;
+    P.bounce = 0;
+    P.pathLen = 0;
+    P.aovDone = false;
+    // ReSTIR reuse happens once per path, at the first non-delta surface: it is a
+    // screen-space technique and a pixel has only one primary shading point to
+    // share with its neighbours. Deeper bounces fall back to plain RIS or NEE.
+    P.restirDone = false;
+    return P;
+}
+
+// One bounce of a path. Returns false when the path is finished, which is exactly
+// what every `break` in the original bounce loop meant.
+//
+// This is the megakernel's loop body lifted verbatim. It is a function so that more
+// than one driver can walk a path: RayGen calls it in a plain loop, one path per
+// thread, and a persistent-thread driver can call it one bounce at a time across
+// lanes holding paths at different depths -- which is what closes the path-length
+// divergence measured by PROFILE_WAVES.
+//
+// The body is wrapped in a single-iteration loop so the original break statements
+// compile unchanged; each is preceded by `alive = false`.
+bool PathStep(inout PathState P, uint2 pixel, uint2 dims)
+{
+    // Unpack into the names the body already uses, so the body stays verbatim.
+    RayDesc ray = P.ray;
+    float3 throughput = P.throughput;
+    float3 Lo = P.Lo;
+    float3 aovAlbedo = P.aovAlbedo;
+    float3 aovNormal = P.aovNormal;
+    RNG rng = P.rng;
+    float lastBsdfPdf = P.lastBsdfPdf;
+    float eta = P.eta;
+    int bounce = P.bounce;
+    bool aovDone = P.aovDone;
+    bool restirDone = P.restirDone;
+
+    bool alive = true;
+    [loop] for (uint _once = 0u; _once < 1u; _once++)
     {
-        // Thin-lens depth of field — mirrors perspective.cpp sampleRay()
-        // Reconstruct camera basis in world space from the image-plane vectors
-        float3 camFwd = normalize(camLowerLeftCorner + 0.5 * camHorizontal + 0.5 * camVertical - camPos);
-        float3 camRight = normalize(camHorizontal);
-        float3 camUp = normalize(camVertical);
-
-        // Focus point: walk along the pinhole ray until its projection onto
-        // the optical axis equals focalDistance (equivalent to z = focalDistance
-        // in camera space)
-        float ft = focalDistance / dot(dir, camFwd);
-        float3 focusPoint = camPos + dir * ft;
-
-        // Sample a uniformly distributed point on the circular aperture disk
-        // (squareToUniformDisk: r = sqrt(u1), theta = 2*pi*u2)
-        float u1 = NextFloat(rng);
-        float u2 = NextFloat(rng);
-        float r = sqrt(u1) * lensRadius;
-        float theta = 2.0 * M_PI * u2;
-        float3 lensOffset = (r * cos(theta)) * camRight + (r * sin(theta)) * camUp;
-
-        ray.Origin = camPos + lensOffset;
-        ray.Direction = normalize(focusPoint - ray.Origin);
-    }
-
-    float3 Lo = float3(0, 0, 0);
-    float3 throughput = float3(1, 1, 1);
-    float lastBsdfPdf = 0.0;
-    float eta = 1.0;
-
-    // Denoiser feature buffers. Captured at the FIRST non-delta
-    // interaction along the path, whre mirror/dielectric are skipped so the albedo /
-    // normal describe the surface seen *through* the reflection/refraction. (This is juts because a
-    // flat first-hit GBuffer on the specular spheres would make OIDN oversmooth
-    // them)
-    bool aovDone = false;
-    float3 aovAlbedo = float3(0, 0, 0);
-    float3 aovNormal = float3(0, 0, 0);
-
-    // ReSTIR reuse happens once per path, at the first non-delta surface. That
-    // is the surface the reservoir buffer is indexed for: it is a screen-space
-    // technique, and a pixel only has one primary visible shading point to share
-    // with its neighbours. Deeper bounces fall back to plain RIS or NEE.
-    bool restirDone = false;
-
-    // Stamp this pixel's slot invalid up front. A path that never reaches a
-    // non-delta surface writes no reservoir, and without this its slot would
-    // still hold the entry from two frames ago -- which after a camera move
-    // describes a shading point that no longer exists, and which
-    // NeighbourCompatible would happily accept.
-    if (restirRadius > 0.0)
-        g_reservoirs[ReservoirIndex(pixel, dims, frameCount & 1u)].valid = 0.0;
-
-    uint pathLen = 0;
-    for (int bounce = 0; bounce < MAX_BOUNCES; bounce++)
-    {
-        pathLen++;
         HitPayload payload;
         payload.hit = 0;
         payload.rngState = rng.state;
@@ -249,7 +194,7 @@
                 float w = BalanceHeuristic(lastBsdfPdf, pdfEnv);
                 Lo += ClampContribution(throughput * env * w, bounce);
             }
-            break;
+            { alive = false; break; }
         }
         else
         {
@@ -373,7 +318,7 @@
                     Lo += ClampContribution(
                         throughput * MatRadiance(mat) * BalanceHeuristic(lastBsdfPdf, pdfEms), bounce);
                 }
-                break;
+                { alive = false; break; }
             }
 
             float3 T, B;
@@ -551,7 +496,7 @@
                 float bsdfPdf;
                 float3 weight = MaterialSample(wi_local, rng, mat, h, wo_local, bsdfPdf);
                 if (bsdfPdf <= 0.0 || all(weight == 0.0))
-                    break;
+                    { alive = false; break; }
 
                 float3 wo_world = ToWorld(wo_local, T, B, N);
                 // For hair, TT/TRT lobes scatter *through* the fiber (dot(wo,Ng)<0).
@@ -609,7 +554,7 @@
                     float3 refl = reflect(I, wm);
                     float3 woL = ToLocal(refl, T, B, N);
                     if (woL.z <= 0.0)
-                        break; // reflected below the surface
+                        { alive = false; break; } // reflected below the surface
                     float weight = (rough > 1e-3)
                                        ? G1i * SmithG1(woL, wmL, aR) * cosThetaM / max(wiL.z * wmL.z, 1e-6)
                                        : 1.0;
@@ -661,7 +606,7 @@
                             rng, exitPos, exitDir, exitN, tmul);
 
                         if (!exited)
-                            break;
+                            { alive = false; break; }
                         throughput *= tmul * sssDetail;
                         ray.Origin = OffsetRayOrigin(exitPos, exitN, exitN);
                         ray.Direction = exitDir;
@@ -673,7 +618,7 @@
             }
             else
             {
-                break;
+                { alive = false; break; }
             }
 
         } // end surface hit
@@ -682,10 +627,154 @@
         {
             float q = min(max(throughput.x, max(throughput.y, throughput.z)) * eta * eta, 0.95);
             if (NextFloat(rng) >= q)
-                break;
+                { alive = false; break; }
             throughput /= q;
         }
     }
+
+    P.ray = ray;
+    P.throughput = throughput;
+    P.Lo = Lo;
+    P.aovAlbedo = aovAlbedo;
+    P.aovNormal = aovNormal;
+    P.rng = rng;
+    P.lastBsdfPdf = lastBsdfPdf;
+    P.eta = eta;
+    P.aovDone = aovDone;
+    P.restirDone = restirDone;
+    return alive;
+}
+
+
+[shader("raygeneration")] void RayGen()
+{
+    uint2 pixel = DispatchRaysIndex().xy;
+    uint2 dims = DispatchRaysDimensions().xy;
+
+    // Read this pixel's own history before doing any work. With adaptive
+    // sampling on, pixels stop at different frames, so accum.w is no longer the
+    // same number as frameCount.
+    float4 accumPrev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
+    float2 momentsPrev = (frameCount == 0) ? float2(0, 0) : g_moments[pixel];
+
+    // Converged pixels cost nothing: no rays, no accumulator write, no AOV
+    // write. Their sample count stays where it stopped and the resolve pass
+    // divides by it, so a partially converged image is still a correct mean
+    // everywhere -- just computed from a different number of samples per pixel.
+    if (PixelConverged(momentsPrev, accumPrev.w))
+        return;
+
+    // The sampler is indexed by the pixel's own sample count, not by
+    // frameCount. Owen-scrambled Sobol' is only stratified over a contiguous
+    // prefix of its sequence, so a pixel that sat out some frames must still
+    // walk 0, 1, 2, ... of its own rather than inherit the global frame number
+    // and sample a sparse subset. With adaptive sampling off the two numbers
+    // are identical for every pixel, so the sample sequence is unchanged and
+    // the render is numerically identical to before -- measured at relMSE
+    // 8.3e-16 on cbox. Not *bit*-identical: wrapping the contributions below in
+    // ClampContribution() and adding these two loads reorders enough float math
+    // to move the last bits, so the EXR hash changes.
+    uint sampleIndex = (uint)accumPrev.w;
+    RNG rng = InitRNG(pixel, dims, sampleIndex);
+
+#if ENVMAP_DEBUG_SAMPLER
+    {
+        float u1 = NextFloat(rng);
+        float u2 = NextFloat(rng);
+        float3 dirE, radE;
+        float pdfE;
+        SampleEnvmap(u1, u2, dirE, radE, pdfE);
+        float3 est = (pdfE > 1e-12) ? radE / pdfE : float3(0, 0, 0);
+
+        if (any(isnan(est)) || any(isinf(est)))
+            est = float3(0, 0, 0);
+
+        float4 prev = (frameCount == 0) ? float4(0, 0, 0, 0) : g_accum[pixel];
+        float4 accum = prev + float4(est, 1.0);
+        g_accum[pixel] = accum;
+
+        float3 averaged = accum.xyz / accum.w;
+        averaged /= 10.0;
+        averaged *= 0.5;
+        // NOTE: CSResolve overwrites g_output every frame, so enabling this
+        // debug mode also requires skipping the resolve dispatch.
+        g_output[pixel] = float4(saturate(averaged), 1.0);
+        return;
+    }
+#endif
+
+    float2 jitter = float2(NextFloat(rng), NextFloat(rng));
+    float2 uv = (float2(pixel) + jitter) / float2(dims);
+    uv.y = 1.0 - uv.y;
+
+    float3 dir = normalize(
+        camLowerLeftCorner + uv.x * camHorizontal + uv.y * camVertical - camPos);
+
+    RayDesc ray;
+    ray.Origin = camPos;
+    ray.Direction = dir;
+    ray.TMin = 0.001;
+    ray.TMax = 1e20;
+
+    if (lensRadius > 0.0)
+    {
+        // Thin-lens depth of field — mirrors perspective.cpp sampleRay()
+        // Reconstruct camera basis in world space from the image-plane vectors
+        float3 camFwd = normalize(camLowerLeftCorner + 0.5 * camHorizontal + 0.5 * camVertical - camPos);
+        float3 camRight = normalize(camHorizontal);
+        float3 camUp = normalize(camVertical);
+
+        // Focus point: walk along the pinhole ray until its projection onto
+        // the optical axis equals focalDistance (equivalent to z = focalDistance
+        // in camera space)
+        float ft = focalDistance / dot(dir, camFwd);
+        float3 focusPoint = camPos + dir * ft;
+
+        // Sample a uniformly distributed point on the circular aperture disk
+        // (squareToUniformDisk: r = sqrt(u1), theta = 2*pi*u2)
+        float u1 = NextFloat(rng);
+        float u2 = NextFloat(rng);
+        float r = sqrt(u1) * lensRadius;
+        float theta = 2.0 * M_PI * u2;
+        float3 lensOffset = (r * cos(theta)) * camRight + (r * sin(theta)) * camUp;
+
+        ray.Origin = camPos + lensOffset;
+        ray.Direction = normalize(focusPoint - ray.Origin);
+    }
+
+
+    // Denoiser feature buffers. Captured at the FIRST non-delta
+    // interaction along the path, whre mirror/dielectric are skipped so the albedo /
+    // normal describe the surface seen *through* the reflection/refraction. (This is juts because a
+    // flat first-hit GBuffer on the specular spheres would make OIDN oversmooth
+    // them)
+
+    // ReSTIR reuse happens once per path, at the first non-delta surface. That
+    // is the surface the reservoir buffer is indexed for: it is a screen-space
+    // technique, and a pixel only has one primary visible shading point to share
+    // with its neighbours. Deeper bounces fall back to plain RIS or NEE.
+
+    // Stamp this pixel's slot invalid up front. A path that never reaches a
+    // non-delta surface writes no reservoir, and without this its slot would
+    // still hold the entry from two frames ago -- which after a camera move
+    // describes a shading point that no longer exists, and which
+    // NeighbourCompatible would happily accept.
+    if (restirRadius > 0.0)
+        g_reservoirs[ReservoirIndex(pixel, dims, frameCount & 1u)].valid = 0.0;
+
+    PathState P = InitPathState(ray, rng);
+    [loop] for (int b = 0; b < MAX_BOUNCES; b++)
+    {
+        P.bounce = b;
+        P.pathLen++;
+        if (!PathStep(P, pixel, dims))
+            break;
+    }
+    float3 Lo = P.Lo;
+    float3 aovAlbedo = P.aovAlbedo;
+    float3 aovNormal = P.aovNormal;
+    uint pathLen = P.pathLen;
+    rng = P.rng;
 
     if (any(isnan(Lo)) || any(isinf(Lo)))
         Lo = float3(0, 0, 0);
