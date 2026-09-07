@@ -28,6 +28,7 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
 - [Performance & Optimization](#performance--optimization)
   - [Megakernel vs wavefront](#megakernel-vs-wavefront)
   - [Measurement setup](#measurement-setup)
+- [Validation & Correctness](#validation--correctness)
 
 ---
 
@@ -278,3 +279,29 @@ The tradeoff is that a wavefront tracer spills path state to global memory betwe
 ### Measurement setup
 
 to come
+
+---
+
+## Validation & Correctness
+
+Every feature above was checked against something other than "it looks right".
+
+**[Full quantitative validation report](final_report/report.html)** — the CS5630
+final report, written in Markdeep. Each feature gets an *Implementation*, a
+*Quantitative Validation* and a *Visual Results* section: white-furnace energy
+checks, absolute-difference and false-colour comparisons against reference
+renders, and analytic ground truth where a closed form exists. GitHub shows
+`.html` as source, so download it and open it locally, or enable GitHub Pages on
+this repository to read it in place.
+
+**Regression harness** — [`tools/validation/verify.sh`](tools/validation/verify.sh)
+compiles the shader library and renders four scenes headless (Cornell box, mixed
+materials, hair, heterogeneous volume), comparing each output EXR against a
+known-good SHA-256. This is what makes a performance claim safe to make: an
+optimisation that is supposed to be render-identical has to come out
+bit-identical.
+
+The rest of the harnesses live in [`tools/validation/`](tools/validation/) and
+[`tools/analysis/`](tools/analysis/) — furnace tests, analytic volumetric
+transport checks, and the GPU-time-vs-path-length sweep. See
+[`tools/README.md`](tools/README.md).
