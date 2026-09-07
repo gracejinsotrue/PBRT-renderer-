@@ -156,6 +156,19 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 #define RESTIR_VISIBILITY_REUSE 1
 #endif
 
+// Diagnostic only: make the Z domain test accept everything, which degrades the
+// unbiased normalisation to the biased M-normalisation.
+#ifndef RESTIR_Z_ALWAYS
+#define RESTIR_Z_ALWAYS 0
+#endif
+
+// Diagnostic only: return (Z / RIS_M, reservoirs combined, chosen-from-self)
+// instead of radiance, so the normalisation can be read straight out of an EXR.
+// Pair with -D MAX_BOUNCES=1 so nothing else accumulates into the pixel.
+#ifndef RESTIR_DEBUG_Z
+#define RESTIR_DEBUG_Z 0
+#endif
+
 struct Reservoir
 {
     EmitterSample y; // selected sample
@@ -352,6 +365,13 @@ EmitterSample ReservoirSample(GPUReservoir r)
 //     specular bounce.
 bool SampleInDomain(float3 lightPos, float3 lightNormal, float3 pos, float3 N)
 {
+#if RESTIR_Z_ALWAYS
+    // Diagnostic: force every combined reservoir to count, which is exactly the
+    // biased M-normalisation (Bitterli Algorithm 4). If the measured bias with
+    // this on matches the bias with the real test on, the real test never
+    // rejects anything and Z is silently the sum of all M.
+    return true;
+#endif
     float3 d = lightPos - pos;
     float dist2 = dot(d, d);
     if (dist2 < 1e-12)
@@ -363,6 +383,9 @@ bool SampleInDomain(float3 lightPos, float3 lightNormal, float3 pos, float3 N)
     float v2 = dot(v, v);
     if (v2 < 1e-12)
         return false;
+    // Requiring p-hat to be a positive *float* here rather than merely
+    // geometrically possible was tried and changed the result not at all, so
+    // underflow of lum(f * Le * cos) is not what is left of the bias.
     return dot(N, v * rsqrt(v2)) > 0.0;
 }
 
@@ -525,6 +548,7 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
 
     uint kN = (frameCount == 0u) ? 0u : min(restirNeighbours, 8u);
     uint prevSlice = (frameCount & 1u) ^ 1u;
+    float combined = 1.0; // self is always in the combination
 
     [loop] for (uint k = 0; k < kN; k++)
     {
@@ -539,6 +563,7 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
         // contributes zero weight here yet still counts in Z.
         if (!NeighbourCompatible(nb, hitPos, N))
             continue;
+        combined += 1.0; // combined even if it contributes zero weight
         if (nb.W <= 0.0)
             continue;
 
@@ -591,6 +616,13 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
 
     if (Z <= 0.0)
         return float3(0, 0, 0);
+
+#if RESTIR_DEBUG_Z
+    // R = Z / RIS_M (how many reservoirs' worth of candidates Z is claiming),
+    // G = how many reservoirs were actually combined. If these are equal, the
+    // domain test never rejects and Z has degenerated to the biased sum of M.
+    return float3(Z / float(RIS_M), combined, 0.0);
+#endif
 
     float W = wSum / (Z * chosenPHat);
 
