@@ -45,7 +45,7 @@ def main():
     )
     parser.add_argument(
         '--dxr-exe',
-        default='../../dxr/build/Release/nori-dxr.exe',
+        default='../../build/Release/nori-dxr.exe',
         help='Path to nori-dxr executable (relative to this script)'
     )
     parser.add_argument(
@@ -70,7 +70,7 @@ def main():
 
     if not dxr_exe.exists() and not args.skip_dxr:
         print(f"[ERROR] nori-dxr executable not found: {dxr_exe}", file=sys.stderr)
-        print(f"        Build with: cmake -S dxr -B dxr/build && cmake --build dxr/build --config Release", file=sys.stderr)
+        print(f"        Build with: cmake -S . -B build && cmake --build build --config Release", file=sys.stderr)
         return 1
 
     scene_xml = script_dir / 'dof_test_scene.xml'

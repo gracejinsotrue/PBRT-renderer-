@@ -25,7 +25,7 @@ From `validation_tests/disney/`:
 
 ```powershell
 # 1. render ours (auto-saves snapshot_1024.exr after 1024 spp, then exits)
-..\..\dxr\build\Release\nori-dxr.exe cmp_metallic_blue.xml
+..\..\build\Release\nori-dxr.exe cmp_metallic_blue.xml
 
 # 2. compare linear HDR — the truth
 python ..\compare_exr.py snapshot_1024.exr ref_metallic_blue.exr --out diff_blue
@@ -42,16 +42,16 @@ tonemapped PSNR, and writes four PNGs into `--out`:
 ## Step-by-step: lobe-isolating furnace tests
 
 ```powershell
-..\..\dxr\build\Release\nori-dxr.exe furnace_diffuse.xml
+..\..\build\Release\nori-dxr.exe furnace_diffuse.xml
 python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_diffuse.exr
 
-..\..\dxr\build\Release\nori-dxr.exe furnace_metallic_smooth.xml
+..\..\build\Release\nori-dxr.exe furnace_metallic_smooth.xml
 python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_metallic_smooth.exr
 
-..\..\dxr\build\Release\nori-dxr.exe furnace_metallic_rough.xml
+..\..\build\Release\nori-dxr.exe furnace_metallic_rough.xml
 python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_metallic_rough.exr
 
-..\..\dxr\build\Release\nori-dxr.exe furnace_clearcoat.xml
+..\..\build\Release\nori-dxr.exe furnace_clearcoat.xml
 python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_clearcoat.exr
 ```
 
@@ -69,7 +69,7 @@ Ratio interpretation:
 - **0.98–1.02** PASS — BRDF math agrees with Mitsuba
 - **0.95–1.05** CLOSE — likely a normalisation constant
 - **outside ±5%** FAIL — real divergence; look at the corresponding eval
-  function in [Shaders.hlsl:622+](../../dxr/shaders/Shaders.hlsl#L622)
+  function in [Disney.hlsli](../../shaders/Disney.hlsli)
 
 ## Tip: save EXR at any time
 

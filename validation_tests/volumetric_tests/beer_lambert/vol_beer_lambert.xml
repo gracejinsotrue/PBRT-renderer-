@@ -34,7 +34,7 @@
   The DXR app auto-saves snapshot_512.exr next to this file and quits.
 
   Run (from repo root):
-      dxr\build\Release\nori-dxr.exe validation_tests\volumetric_tests\beer_lambert\vol_beer_lambert.xml
+      build\Release\nori-dxr.exe validation_tests\volumetric_tests\beer_lambert\vol_beer_lambert.xml
 
   Expected result:
       Mean luminance of snapshot_512.exr ≈ 0.1353  (tolerance ±0.01)

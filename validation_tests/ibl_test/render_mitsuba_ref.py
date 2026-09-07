@@ -33,7 +33,7 @@ Validation logic
 Usage:
     cd C:\Users\gjin3\Desktop\nori-26sp\validation_tests\ibl_test
     python render_mitsuba_ref.py
-    ..\..\dxr\build\Release\nori-dxr.exe sphere_ibl.xml --headless
+    ..\..\build\Release\nori-dxr.exe sphere_ibl.xml --headless
     Copy-Item snapshot_512.exr snapshot_ibl_512.exr
     python ..\compare_exr.py snapshot_ibl_512.exr ref_ibl.exr --out diff_ibl
 """

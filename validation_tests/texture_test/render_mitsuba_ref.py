@@ -18,11 +18,11 @@ Then render the nori-dxr scenes (from this directory) and compare:
 
     cd C:\Users\gjin3\Desktop\nori-26sp\validation_tests\texture_test
 
-    ..\..\dxr\build\Release\nori-dxr.exe sphere_textured.xml --headless
+    ..\..\build\Release\nori-dxr.exe sphere_textured.xml --headless
     Copy-Item snapshot_512.exr snapshot_textured_512.exr
     python ..\compare_exr.py snapshot_textured_512.exr ref_textured.exr --out diff_textured
 
-    ..\..\dxr\build\Release\nori-dxr.exe sphere_flat.xml --headless
+    ..\..\build\Release\nori-dxr.exe sphere_flat.xml --headless
     Copy-Item snapshot_512.exr snapshot_flat_512.exr
     python ..\compare_exr.py snapshot_flat_512.exr ref_flat.exr --out diff_flat
 

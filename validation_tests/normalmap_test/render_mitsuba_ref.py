@@ -19,11 +19,11 @@ Then render the nori-dxr scenes (from this directory) and compare:
 
     cd C:\Users\gjin3\Desktop\nori-26sp\validation_tests\normalmap_test
 
-    ..\..\dxr\build\Release\nori-dxr.exe cube_normalmap.xml --headless
+    ..\..\build\Release\nori-dxr.exe cube_normalmap.xml --headless
     Copy-Item snapshot_512.exr snapshot_normalmap_512.exr
     python ..\compare_exr.py snapshot_normalmap_512.exr ref_normalmap.exr --out diff_normalmap
 
-    ..\..\dxr\build\Release\nori-dxr.exe cube_flat.xml --headless
+    ..\..\build\Release\nori-dxr.exe cube_flat.xml --headless
     Copy-Item snapshot_512.exr snapshot_flat_512.exr
     python ..\compare_exr.py snapshot_flat_512.exr ref_flat.exr --out diff_flat
 

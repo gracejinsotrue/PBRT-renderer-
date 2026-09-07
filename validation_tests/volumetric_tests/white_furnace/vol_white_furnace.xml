@@ -22,7 +22,7 @@
   when 512 frames are accumulated (m_targetSamples mechanism).
 
   Run (from repo root):
-      dxr\build\Release\nori-dxr.exe validation_tests\volumetric_tests\white_furnace\vol_white_furnace.xml
+      build\Release\nori-dxr.exe validation_tests\volumetric_tests\white_furnace\vol_white_furnace.xml
 
   Generate the white HDR first (or let validate_volumetrics.py do it):
       python make_white_furnace.py

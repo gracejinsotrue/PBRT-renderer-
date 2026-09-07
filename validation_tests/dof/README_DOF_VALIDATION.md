@@ -16,11 +16,11 @@ The validation pipeline renders the same scene in both renderers and compares ou
 
 ```bash
 cd /path/to/nori-26sp
-cmake -S dxr -B dxr/build
-cmake --build dxr/build --config Release
+cmake -S . -B build
+cmake --build build --config Release
 ```
 
-This produces `dxr/build/Release/nori-dxr.exe` (or Debug variant).
+This produces `build/Release/nori-dxr.exe` (or Debug variant).
 
 ### 2. Install Mitsuba 3
 
@@ -46,7 +46,7 @@ pip install opencv-python
 From the repo root:
 
 ```bash
-python validation_tests/validate_dof.py
+python validation_tests/dof/validate_dof.py
 ```
 
 This:
@@ -57,19 +57,19 @@ This:
 ### Custom DXR Executable
 
 ```bash
-python validation_tests/validate_dof.py --dxr-exe dxr/build/Debug/nori-dxr.exe
+python validation_tests/dof/validate_dof.py --dxr-exe build/Debug/nori-dxr.exe
 ```
 
 ### Skip Mitsuba (DXR only)
 
 ```bash
-python validation_tests/validate_dof.py --skip-dxr
+python validation_tests/dof/validate_dof.py --skip-dxr
 ```
 
 ### Mitsuba Only
 
 ```bash
-python validation_tests/validate_dof.py --no-mitsuba
+python validation_tests/dof/validate_dof.py --no-mitsuba
 ```
 
 ## Output
@@ -156,7 +156,7 @@ Then re-run `validate_dof.py`.
 ## Troubleshooting
 
 ### "nori-dxr executable not found"
-Build the project: `cmake -S dxr -B dxr/build && cmake --build dxr/build --config Release`
+Build the project: `cmake -S . -B build && cmake --build build --config Release`
 
 ### "No snapshot found"
 - Ensure the scene has a `<sampler>` with `sampleCount` set
