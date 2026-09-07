@@ -169,6 +169,34 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 #define RESTIR_DEBUG_Z 0
 #endif
 
+// Diagnostic only: accept every neighbour, skipping the normal/depth
+// compatibility test. A correct Z-normalised combination must stay unbiased
+// under this -- reuse across a silhouette is noisier, not wrong, because each
+// reservoir is normalised against its OWN stored shading point. If the bias
+// grows here, the domain test is what is failing.
+#ifndef RESTIR_NO_COMPAT
+#define RESTIR_NO_COMPAT 0
+#endif
+
+// Diagnostic only: return the estimator applied to a KNOWN integrand instead of
+// radiance, so unbiasedness can be checked without visibility or MIS in the way.
+//   1 = estimate integral of p-hat over the domain (no shadow ray, no MIS)
+//   2 = same, but visibility-masked
+// RIS is unbiased, so RIS-vs-ReSTIR on mode 1 isolates the resampling weights,
+// and mode 1 clean + mode 2 biased would mean the weights are right only in
+// aggregate over y and wrong pointwise -- which only a y-dependent factor like V
+// can expose. Pair with -D MAX_BOUNCES=1.
+#ifndef RESTIR_DEBUG_INTEGRAL
+#define RESTIR_DEBUG_INTEGRAL 0
+#endif
+
+// Diagnostic: (0, neighbours the domain test rejected, neighbours combined).
+// The self term is unconditional now, so red is pinned at zero and only the
+// neighbour rejection rate is worth reading.
+#ifndef RESTIR_DEBUG_DOMAIN
+#define RESTIR_DEBUG_DOMAIN 0
+#endif
+
 struct Reservoir
 {
     EmitterSample y; // selected sample
@@ -253,6 +281,9 @@ float3 RISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
                             wiw, dist, integ, pHat, pSA))
         return float3(0, 0, 0);
 
+#if RESTIR_DEBUG_INTEGRAL == 1
+    return float3(pHat * W, 0, 0);
+#endif
     bool isHair = (mat.type == 5);
     float3 shadowNg = isHair ? (dot(wiw, Ng) >= 0.0 ? Ng : -Ng) : Ng;
     float3 shadowOrigin = OffsetRayOrigin(hitPos, shadowNg, shadowNg);
@@ -269,6 +300,9 @@ float3 RISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
+#if RESTIR_DEBUG_INTEGRAL == 2
+    return float3(pHat * W, 0, 0);
+#endif
 
     //  MIS vs BSDF sampling, where naive light pdf on BOTH sides keeps the weights a
     //    valid partition
@@ -372,12 +406,16 @@ bool SampleInDomain(float3 lightPos, float3 lightNormal, float3 pos, float3 N)
     // rejects anything and Z is silently the sum of all M.
     return true;
 #endif
-    float3 d = lightPos - pos;
-    float dist2 = dot(d, d);
-    if (dist2 < 1e-12)
+    // Mirror EvalLightCandidate's arithmetic exactly -- same normalisation by
+    // length() rather than rsqrt(), same epsilons -- so that the predicate here
+    // and the target that defines the domain cannot disagree about a borderline
+    // sample. Z is only unbiased if this is the *same* test.
+    float3 toLight = lightPos - pos;
+    float dist = length(toLight);
+    if (dist < 1e-6)
         return false;
-    float3 w = d * rsqrt(dist2);
-    if (dot(N, w) <= 0.0 || dot(lightNormal, -w) <= 1e-8)
+    float3 wiw = toLight / dist;
+    if (dot(N, wiw) <= 0.0 || dot(lightNormal, -wiw) <= 1e-8)
         return false;
     float3 v = camPos - pos;
     float v2 = dot(v, v);
@@ -386,7 +424,7 @@ bool SampleInDomain(float3 lightPos, float3 lightNormal, float3 pos, float3 N)
     // Requiring p-hat to be a positive *float* here rather than merely
     // geometrically possible was tried and changed the result not at all, so
     // underflow of lum(f * Le * cos) is not what is left of the bias.
-    return dot(N, v * rsqrt(v2)) > 0.0;
+    return dot(N, v / sqrt(v2)) > 0.0;
 }
 
 // Deterministic per-frame neighbour offset.
@@ -413,6 +451,9 @@ bool NeighbourCompatible(GPUReservoir n, float3 hitPos, float3 N)
 {
     if (n.valid <= 0.0)
         return false;
+#if RESTIR_NO_COMPAT
+    return true;
+#endif
     if (dot(n.hitNormal, N) < 0.906) // ~25 degrees
         return false;
     // Depth similarity, measured along the view ray rather than as a raw
@@ -598,8 +639,15 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
     // and re-reading a handful of cached entries costs far less register
     // pressure than carrying nine shading points through the megakernel.
     float Z = 0.0;
-    if (SampleInDomain(chosen.position, chosen.normal, hitPos, N))
-        Z += float(RIS_M);
+    float nbRejected = 0.0;
+    // This pixel's own reservoir ALWAYS counts, unconditionally. The chosen
+    // sample is in this pixel's domain by construction: p-hat > 0 here is
+    // exactly what let EvalLightCandidate accept it and what let it win the
+    // resampling. Re-deriving that membership from a second, independently
+    // written formula can only disagree, and measurement said it disagreed on
+    // 6.8% of shading events -- each one dropping RIS_M, the single largest
+    // term, out of Z and inflating W. That was the residual ReSTIR bias.
+    Z += float(RIS_M);
 
     [loop] for (uint k2 = 0; k2 < kN; k2++)
     {
@@ -612,7 +660,13 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
             continue;
         if (SampleInDomain(chosen.position, chosen.normal, nb.hitPos, nb.hitNormal))
             Z += nb.M;
+        else
+            nbRejected += 1.0;
     }
+
+#if RESTIR_DEBUG_DOMAIN == 1
+    return float3(0.0, nbRejected, combined - 1.0);
+#endif
 
     if (Z <= 0.0)
         return float3(0, 0, 0);
@@ -636,6 +690,9 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
                             wiw, dist, integ, pHat, pSA))
         return float3(0, 0, 0);
 
+#if RESTIR_DEBUG_INTEGRAL == 1
+    return float3(pHat * W, 0, 0);
+#endif
     float3 shadowNg = isHair ? (dot(wiw, Ng) >= 0.0 ? Ng : -Ng) : Ng;
     float3 shadowOrigin = OffsetRayOrigin(hitPos, shadowNg, shadowNg);
     RayDesc shadowRay;
@@ -651,6 +708,9 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
     rng.state = shadow.rngState;
     if (shadow.shadowed)
         return float3(0, 0, 0);
+#if RESTIR_DEBUG_INTEGRAL == 2
+    return float3(pHat * W, 0, 0);
+#endif
 
     // Same MIS convention as RISDirectIllumination: the naive solid-angle light
     // pdf on both sides. The weights only have to form a partition of unity, and
