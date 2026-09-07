@@ -1,0 +1,35 @@
+<!-- Verification copy of hair.xml (untracked, safe to delete): no integrator
+     tag (GPU build can't instantiate path_mis) and an explicit low sampleCount
+     for a fast deterministic render-identical check of the hair BCSDF path. -->
+<scene>
+    <camera type="perspective">
+        <float name="fov" value="60"/>
+        <transform name="toWorld">
+            <lookat target="0, 0, 0" origin="8, 0, 0" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="720"/>
+        <integer name="width" value="720"/>
+    </camera>
+
+    <sampler type="independent">
+        <integer name="sampleCount" value="64"/>
+    </sampler>
+
+    <mesh type="hair">
+        <string name="filename" value="meshes/wWavy.hair"/>
+        <float name="radiusScale" value="0.03"/>
+        <integer name="maxStrands" value="-1"/>
+        <integer name="sides" value="4"/>
+        <transform name="toWorld">
+            <rotate axis="1, 0, 0" angle="-90"/>
+            <scale value="0.05, 0.05, 0.05"/>
+        </transform>
+        <bsdf type="hair_bsdf">
+            <color name="color" value="0.05, 0.02, 0.01"/>
+            <float name="beta_m" value="0.25"/>
+            <float name="beta_n" value="0.3"/>
+            <float name="alpha" value="2.0"/>
+            <float name="eta" value="1.55"/>
+        </bsdf>
+    </mesh>
+</scene>

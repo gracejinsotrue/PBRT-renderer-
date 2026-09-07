@@ -37,6 +37,9 @@ scenes/a2/
 scenes/a3/
 scenes/a4/
 scenes/final_scenes/
+# ...except the four scenes tools/validation/verify.sh renders, which are
+# tracked explicitly (git add -f) so the regression harness runs from a clone.
+# Everything else under final_scenes/ is local working material.
 
 *.exr
 *.hdr

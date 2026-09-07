@@ -1,0 +1,71 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Verification copy (untracked, safe to delete): Cornell box with the two
+     spheres swapped to microfacet + Disney (most lobes active) so the
+     render-identical check also covers the Microfacet and Disney modules,
+     which cbox_verify.xml does not exercise. No integrator tag; sampleCount=64. -->
+<scene>
+    <camera type="perspective">
+        <float name="fov" value="27.7856"/>
+        <transform name="toWorld">
+            <scale value="-1,1,1"/>
+            <lookat target="0, 0.893051, 4.41198" origin="0, 0.919769, 5.41159" up="0, 1, 0"/>
+        </transform>
+        <integer name="height" value="600"/>
+        <integer name="width" value="800"/>
+    </camera>
+    <sampler type="independent">
+        <integer name="sampleCount" value="64"/>
+    </sampler>
+
+    <mesh type="obj">
+        <string name="filename" value="meshes/walls.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.725 0.71 0.68"/>
+        </bsdf>
+    </mesh>
+    <mesh type="obj">
+        <string name="filename" value="meshes/rightwall.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.161 0.133 0.427"/>
+        </bsdf>
+    </mesh>
+    <mesh type="obj">
+        <string name="filename" value="meshes/leftwall.obj"/>
+        <bsdf type="diffuse">
+            <color name="albedo" value="0.630 0.065 0.05"/>
+        </bsdf>
+    </mesh>
+
+    <mesh type="obj">
+        <string name="filename" value="meshes/sphere1.obj"/>
+        <bsdf type="microfacet">
+            <float name="intIOR" value="1.7"/>
+            <color name="kd" value="0.2 0.2 0.4"/>
+            <float name="alpha" value="0.28"/>
+        </bsdf>
+    </mesh>
+
+    <mesh type="obj">
+        <string name="filename" value="meshes/sphere2.obj"/>
+        <bsdf type="disney">
+            <color name="baseColor" value="0.8 0.5 0.2"/>
+            <float name="roughness"      value="0.4"/>
+            <float name="metallic"       value="0.3"/>
+            <float name="specular"       value="0.5"/>
+            <float name="specularTint"   value="0.5"/>
+            <float name="sheen"          value="0.5"/>
+            <float name="sheenTint"      value="0.5"/>
+            <float name="subsurface"     value="0.3"/>
+            <float name="clearcoat"      value="0.5"/>
+            <float name="clearcoatGloss" value="0.5"/>
+            <float name="anisotropic"    value="0.0"/>
+        </bsdf>
+    </mesh>
+
+    <mesh type="obj">
+        <string name="filename" value="meshes/light.obj"/>
+        <emitter type="area">
+            <color name="radiance" value="40 40 40"/>
+        </emitter>
+    </mesh>
+</scene>
