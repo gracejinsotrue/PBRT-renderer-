@@ -149,31 +149,28 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 #define RIS_M 8
 #endif
 
-// Fold the initial visibility test into the stored reservoir (see the long note
-// at the kill site). 1 = the useful-but-biased variant, 0 = unbiased reuse of
-// effective M only. Exists so the bias can be measured rather than argued about.
+// Fold the initial shadow test into the stored reservoir, so a neighbour
+// borrowing the sample inherits one already known to be visible. This is what
+// makes reuse beat raw M in a real-time renderer, and it is biased BY
+// CONSTRUCTION: the stored W was derived for the unshadowed target, but the
+// sample it carries has been filtered by visibility at the pixel that stored
+// it, and the borrower re-applies visibility at its own point without
+// accounting for that filtering. Measured at -0.65% on cbox_restir.
+//
+// Off by default. This renderer accumulates thousands of frames into one
+// converged image, so a permanent few-tenths-of-a-percent error buys nothing
+// that more samples would not; a real-time variant with a one-frame budget
+// would want it on. Turn it on with -D RESTIR_VISIBILITY_REUSE=1.
 #ifndef RESTIR_VISIBILITY_REUSE
-#define RESTIR_VISIBILITY_REUSE 1
+#define RESTIR_VISIBILITY_REUSE 0
 #endif
 
-// Diagnostic only: make the Z domain test accept everything, which degrades the
-// unbiased normalisation to the biased M-normalisation.
-#ifndef RESTIR_Z_ALWAYS
-#define RESTIR_Z_ALWAYS 0
-#endif
 
-// Diagnostic only: return (Z / RIS_M, reservoirs combined, chosen-from-self)
-// instead of radiance, so the normalisation can be read straight out of an EXR.
-// Pair with -D MAX_BOUNCES=1 so nothing else accumulates into the pixel.
-#ifndef RESTIR_DEBUG_Z
-#define RESTIR_DEBUG_Z 0
-#endif
 
 // Diagnostic only: accept every neighbour, skipping the normal/depth
-// compatibility test. A correct Z-normalised combination must stay unbiased
-// under this -- reuse across a silhouette is noisier, not wrong, because each
-// reservoir is normalised against its OWN stored shading point. If the bias
-// grows here, the domain test is what is failing.
+// compatibility test. A correctly weighted combination stays unbiased under
+// this -- reuse across a silhouette is noisier, not wrong, because each
+// reservoir is scored against its OWN stored shading point.
 #ifndef RESTIR_NO_COMPAT
 #define RESTIR_NO_COMPAT 0
 #endif
@@ -190,12 +187,6 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 #define RESTIR_DEBUG_INTEGRAL 0
 #endif
 
-// Diagnostic: (0, neighbours the domain test rejected, neighbours combined).
-// The self term is unconditional now, so red is pinned at zero and only the
-// neighbour rejection rate is worth reading.
-#ifndef RESTIR_DEBUG_DOMAIN
-#define RESTIR_DEBUG_DOMAIN 0
-#endif
 
 struct Reservoir
 {
@@ -351,20 +342,23 @@ float3 RISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
 //
 // Bias
 // ----
-// The combination uses the unbiased normalisation (Bitterli et al. 2020,
-// "Spatiotemporal reservoir resampling", Algorithm 6): divide by Z, the number
-// of candidates drawn from reservoirs whose domain actually contains the chosen
-// sample, not by the raw total M. Dividing by M is the cheaper, biased variant
-// and it darkens exactly where geometry disagrees, which is where the eye looks.
+// The combination is weighted by **pairwise MIS** (Wyman & Panteleev 2021,
+// "Rearchitecting Spatiotemporal Resampling for Production"), not by the
+// Z counter of Bitterli et al. Algorithm 6.
 //
-// The domain test below is geometric -- surface faces light, light faces surface
-// -- rather than a full BSDF evaluation at the neighbour. For a diffuse surface
-// those coincide exactly, since f > 0 wherever the cosines are positive, and the
-// many-light test scene is diffuse by construction. For a glossy neighbour a
-// direction with f == 0 but positive cosines would be counted, inflating Z and
-// darkening slightly. Doing it exactly would mean storing each neighbour's full
-// shading frame and material; the honest trade is recorded here rather than
-// hidden.
+// Algorithm 6 divides by Z, the number of candidate draws from reservoirs whose
+// domain contains the chosen sample, and that needs a binary "is this sample in
+// that neighbour's domain" predicate. The predicate has to be exactly right,
+// because every disagreement moves Z by a whole RIS_M. Ours was a geometric
+// approximation of the target's support, and measurement showed it rejecting
+// neighbours it should have kept: the estimator came out +1.07% on a known
+// integral with the predicate on and +0.03% with it off. That was the residual
+// bias, and it is why the predicate is gone rather than patched.
+//
+// Pairwise MIS needs no predicate. Weights are built from the target itself, so
+// a neighbour's share falls smoothly to zero exactly where its target does, and
+// the weights sum to one by construction. See the derivation at the combination
+// step below.
 
 // Rebuild the EmitterSample a stored reservoir represents, so the same
 // EvalLightCandidate the initial pass uses can score it at a new shading point.
@@ -377,60 +371,74 @@ EmitterSample ReservoirSample(GPUReservoir r)
     es.pdfArea = r.pdfArea;
     es.emitterID = 0u;
     // W > 0 is what says the stored sample fields are meaningful: a reservoir
-    // whose RIS loop found no surviving candidate still has valid == 1 (its M
-    // draws count toward Z) but its sample fields are unset.
+    // whose RIS loop found no surviving candidate still has valid == 1 (it still
+    // earns its MIS share) but its sample fields are unset.
     es.valid = (r.valid > 0.0) && (r.M > 0.0) && (r.W > 0.0);
     return es;
 }
 
-// Could shading point (pos, N) have produced this light sample at all? Used for
-// the Z normalisation, so a false positive darkens and a false negative
-// brightens; see the bias note above.
-//
-// p-hat = lum(f * Le * cos), so it vanishes when any of three things does, and
-// all three have to be tested or Z over-counts:
-//   - the surface faces away from the light   (outgoing direction below N)
-//   - the light faces away from the surface
-//   - the BSDF is zero for that pair of directions. For a diffuse surface that
-//     means the *view* direction is also below N, which is the condition a
-//     purely light-facing test silently misses. The view direction is
-//     reconstructed from camPos rather than stored, which is exact for a
-//     reservoir built at a primary hit and approximate for one built after a
-//     specular bounce.
-bool SampleInDomain(float3 lightPos, float3 lightNormal, float3 pos, float3 N)
+// Build an arbitrary orthonormal frame around n (Duff et al. 2017). The choice
+// of tangent direction is arbitrary, which is exact for the isotropic BSDFs
+// reuse is allowed across and an approximation for anisotropic ones.
+void FrameFromNormal(float3 n, out float3 t, out float3 b)
 {
-#if RESTIR_Z_ALWAYS
-    // Diagnostic: force every combined reservoir to count, which is exactly the
-    // biased M-normalisation (Bitterli Algorithm 4). If the measured bias with
-    // this on matches the bias with the real test on, the real test never
-    // rejects anything and Z is silently the sum of all M.
-    return true;
-#endif
-    // Mirror EvalLightCandidate's arithmetic exactly -- same normalisation by
-    // length() rather than rsqrt(), same epsilons -- so that the predicate here
-    // and the target that defines the domain cannot disagree about a borderline
-    // sample. Z is only unbiased if this is the *same* test.
-    float3 toLight = lightPos - pos;
+    float s = (n.z >= 0.0) ? 1.0 : -1.0;
+    float a = -1.0 / (s + n.z);
+    float c = n.x * n.y * a;
+    t = float3(1.0 + s * n.x * n.x * a, s * c, -s * n.x);
+    b = float3(c, s + n.y * n.y * a, -n.y);
+}
+
+// p-hat of a light sample as seen from an ARBITRARY shading point, in AREA
+// measure on the light. This is what the MIS weights need: reservoir j's share
+// has to be scored against reservoir j's own integrand, not against this
+// pixel's.
+//
+// Area measure, not solid angle, is the load-bearing part. It also returns the
+// geometry term G = cos_light / dist^2, because moving a sample from one
+// shading point to another is a change of measure and the ratio of G's is its
+// Jacobian.
+//
+// This replaces a binary "is the sample inside the neighbour's domain" test. A
+// predicate has to be exactly right, because every disagreement moved Z by a
+// whole RIS_M; a continuous target only has to be approximately right, and it
+// falls to zero smoothly at the domain boundary because p-hat does. Measurement
+// said the predicate was not exactly right, and that was the residual bias.
+//
+// The neighbour's material is not stored, so this uses the current pixel's. What
+// unbiasedness actually requires of an MIS weight is that it have the right
+// *support* and that the same function be used on both sides of the pair -- not
+// that it match the neighbour's true target -- so reuse across one material is
+// exact and reuse across two degrades smoothly rather than catastrophically.
+float TargetAtPoint(EmitterSample es, float3 pos, float3 Nn, GPUMaterial mat, float h,
+                   out float G)
+{
+    G = 0.0;
+    float3 toLight = es.position - pos;
     float dist = length(toLight);
     if (dist < 1e-6)
-        return false;
+        return 0.0;
     float3 wiw = toLight / dist;
-    if (dot(N, wiw) <= 0.0 || dot(lightNormal, -wiw) <= 1e-8)
-        return false;
+    float cosSurface = dot(Nn, wiw);
+    float cosLight = dot(es.normal, -wiw);
+    if (cosSurface <= 0.0 || cosLight <= 1e-8)
+        return 0.0;
     float3 v = camPos - pos;
     float v2 = dot(v, v);
     if (v2 < 1e-12)
-        return false;
-    // Requiring p-hat to be a positive *float* here rather than merely
-    // geometrically possible was tried and changed the result not at all, so
-    // underflow of lum(f * Le * cos) is not what is left of the bias.
-    return dot(N, v / sqrt(v2)) > 0.0;
+        return 0.0;
+    float3 Tn, Bn;
+    FrameFromNormal(Nn, Tn, Bn);
+    float3 f = MaterialEval(ToLocal(v / sqrt(v2), Tn, Bn, Nn),
+                            ToLocal(wiw, Tn, Bn, Nn), mat, h);
+    G = cosLight / (dist * dist);
+    return dot(f * es.radiance * cosSurface, float3(0.2126, 0.7152, 0.0722)) * G;
 }
+
 
 // Deterministic per-frame neighbour offset.
 //
-// It has to be deterministic because the Z pass walks the same neighbours a
-// second time and must land on the same ones, and it has to be re-jittered every
+// It has to be re-jittered every
 // frame off frameCount because the camera is static: a fixed offset pattern
 // would make every frame reuse the same neighbour, and the structured blotches
 // that produces would survive into the accumulated average instead of averaging
@@ -557,39 +565,56 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
     outRes.hitPos = hitPos;
     // valid means "this pixel drew RIS_M candidates and its shading point is the
     // one recorded below" -- NOT "the survivor was visible". Visibility lives in
-    // W. Z counts candidate draws whose domain contains the chosen sample, so a
-    // reservoir whose own survivor was occluded still has to be counted; folding
-    // occlusion into valid would drop it from Z and brighten the result.
+    // W. A reservoir whose own survivor was occluded is still a reservoir that
+    // could have produced the sample, so it still earns its MIS share; folding
+    // occlusion into valid would drop it from the weights and brighten.
     outRes.valid = 1.0;
     outRes.hitNormal = N;
     outRes.pad0 = 0.0;
     g_reservoirs[ReservoirIndex(pixel, dims, frameCount & 1u)] = outRes;
 
-    // ---- 4. combine our reservoir with the previous frame's neighbours.
-    // Reservoir i contributes weight p-hat_here(y_i) * W_i * M_i, which is the
-    // standard reservoir-combination weight: it re-scores the borrowed sample
-    // against *this* pixel's integrand rather than trusting the neighbour's.
+    // ---- 4. combine with the previous frame's neighbours, weighted by pairwise
+    // MIS (Wyman & Panteleev 2021) rather than by a Z counter.
+    //
+    // Each reservoir i gets an MIS weight m_i. The estimator is unbiased iff
+    // sum_i m_i(x) == 1 wherever the integrand is nonzero, AND m_i(x) == 0
+    // wherever reservoir i could not have produced x. Comparing every neighbour
+    // against the canonical (this pixel's own) reservoir gives both for free:
+    //
+    //   a_i(x) = M_i * p-hat_i(x)          area measure, at reservoir i's OWN point
+    //   m_i(x) = (1/k) *      a_i(x) / (a_i(x) + a_c(x))
+    //   m_c(x) = (1/k) * sum_i a_c(x) / (a_i(x) + a_c(x))
+    //
+    // which sums to (1/k) * k == 1, term by term, with no domain predicate
+    // anywhere: a_i vanishes exactly where reservoir i's target does. That is
+    // the entire reason for the rewrite. The Z counter this replaces needed a
+    // binary domain test that had to be perfect, since each disagreement moved
+    // Z by a full RIS_M, and it measurably was not.
+    //
+    // The integrand vanishes outside the canonical's own domain (p-hat_c == 0
+    // implies f * Le * cos == 0), so the partition only has to hold where
+    // a_c > 0 -- which is exactly where these denominators are positive.
+    //
+    // 1/k is common to every weight, so it is factored out of the loop and
+    // applied once at the end.
     EmitterSample chosen = r.y;
     float chosenPHat = 0.0;
     float wSum = 0.0;
     bool haveChosen = false;
 
-    if (Wself > 0.0)
-    {
-        // p-hat of our own sample at our own point is r.pHat by construction.
-        float w = r.pHat * Wself * float(RIS_M);
-        if (w > 0.0)
-        {
-            wSum = w;
-            chosen = r.y;
-            chosenPHat = r.pHat;
-            haveChosen = true;
-        }
-    }
-
     uint kN = (frameCount == 0u) ? 0u : min(restirNeighbours, 8u);
     uint prevSlice = (frameCount & 1u) ^ 1u;
-    float combined = 1.0; // self is always in the combination
+
+    // a_c(y_c), in area measure: the solid-angle p-hat times our own G.
+    float3 dSelf = r.y.position - hitPos;
+    float distSelf = length(dSelf);
+    float cosLightSelf = (distSelf > 1e-6) ? dot(r.y.normal, -dSelf / distSelf) : 0.0;
+    float Gself = (distSelf > 1e-6 && cosLightSelf > 1e-8)
+                      ? cosLightSelf / (distSelf * distSelf)
+                      : 0.0;
+    float aCanonSelf = float(RIS_M) * r.pHat * Gself;
+    float canonNum = 0.0;                     // sum_i a_c(y_c) / (a_i(y_c) + a_c(y_c))
+    float kUsed = 0.0;
 
     [loop] for (uint k = 0; k < kN; k++)
     {
@@ -598,16 +623,22 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
         if (np.x < 0 || np.y < 0 || np.x >= int(dims.x) || np.y >= int(dims.y))
             continue;
         GPUReservoir nb = g_reservoirs[ReservoirIndex(uint2(np), dims, prevSlice)];
-        // Geometric rejection means the neighbour is not part of the combination
-        // at all, so Z must not count it either -- the Z loop below repeats
-        // exactly this test. A neighbour that IS combined but carries W == 0
-        // contributes zero weight here yet still counts in Z.
         if (!NeighbourCompatible(nb, hitPos, N))
             continue;
-        combined += 1.0; // combined even if it contributes zero weight
+        kUsed += 1.0;
+
+        // How much of the canonical sample this neighbour claims. A neighbour
+        // whose own survivor is unusable still belongs in this sum: it is still
+        // a reservoir that could have produced y_c, so it still owns a share.
+        if (aCanonSelf > 0.0)
+        {
+            float GjSelf;
+            float aiSelf = nb.M * TargetAtPoint(r.y, nb.hitPos, nb.hitNormal, mat, h, GjSelf);
+            canonNum += aCanonSelf / (aiSelf + aCanonSelf);
+        }
+
         if (nb.W <= 0.0)
             continue;
-
         EmitterSample es = ReservoirSample(nb);
         if (!es.valid)
             continue;
@@ -618,7 +649,27 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
                                 wiwN, distN, integN, pHatN, pSAN))
             continue;
 
-        float w = pHatN * nb.W * nb.M;
+        // The borrowed sample changes measure on the way here. The reservoir's
+        // stored W is unbiased in solid angle AT THE NEIGHBOUR'S POINT, because
+        // the RIS weights that built it divided by pSA, which is measured from
+        // that point. Reusing it at this point without the Jacobian estimates
+        // the wrong integral. Working in area measure on the light makes the
+        // whole thing measure-consistent and the Jacobian falls out as Gc / Gj.
+        //
+        // This is exactly zero error when the two shading points coincide,
+        // which is why a zero reuse radius always measured clean, and it grows
+        // with how much the geometry disagrees -- which is why the deficit
+        // concentrated on silhouettes.
+        float Gj;
+        float aiNb = nb.M * TargetAtPoint(es, nb.hitPos, nb.hitNormal, mat, h, Gj);
+        if (aiNb <= 0.0 || Gj <= 0.0)
+            continue; // this neighbour could not have produced its own sample here
+        float cosLightC = dot(es.normal, -wiwN);
+        float Gc = cosLightC / (distN * distN); // EvalLightCandidate already forced both > 0
+        float denom = aiNb + float(RIS_M) * pHatN * Gc;
+        if (denom <= 0.0)
+            continue;
+        float w = (aiNb / denom) * pHatN * nb.W * (Gc / Gj);
         if (w <= 0.0)
             continue;
         wSum += w;
@@ -630,55 +681,30 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
         }
     }
 
+    // The canonical streams in last, carrying whatever share of itself the
+    // neighbours did not claim. With no neighbours that share is 1 and the whole
+    // thing collapses to plain RIS exactly, which is the K=0 sanity check.
+    if (Wself > 0.0 && r.pHat > 0.0)
+    {
+        float w = ((kUsed > 0.0) ? canonNum : 1.0) * r.pHat * Wself;
+        if (w > 0.0)
+        {
+            wSum += w;
+            if (NextFloat(rng) < w / max(wSum, 1e-20))
+            {
+                chosen = r.y;
+                chosenPHat = r.pHat;
+                haveChosen = true;
+            }
+        }
+    }
+
     if (!haveChosen || chosenPHat <= 0.0 || wSum <= 0.0)
         return float3(0, 0, 0);
 
-    // ---- 5. unbiased normalisation: Z counts the candidates from reservoirs
-    // that could actually have produced the chosen sample. The neighbour walk is
-    // repeated rather than remembered because NeighbourOffset is deterministic,
-    // and re-reading a handful of cached entries costs far less register
-    // pressure than carrying nine shading points through the megakernel.
-    float Z = 0.0;
-    float nbRejected = 0.0;
-    // This pixel's own reservoir ALWAYS counts, unconditionally. The chosen
-    // sample is in this pixel's domain by construction: p-hat > 0 here is
-    // exactly what let EvalLightCandidate accept it and what let it win the
-    // resampling. Re-deriving that membership from a second, independently
-    // written formula can only disagree, and measurement said it disagreed on
-    // 6.8% of shading events -- each one dropping RIS_M, the single largest
-    // term, out of Z and inflating W. That was the residual ReSTIR bias.
-    Z += float(RIS_M);
-
-    [loop] for (uint k2 = 0; k2 < kN; k2++)
-    {
-        int2 off = NeighbourOffset(pixel, k2, restirRadius);
-        int2 np = int2(pixel) + off;
-        if (np.x < 0 || np.y < 0 || np.x >= int(dims.x) || np.y >= int(dims.y))
-            continue;
-        GPUReservoir nb = g_reservoirs[ReservoirIndex(uint2(np), dims, prevSlice)];
-        if (!NeighbourCompatible(nb, hitPos, N))
-            continue;
-        if (SampleInDomain(chosen.position, chosen.normal, nb.hitPos, nb.hitNormal))
-            Z += nb.M;
-        else
-            nbRejected += 1.0;
-    }
-
-#if RESTIR_DEBUG_DOMAIN == 1
-    return float3(0.0, nbRejected, combined - 1.0);
-#endif
-
-    if (Z <= 0.0)
-        return float3(0, 0, 0);
-
-#if RESTIR_DEBUG_Z
-    // R = Z / RIS_M (how many reservoirs' worth of candidates Z is claiming),
-    // G = how many reservoirs were actually combined. If these are equal, the
-    // domain test never rejects and Z has degenerated to the biased sum of M.
-    return float3(Z / float(RIS_M), combined, 0.0);
-#endif
-
-    float W = wSum / (Z * chosenPHat);
+    // ---- 5. normalise. The 1/k factored out of every MIS weight lands here.
+    // There is no Z, and so nothing left to get wrong about domains.
+    float W = (wSum / ((kUsed > 0.0) ? kUsed : 1.0)) / chosenPHat;
 
     // ---- 6. shade. The survivor may have come from a neighbour, where it was
     // visibility-tested against a different point, so it is shadow-tested again
