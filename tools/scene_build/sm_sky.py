@@ -1,7 +1,8 @@
 # Rebuild scenes/san_miguel/sky_custom.hdr: a blue sky dome + a painted warm sun.
-# Edit the params, then run:  python _sm_sky.py   (needs: pip install opencv-python numpy)
+# Edit the params, then run:  python tools/scene_build/sm_sky.py   (needs: pip install opencv-python numpy)
 import cv2, numpy as np, os, math
-BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenes", "san_miguel")
+BASE = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "scenes", "san_miguel")
 
 # ---- SUN / SKY PARAMETERS ----
 ELEV     = 66.0          # sun height, degrees. HIGHER -> shadows fall on the GROUND; lower -> on the walls
@@ -11,7 +12,7 @@ SUN_RGB  = (641000.0, 449000.0, 288000.0)  # sun colour+intensity (R,G,B). Bigge
 SKY_MULT = 1.7           # sky/ambient brightness (fills the shadows so they aren't black)
 SKY_BLUE = 1.50          # extra blue tint on the sky dome (bluer shadows)
 OUT_NAME = "sky_custom.hdr"  # set SUN_RGB=(0,0,0) + a new name to build a sun-less dome
-                             # for use with the emissive sun disk (_sm_sun_geo.py)
+                             # for use with the emissive sun disk (tools/scene_build/sm_sun_geo.py)
 # ------------------------------
 
 img = cv2.imread(os.path.join(BASE,"sky.hdr"), cv2.IMREAD_ANYDEPTH|cv2.IMREAD_ANYCOLOR).astype(np.float32)

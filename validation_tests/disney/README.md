@@ -43,19 +43,19 @@ tonemapped PSNR, and writes four PNGs into `--out`:
 
 ```powershell
 ..\..\dxr\build\Release\nori-dxr.exe furnace_diffuse.xml
-python analyze_furnace.py snapshot_512.exr ref_furnace_diffuse.exr
+python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_diffuse.exr
 
 ..\..\dxr\build\Release\nori-dxr.exe furnace_metallic_smooth.xml
-python analyze_furnace.py snapshot_512.exr ref_furnace_metallic_smooth.exr
+python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_metallic_smooth.exr
 
 ..\..\dxr\build\Release\nori-dxr.exe furnace_metallic_rough.xml
-python analyze_furnace.py snapshot_512.exr ref_furnace_metallic_rough.exr
+python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_metallic_rough.exr
 
 ..\..\dxr\build\Release\nori-dxr.exe furnace_clearcoat.xml
-python analyze_furnace.py snapshot_512.exr ref_furnace_clearcoat.exr
+python tools/validation/analyze_furnace.py snapshot_512.exr ref_furnace_clearcoat.exr
 ```
 
-`analyze_furnace.py` masks the sphere with an analytic ray-sphere intersect
+`tools/validation/analyze_furnace.py` masks the sphere with an analytic ray-sphere intersect
 matching the camera and prints `ours / ref` per channel.
 
 | Scene                     | Isolates                                | A mismatch here points at                  |
@@ -83,5 +83,5 @@ to dump the current accumulator as `snapshot_<sampleCount>.exr`.
 | `cmp_*.xml`            | nori-dxr scenes mirroring Mitsuba sunset tests |
 | `furnace_*.xml`        | Single-lobe energy tests, white envmap         |
 | `render_mitsuba_ref.py`| Renders all 7 `ref_*.exr` references           |
-| `analyze_furnace.py`   | Sphere-masked mean + ratio for furnace         |
+| `tools/validation/analyze_furnace.py`   | Sphere-masked mean + ratio for furnace         |
 | `../compare_exr.py`    | Linear-HDR diff for any two EXRs               |

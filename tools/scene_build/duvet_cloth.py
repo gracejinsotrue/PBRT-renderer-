@@ -1,5 +1,5 @@
 
-# Drapes a slack cloth over the metaball stuffing built by _duvet_build.py.
+# Drapes a slack cloth over the metaball stuffing built by tools/scene_build/duvet_build.py.
 # Metaballs alone read as soap bubbles: only cloth gives folds and creases.
 # Call 1: exec this file.  Then step frames, then run _duvet_cloth_finish.
 import bpy, math

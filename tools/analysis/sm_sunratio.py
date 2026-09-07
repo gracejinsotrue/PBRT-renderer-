@@ -1,7 +1,7 @@
 # Measure the painted sun's irradiance against the sky dome's in sky_custom.hdr.
 # What matters is INTEGRATED energy, not peak value: a huge SUN_RGB with a sub-pixel
 # SIGMA contributes almost nothing. Aim for ~5; below ~1 there is no visible dapple.
-#   python _sm_sunratio.py [path/to/sky.hdr]
+#   python tools/analysis/sm_sunratio.py [path/to/sky.hdr]
 import cv2, numpy as np, math, sys
 
 path = sys.argv[1] if len(sys.argv) > 1 else "scenes/san_miguel/sky_custom.hdr"

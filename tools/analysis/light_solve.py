@@ -1,10 +1,10 @@
-# _light_solve.py -- solve emitter gains against reference patches.
+# tools/analysis/light_solve.py -- solve emitter gains against reference patches.
 #
 # Radiance is linear in each emitter's radiance, so render one pass per light
 # group with only that group on, then fit non-negative gains so the summed
 # image matches the reference's measured patches after the display transform.
 # Run inside Blender (it needs to launch the Windows exe):
-#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_light_solve.py").read(), {})
+#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools\analysis\light_solve.py").read(), {})
 # Writes scenes/pool_store/_ls/basis_<k>.exr and _ls/DONE.
 
 import os, re, subprocess, shutil

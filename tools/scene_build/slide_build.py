@@ -1,11 +1,11 @@
-# _slide_build.py -- procedural water-slide flumes for scenes/pool_store
+# tools/scene_build/slide_build.py -- procedural water-slide flumes for scenes/pool_store
 #
 # Sweeps a cross-section along a Catmull-Rom path with parallel-transport frames.
 # Handles the closed-tube -> open-flume transition, wall thickness with real rim
 # edges, ring flanges, banking, and a scalloped rim. Run inside Blender:
 #
 #   g = {"SLIDE_WHICH": "orange"}     # or "teal", or "both"
-#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_slide_build.py").read(), g)
+#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools\scene_build\slide_build.py").read(), g)
 #
 # Geometry is in Blender world space (Z up, corridor along +Y), fitted to the
 # reference by back-projection. Objects are created smooth-shaded with an

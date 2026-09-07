@@ -17,19 +17,20 @@
 #   - the sky is a 2048^2 equal-area octahedral map and has to be resampled to
 #     equirectangular, same as the BMW envmap
 #
-# usage: python _pbrt_bunnycloud_to_nori.py [--downsample N] [--spp N]
+# usage: python tools/exporters/pbrt_bunnycloud_to_nori.py [--downsample N] [--spp N]
 import os, sys, math, struct, zlib
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "scenes", "bunny_cloud")
+REPO = os.path.dirname(os.path.dirname(HERE))  # repo root: tools/<group>/ -> ..
+OUT = os.path.join(REPO, "scenes", "bunny_cloud")
 NVDB = os.path.join(OUT, "volumes", "bunny_cloud.nvdb")
 VOL = os.path.join(OUT, "volumes", "bunny_cloud.vol")
 SKY_EXR = os.path.join(OUT, "textures", "sky.exr")
 SKY_HDR = os.path.join(OUT, "textures", "sky.hdr")
 
 sys.path.insert(0, HERE)
-from _pbrt_bmw_to_nori import (equal_area_sphere_to_square, lookat_matrix,
+from pbrt_bmw_to_nori import (equal_area_sphere_to_square, lookat_matrix,
                                coated_diffuse_albedo)
 
 
@@ -259,7 +260,7 @@ def main():
     xml = """<?xml version='1.0' encoding='utf-8'?>
 
 <!-- Bunny cloud, converted from mmp/pbrt-v4-scenes/bunny-cloud by
-     _pbrt_bunnycloud_to_nori.py. The density grid is the original
+     tools/exporters/pbrt_bunnycloud_to_nori.py. The density grid is the original
      bunny_cloud.nvdb decoded to our dense .vol; the source scene is Z-up and
      has been rotated into Y-up because our GPU camera is Y-up only. -->
 <scene>

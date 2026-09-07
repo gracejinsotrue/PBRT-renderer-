@@ -3,7 +3,7 @@
 # Companion piece to the head2 skin renders: a face makes subsurface
 # scattering subtle, a backlit translucent dragon makes it obvious.
 #
-# Three things here that _pbrt_bmw_to_nori.py does not handle, which is why
+# Three things here that tools/exporters/pbrt_bmw_to_nori.py does not handle, which is why
 # this is its own script rather than a flag on that one:
 #   * dragon.ply.gz is gzipped, BIG-endian, and carries no normals
 #     (7.2M triangles, so it is read with numpy rather than struct)
@@ -14,21 +14,22 @@
 #     which happens to cancel Nori's own screen-left/right flip - so unlike
 #     the BMW this one can use a plain <lookat> and still match pbrt
 #
-# usage: python _pbrt_sssdragon_to_nori.py <path/to/pbrt-v4-scenes/sssdragon>
+# usage: python tools/exporters/pbrt_sssdragon_to_nori.py <path/to/pbrt-v4-scenes/sssdragon>
 import os, sys, gzip, math
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(HERE))  # repo root: tools/<group>/ -> ..
 _args = [a for a in sys.argv[1:] if not a.startswith('-')]
-SRC = _args[0] if _args else os.path.join(HERE, "pbrt-v4-scenes", "sssdragon")
-OUT = os.path.join(HERE, "scenes", "sssdragon")
+SRC = _args[0] if _args else os.path.join(REPO, "pbrt-v4-scenes", "sssdragon")
+OUT = os.path.join(REPO, "scenes", "sssdragon")
 MESH = os.path.join(OUT, "meshes")
 TEX = os.path.join(OUT, "textures")
 
 # reuse the ply/envmap/material helpers from the BMW converter
 sys.path.insert(0, HERE)
 import importlib.util
-_s = importlib.util.spec_from_file_location('bmw', os.path.join(HERE, '_pbrt_bmw_to_nori.py'))
+_s = importlib.util.spec_from_file_location('bmw', os.path.join(HERE, 'pbrt_bmw_to_nori.py'))
 bmw = importlib.util.module_from_spec(_s)
 sys.argv = [sys.argv[0]]           # keep its module-level arg parsing quiet
 _s.loader.exec_module(bmw)
@@ -196,13 +197,13 @@ def main():
                         ('translucent', diag * 0.040)):
         x = ["<?xml version='1.0' encoding='utf-8'?>", '',
              '<!-- Stanford dragon with the random-walk BSSRDF, converted from',
-             '     mmp/pbrt-v4-scenes/sssdragon by _pbrt_sssdragon_to_nori.py.',
+             '     mmp/pbrt-v4-scenes/sssdragon by tools/exporters/pbrt_sssdragon_to_nori.py.',
              '     radius %.4f = %.1f%% of the model diagonal (%.3f).' % (radius, radius / diag * 100, diag),
              '',
              '     Geometry is rotated from the source scene\'s Z-up into Y-up,',
              '     and the camera is ours rather than pbrt\'s, because our GPU',
              '     camera rebuilds its basis from yaw/pitch and so cannot',
-             '     represent a rolled up vector. See _pbrt_sssdragon_to_nori.py. -->', '',
+             '     represent a rolled up vector. See tools/exporters/pbrt_sssdragon_to_nori.py. -->', '',
              '<scene>',
              '\t<string name="envmap" value="textures/small_rural_road.hdr"/>',
              '\t<float name="envmapScale" value="1.0"/>',

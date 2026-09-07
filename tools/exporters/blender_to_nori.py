@@ -2,7 +2,7 @@
 # Per-object triangulated OBJs + a Nori scene.xml with disney BSDFs from each
 # Principled BSDF, camera from the active Blender camera. Run inside Blender:
 #   g = {"NORI_OUT": "smoke_test", "NORI_SAMPLES": 64}
-#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_blender_to_nori.py").read(), g)
+#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools\exporters\blender_to_nori.py").read(), g)
 #
 # Optional globals (backward-compatible defaults):
 #   NORI_ENV / NORI_ENVSCALE   env map filename + scale (default white.hdr / 0.4)

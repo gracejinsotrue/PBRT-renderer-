@@ -17,16 +17,17 @@
 #     those means implementing the Dupuy & Jakob interpolant, so each is
 #     approximated by a Disney lobe instead; see MEASURED below.
 #
-# usage: python _pbrt_sportscar_to_nori.py [path/to/pbrt-v4-scenes/sportscar]
+# usage: python tools/exporters/pbrt_sportscar_to_nori.py [path/to/pbrt-v4-scenes/sportscar]
 #        --preview   960x540 at 96 spp instead of the full-size scene
 #        --xml-only  reuse the existing OBJs, only re-emit the scene XML
 #        --view NAME one of VIEWS below (default 'pbrt', the file's own LookAt)
 import os, re, sys, math, struct, importlib.util
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(HERE))  # repo root: tools/<group>/ -> ..
 _args = [a for a in sys.argv[1:] if not a.startswith('-')]
-SRC = _args[0] if _args else os.path.join(HERE, "pbrt-v4-scenes", "sportscar")
-OUT = os.path.join(HERE, "scenes", "sportscar")
+SRC = _args[0] if _args else os.path.join(REPO, "pbrt-v4-scenes", "sportscar")
+OUT = os.path.join(REPO, "scenes", "sportscar")
 MESH = os.path.join(OUT, "meshes")
 TEX = os.path.join(OUT, "textures")
 PREVIEW = '--preview' in sys.argv
@@ -74,7 +75,7 @@ if VIEW not in VIEWS:
 # fixes that took measurement to get right (the negated camera axis, the
 # roughness convention gap, the layered-coat energy loss).
 _spec = importlib.util.spec_from_file_location(
-    'pbrt_bmw', os.path.join(HERE, '_pbrt_bmw_to_nori.py'))
+    'pbrt_bmw', os.path.join(HERE, 'pbrt_bmw_to_nori.py'))
 _bmw = importlib.util.module_from_spec(_spec)
 _argv, sys.argv = sys.argv, [sys.argv[0]]
 _spec.loader.exec_module(_bmw)
@@ -603,7 +604,7 @@ def main():
     xml = [
         "<?xml version='1.0' encoding='utf-8'?>", '',
         '<!-- pbrt-v4 sportscar (sky variant), converted by',
-        '     _pbrt_sportscar_to_nori.py - edit that, not this file.',
+        '     tools/exporters/pbrt_sportscar_to_nori.py - edit that, not this file.',
         '',
         '     Lit purely by the environment: the five area-light planes in',
         '     sportscar-sky.pbrt have their Shape lines commented out upstream,',

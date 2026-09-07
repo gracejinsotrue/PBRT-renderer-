@@ -6,11 +6,11 @@
 # and are thrown out - double the variance for nothing. A disk aimed at the courtyard has
 # every sample facing the right way.
 #
-# Run:  python _sm_sun_geo.py     then paste the printed <mesh> block into scene.xml.
+# Run:  python tools/scene_build/sm_sun_geo.py     then paste the printed <mesh> block into scene.xml.
 import math, os
 
 # ---- SUN GEOMETRY PARAMETERS ----
-ELEV      = 70.0      # degrees above the horizon (match _sm_sky.py if the sky keeps a sun)
+ELEV      = 70.0      # degrees above the horizon (match tools/scene_build/sm_sky.py if the sky keeps a sun)
 AZIM      = 1.9966    # world azimuth in RADIANS = 2*pi*AZIM_U - envmapRotation
 DIST      = 250.0     # metres from the courtyard. Bigger = more parallel light + flatter
                       # falloff across the scene, but blows up the scene bounds.
@@ -18,13 +18,14 @@ ANG_DIAM  = 0.53      # angular diameter in degrees. The real sun is 0.53. Small
                       # shadow edges. This is the knob the HDR could not give you: a 2048-wide
                       # equirect cannot paint a sun sharper than ~0.18 deg.
 E_TARGET  = 15.5      # target irradiance on a HORIZONTAL surface, in renderer units.
-                      # 15.5 == what the painted sun currently delivers (see _sm_sunratio.py).
+                      # 15.5 == what the painted sun currently delivers (see tools/analysis/sm_sunratio.py).
 TINT      = (1.0, 0.7636, 0.5273)   # colour ratio of the current painted sun
 CENTER    = (15.0, 1.0, 6.0)        # courtyard centre, what the disk aims at
 SEGMENTS  = 64
 # ---------------------------------
 
-BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenes", "san_miguel")
+BASE = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "scenes", "san_miguel")
 OUT  = os.path.join(BASE, "meshes", "sun_disk.obj")
 
 el = math.radians(ELEV)

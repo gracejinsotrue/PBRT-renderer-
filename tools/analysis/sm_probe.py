@@ -2,7 +2,7 @@
 # Renders are ~5 min, so check first. Scans only the meshes whose bbox comes near
 # the point, and reports the closest vertex of each -- foliage flagged separately,
 # since leaves are what buried the camera in every failed framing so far.
-#   python _sm_probe.py 22.0 1.7 5.0 [radius]
+#   python tools/analysis/sm_probe.py 22.0 1.7 5.0 [radius]
 import json, os, sys, numpy as np
 
 BASE = "scenes/san_miguel/meshes"

@@ -4,13 +4,14 @@
 # octahedral envmap) and writes scenes/bmw_m6/: one OBJ per pbrt named
 # material, an equirectangular .hdr envmap, and scene.xml.
 #
-# usage: python _pbrt_bmw_to_nori.py <path/to/pbrt-v4-scenes/bmw-m6>
+# usage: python tools/exporters/pbrt_bmw_to_nori.py <path/to/pbrt-v4-scenes/bmw-m6>
 import os, re, sys, struct, math
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(HERE))  # repo root: tools/<group>/ -> ..
 _args = [a for a in sys.argv[1:] if not a.startswith('-')]
-SRC  = _args[0] if _args else os.path.join(HERE, "pbrt-v4-scenes", "bmw-m6")
-OUT  = os.path.join(HERE, "scenes", "bmw_m6")
+SRC  = _args[0] if _args else os.path.join(REPO, "pbrt-v4-scenes", "bmw-m6")
+OUT  = os.path.join(REPO, "scenes", "bmw_m6")
 MESH = os.path.join(OUT, "meshes")
 TEX  = os.path.join(OUT, "textures")
 
@@ -445,7 +446,7 @@ def main():
 
     x = ["<?xml version='1.0' encoding='utf-8'?>", '',
          '<!-- BMW M6, converted from mmp/pbrt-v4-scenes/bmw-m6 by',
-         '     _pbrt_bmw_to_nori.py. Geometry (c) its original authors, see',
+         '     tools/exporters/pbrt_bmw_to_nori.py. Geometry (c) its original authors, see',
          '     BLENDSWAP_LICENSE.txt. -->', '',
          '<scene>',
          '\t<string name="envmap" value="textures/sunflowers.hdr"/>',

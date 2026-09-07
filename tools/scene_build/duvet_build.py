@@ -10,7 +10,7 @@
 # So this builds a thick sheet: a top surface over a bottom surface, joined round a
 # rectangular hem.  The fold profile across the bed is a row of半 semicircles meeting
 # at cusps - the cusp is what gives a real crease; a sine wave gives corrugated roofing.
-#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_duvet_build.py").read())
+#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools\scene_build\duvet_build.py").read())
 import bpy, math
 import numpy as np
 

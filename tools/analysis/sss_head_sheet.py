@@ -2,14 +2,15 @@
 #
 # Rows are the two lighting setups, columns the two skin models, so reading
 # across a row isolates the material and reading down a column isolates the
-# light. Run after _pbrt_head_to_nori.py has rendered scenes/head.
+# light. Run after tools/exporters/pbrt_head_to_nori.py has rendered scenes/head.
 #
-# usage: python _sss_head_sheet.py [--raw]     (--raw uses the un-denoised PNGs)
+# usage: python tools/analysis/sss_head_sheet.py [--raw]     (--raw uses the un-denoised PNGs)
 import os, sys, cv2, numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "scenes", "head")
-OUT = os.path.join(HERE, "images", "sss_head_pbrt_grid.png")
+REPO = os.path.dirname(os.path.dirname(HERE))  # repo root: tools/<group>/ -> ..
+SRC = os.path.join(REPO, "scenes", "head")
+OUT = os.path.join(REPO, "images", "sss_head_pbrt_grid.png")
 SUFFIX = "" if '--raw' in sys.argv else "_denoised"
 
 CELLS = [("head_sky_disney", "Disney BRDF"), ("head_sky_sss", "random-walk BSSRDF"),

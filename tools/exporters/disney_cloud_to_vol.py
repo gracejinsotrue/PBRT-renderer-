@@ -1,7 +1,7 @@
 # Disney cloud (wdas_cloud_quarter.nvdb, from mmp/pbrt-v4-scenes/disney-cloud)
 # -> our dense VOL1 grid.
 #
-# Reuses the NanoVDB v32 FloatGrid byte layout from _pbrt_bunnycloud_to_nori.py,
+# Reuses the NanoVDB v32 FloatGrid byte layout from tools/exporters/pbrt_bunnycloud_to_nori.py,
 # but mean-pools each leaf into a DOWNSAMPLED grid so the dense array stays small
 # (native 498x338x613 = 0.41 GB; /2 = 249x169x307 = 52 MB).
 #
@@ -9,7 +9,7 @@
 # scene's box Scale 206.544 140.4 254.592, so y (the smallest) is vertical.
 # That matches our Y-up Nori scene directly, no axis swap needed.
 #
-#   DCLOUD_SRC=... DCLOUD_OUT=... DCLOUD_DOWN=2 python3 _disney_cloud_to_vol.py
+#   DCLOUD_SRC=... DCLOUD_OUT=... DCLOUD_DOWN=2 python3 tools/exporters/disney_cloud_to_vol.py
 import struct, zlib, os
 import numpy as np
 

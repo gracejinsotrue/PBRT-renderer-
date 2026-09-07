@@ -16,13 +16,14 @@
 # Everything except the skin BSDF and the lighting block is identical across
 # the four, so any difference in the images is the thing being compared.
 #
-# usage: python _pbrt_head_to_nori.py [path/to/pbrt-v4-scenes/head] [--preview]
+# usage: python tools/exporters/pbrt_head_to_nori.py [path/to/pbrt-v4-scenes/head] [--preview]
 import os, sys, math, shutil
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(HERE))  # repo root: tools/<group>/ -> ..
 _args = [a for a in sys.argv[1:] if not a.startswith('-')]
-OUT = os.path.join(HERE, "scenes", "head")
+OUT = os.path.join(REPO, "scenes", "head")
 SRC = _args[0] if _args else os.path.join(OUT, "_src")
 MESH = os.path.join(OUT, "meshes")
 TEX = os.path.join(OUT, "textures")
@@ -34,7 +35,7 @@ XML_ONLY = '--xml-only' in sys.argv
 # reuse the tested PLY reader / OBJ writer from the BMW port
 sys.path.insert(0, HERE)
 import importlib.util
-_s = importlib.util.spec_from_file_location('bmw', os.path.join(HERE, '_pbrt_bmw_to_nori.py'))
+_s = importlib.util.spec_from_file_location('bmw', os.path.join(HERE, 'pbrt_bmw_to_nori.py'))
 bmw = importlib.util.module_from_spec(_s)
 _argv, sys.argv = sys.argv, [sys.argv[0]]   # keep its module-level arg parsing quiet
 _s.loader.exec_module(bmw)
@@ -166,7 +167,7 @@ def write_obj_pn(ply_path, out_path, level=PN_LEVEL):
         V2, N2, T2, F2 = pn_subdivide(P, Nrm, UV, F, level)
     V2 = V2 * SCENE_SCALE            # metres -> centimetres, see SCENE_SCALE
     with open(out_path, 'w') as o:
-        o.write("# %s, PN-subdivided level %d by _pbrt_head_to_nori.py\n"
+        o.write("# %s, PN-subdivided level %d by tools/exporters/pbrt_head_to_nori.py\n"
                 % (os.path.basename(ply_path), level))
         o.write('\n'.join('v %.6g %.6g %.6g' % tuple(p) for p in V2) + '\n')
         o.write('\n'.join('vt %.6g %.6g' % tuple(t) for t in T2) + '\n')
@@ -193,7 +194,7 @@ def write_obj_unit_normals(ply_path, out_path):
     """
     verts, stride, has_uv, faces, nv = bmw.read_ply(ply_path)
     with open(out_path, 'w') as o:
-        o.write("# %s, normals unitised - see _pbrt_head_to_nori.py\n"
+        o.write("# %s, normals unitised - see tools/exporters/pbrt_head_to_nori.py\n"
                 % os.path.basename(ply_path))
         for i in range(nv):
             b = i * stride
@@ -313,7 +314,7 @@ def camera():
 # channels with the lowest single-scattering albedo, which is why the head came
 # out both dark and red.
 #
-# Measured on a white-furnace sphere (see _sss_furnace.py), holding
+# Measured on a white-furnace sphere (see tools/analysis/sss_furnace.py), holding
 # mfp/diameter fixed at 0.00115 so the physics is identical and only the world
 # units change:
 #
@@ -529,7 +530,7 @@ HEADER = """<?xml version='1.0' encoding='utf-8'?>
 <!-- %s
 
      Head geometry and skin albedo from mmp/pbrt-v4-scenes/head; converted by
-     _pbrt_head_to_nori.py - edit that, not this file. The camera, sampler and
+     tools/exporters/pbrt_head_to_nori.py - edit that, not this file. The camera, sampler and
      mesh are identical across the four scenes in this folder, so the only
      things that vary are the skin BSDF and the light. -->
 <scene>
@@ -604,7 +605,7 @@ def main():
 
     sky = os.path.join(TEX, 'small_rural_road.hdr')
     if not os.path.exists(sky):
-        shutil.copy(os.path.join(HERE, 'scenes', 'sssdragon', 'textures',
+        shutil.copy(os.path.join(REPO, 'scenes', 'sssdragon', 'textures',
                                  'small_rural_road.hdr'), sky)
     print('sky envmap: %s' % sky)
 

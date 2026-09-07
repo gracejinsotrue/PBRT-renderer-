@@ -43,9 +43,6 @@ scenes/final_scenes/
 
 scenes/final_scene_real/textures/table/semi-gloss-wood_albedo.png
 
-validate_volumetrics.py
-make_white_furnace.py
-analyze_furnace.py
 scripts/
 
 # editor / build / python caches
@@ -67,10 +64,8 @@ perf_notes.md
 DEFERRED_PROFILING.md
 OPTIMIZATION_CONTEXT.md
 
-# --- local dev / measurement tooling (hardcoded Windows + dxc paths) ---
-_verify.sh
-_sweep_bounces.ps1
-_exrtool.py
+# --- local dev scratch (the validation and measurement harnesses moved to
+#     tools/, with paths derived from the repo root) ---
 _oidn_a*.py
 _exr2png.py
 
@@ -81,7 +76,6 @@ bounce_sweep.csv
 snapshot_*.exr
 *.cso
 *.cso.bak
-_make_*.py
 _restir_scene_preview.png
 
 # --- bmw-m6: meshes + envmap are regenerated from mmp/pbrt-v4-scenes by

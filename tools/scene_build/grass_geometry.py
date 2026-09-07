@@ -1,7 +1,7 @@
 # Scatter real grass-blade geometry onto an already-exported Nori ground mesh.
 #
 # Reads scenes/<scene>/meshes/Ground.obj (Nori Y-up world space, per-corner
-# triangles as written by _blender_to_nori.py) and writes grass_a.obj/grass_b.obj:
+# triangles as written by tools/exporters/blender_to_nori.py) and writes grass_a.obj/grass_b.obj:
 # tapered 2-triangle blades standing on the ground surface.
 #
 # Density falls off as 1/d^2 from the camera so screen-space blade density stays
@@ -9,7 +9,7 @@
 # far field). Blades are split into two files by mow band, leaning in opposite
 # directions - that is what actually produces mower stripes in real turf.
 #
-#   GRASS_D0=12000 GRASS_DREF=5 GRASS_MAXDIST=45 python3 _grass_geometry.py
+#   GRASS_D0=12000 GRASS_DREF=5 GRASS_MAXDIST=45 python3 tools/scene_build/grass_geometry.py
 import os, math, numpy as np, xml.etree.ElementTree as ET
 
 SCENE = os.environ.get("GRASS_SCENE", os.path.expanduser("~/mnt/nori-26sp/scenes/liminal_bed"))

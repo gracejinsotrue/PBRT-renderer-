@@ -2,7 +2,7 @@
 # built as thick sheets (top + bottom joined round a hem ring), same technique as
 # the duvet.  The earlier metaball pillows were rounded blobs with no corners and
 # read as bars of soap.
-#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_pillow_build.py").read())
+#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools\scene_build\pillow_build.py").read())
 import bpy, math
 import numpy as np
 

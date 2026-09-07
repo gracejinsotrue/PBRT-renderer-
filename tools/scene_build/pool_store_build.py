@@ -1,8 +1,8 @@
-# _pool_store_build.py -- full deterministic build of scenes/pool_store
+# tools/scene_build/pool_store_build.py -- full deterministic build of scenes/pool_store
 #
-# Rebuilds everything except the water (_pool_water_build.py) and the slides
-# (_slide_build.py), which own their own geometry. Run inside Blender:
-#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_pool_store_build.py").read(), {})
+# Rebuilds everything except the water (tools/scene_build/pool_water_build.py) and the slides
+# (tools/scene_build/slide_build.py), which own their own geometry. Run inside Blender:
+#   exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools\scene_build\pool_store_build.py").read(), {})
 #
 # Blender Z-up, corridor along +Y, camera at the origin. All dimensions are
 # fitted from the reference by back-projection; see /areas/pool-store-scene.md.

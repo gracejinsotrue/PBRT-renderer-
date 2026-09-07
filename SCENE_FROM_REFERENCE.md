@@ -152,8 +152,8 @@ Conventions that bite:
   alpha textures (`alphaTexture` reads the PNG alpha channel for cutouts).
 - Volumes: VOL1 dense grid, one medium per scene, `boundsMin/Max` place it. Density scales with
   sigmaS; with MAX_BOUNCES 32 a thick pure-scattering cloud goes grey (sigmaS 110 was the ceiling
-  for a 4 m cloud, 140 went grey). Writers: `_disney_cloud_to_vol.py` (NanoVDB -> VOL1, mean-pooled
-  downsample), `_pbrt_bunnycloud_to_nori.py`. Pick the grid resolution from the cloud's PIXEL size
+  for a 4 m cloud, 140 went grey). Writers: `tools/exporters/disney_cloud_to_vol.py` (NanoVDB -> VOL1, mean-pooled
+  downsample), `tools/exporters/pbrt_bunnycloud_to_nori.py`. Pick the grid resolution from the cloud's PIXEL size
   in the final frame (aim for >= 2 voxels per pixel), not from file size.
 - OBJ loader computes angle-weighted vertex normals if `vn` is absent; the exporter writes none.
 
@@ -161,7 +161,7 @@ Conventions that bite:
 
 ## 3. The exporter and the helper scripts (repo root, all `_`-prefixed)
 
-### 3.1 `_blender_to_nori.py`: Blender scene -> `scenes/<name>/`
+### 3.1 `tools/exporters/blender_to_nori.py`: Blender scene -> `scenes/<name>/`
 Run inside Blender with globals, never as a file argument:
 ```python
 scn = bpy.context.scene; scn.camera = bpy.data.objects["Camera"]
@@ -170,7 +170,7 @@ MED = xml[xml.index("<medium"):xml.index("<camera")].rstrip()                   
 g = {"NORI_OUT": "<name>", "NORI_SAMPLES": 256, "NORI_ENV": "sky.hdr", "NORI_ENVSCALE": 1.0,
      "NORI_AREALIGHT": False, "NORI_W": 1000, "NORI_H": 1250, "NORI_YUP": True,
      "NORI_SKIP": {"CloudVolume", "_dcam", "_dtgt"}, "NORI_MEDIUM_XML": MED}
-exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\_blender_to_nori.py").read(), g)
+exec(open(r"C:\Users\gjin3\Desktop\nori-26sp\tools/exporters/blender_to_nori.py").read(), g)
 ```
 What it does: one triangulated world-space OBJ per visible mesh object (modifiers applied via
 the evaluated depsgraph), Principled BSDF -> disney, Emission -> area emitter, active camera ->
@@ -183,24 +183,24 @@ at 1.0 so Cycles predicts DXR), roughness/metallic maps, vertex normals, instanc
 meshes (490k tris with UVs) export at ~100 MB; the whole liminal_bed export is 17 s.
 
 ### 3.2 Helper index
-- `_sky_build.py <src.hdr> <dst.hdr> SUN_SCALE ZEN_FRAC BACK_R,G,B VIS_R,G,B SUN_R,G,B SUN_ELEV SUN_SIG SUN_AZ HAZE`
+- `tools/scene_build/sky_build.py <src.hdr> <dst.hdr> SUN_SCALE ZEN_FRAC BACK_R,G,B VIS_R,G,B SUN_R,G,B SUN_ELEV SUN_SIG SUN_AZ HAZE`
   Rebuilds a sky HDR from a source panorama: removes the source sun (Gaussian fit), applies
   per-channel gains to the wedge the camera sees (`U_CAM`, `VIS_HALF` constants at the top) versus
   the unseen hemisphere (the fill light), re-paints a Gaussian sun at any azimuth/elevation with the
   same total energy, adds a horizon haze ramp and continues the sky below the horizon (a terrain
   crest below eye level otherwise shows the panorama's dark ground band). Runs in the cloud in a
   second; commit the result under a new filename.
-- `_grass_geometry.py` (device VM): scatters ~1.2M curved blade quads onto the exported
+- `tools/scene_build/grass_geometry.py` (device VM): scatters ~1.2M curved blade quads onto the exported
   `meshes/Ground.obj`, view-culled and 1/d^2 density from the camera in scene.xml, split into two
   OBJs by mow band with opposite lean. Env knobs `GRASS_SCENE GRASS_OUTDIR GRASS_D0 GRASS_DREF
   GRASS_MAXDIST GRASS_H GRASS_HVAR GRASS_BEND GRASS_CAP GRASS_BAND GRASS_SEED`. Re-run after ANY
-  ground or camera change: `cd ~/mnt/nori-26sp && GRASS_OUTDIR=$HOME python3 _grass_geometry.py`
+  ground or camera change: `cd ~/mnt/nori-26sp && GRASS_OUTDIR=$HOME python3 tools/scene_build/grass_geometry.py`
   (~25 s), then cp `grass_a.obj`/`grass_b.obj` into `meshes/` one per call.
-- `_duvet_build.py`, `_pillow_build.py`: procedural bedding as thick heightfield sheets (see the
+- `tools/scene_build/duvet_build.py`, `tools/scene_build/pillow_build.py`: procedural bedding as thick heightfield sheets (see the
   memory notes for the design rules; the short version is in section 6).
-- `_disney_cloud_to_vol.py`: NanoVDB -> VOL1. `_pbrt_*_to_nori.py`: pbrt-v4 scene converters.
-  `_obj_mtl_to_nori.py` / `_sm_scene.py`: OBJ+MTL -> Nori without Blender (San Miguel), with
-  keyword detectors for metal/fabric/glass materials. `_exrtool.py`: EXR utilities.
+- `tools/exporters/disney_cloud_to_vol.py`: NanoVDB -> VOL1. `tools/exporters/pbrt_*_to_nori.py`: pbrt-v4 scene converters.
+  `tools/exporters/obj_mtl_to_nori.py` / `tools/scene_build/sm_scene.py`: OBJ+MTL -> Nori without Blender (San Miguel), with
+  keyword detectors for metal/fabric/glass materials. `tools/exrtool.py`: EXR utilities.
 - Scratch-only helpers that were not saved in the repo and are trivial to rewrite: the ACES
   tonemap snippet (section 4.3), a fabric albedo/normal generator, patch measurers.
 
@@ -240,7 +240,7 @@ Save the attachment as a PNG in the cloud scratchpad and measure with PIL/numpy:
   from the camera; keep the ground height under the subject fixed and check it by ray casting
   (`ground.ray_cast` in object space). The horizon line is the max projected Y per column of the
   ground vertices, no render needed.
-- Sky: a PolyHaven pure-sky HDRI through the addon, then rebuilt with `_sky_build.py`. Set the
+- Sky: a PolyHaven pure-sky HDRI through the addon, then rebuilt with `tools/scene_build/sky_build.py`. Set the
   World Mapping Rotation Z = pi. Remember the dome is both the visible background and the fill
   light: a deep blue sky gives cyan shadows, which is why the script boosts the unseen hemisphere
   separately (warmer than it looks) and tints the visible wedge to the reference's sky patches.
@@ -312,13 +312,13 @@ mown hillside, portrait 4:5-ish. Final scene: 12 meshes, 5.57M triangles, 1000x1
   rotated 3.8 deg about screen-x so it descends away (horizon 43.5% -> 52.6%), ground z -0.02
   under the bed so the plinth (z 0.60 to 0.81) floats ~0.6 m.
 - Sun: azimuth -30, elevation 31, fitted from the reference's shadow; sky
-  `_sky_build.py src dst 1.05 1.0 3.3,2.9,1.7 0.55,0.80,0.84 1.0,0.93,0.80 31 6.0 -30 0.036`.
+  `tools/scene_build/sky_build.py src dst 1.05 1.0 3.3,2.9,1.7 0.55,0.80,0.84 1.0,0.93,0.80 31 6.0 -30 0.036`.
 - Cloud: Disney cloud NanoVDB -> `volumes/liminal_cloud.vol`, sigmaS 110, g 0.877, bounds
   y 2.7 to 4.6; strings run 1 m into it.
-- Bedding: `_duvet_build.py` (thick sheet, cusped fold profiles, box quilting, hem roll, spill over
-  the plinth edges, arc-length UVs, 1024 px fabric maps per 0.40 m) and `_pillow_build.py` (three
+- Bedding: `tools/scene_build/duvet_build.py` (thick sheet, cusped fold profiles, box quilting, hem roll, spill over
+  the plinth edges, arc-length UVs, 1024 px fabric maps per 0.40 m) and `tools/scene_build/pillow_build.py` (three
   superellipse pillows leaning back to front).
-- Grass: `_grass_geometry.py`, blades 0.185/0.270/0.092 and 0.148/0.224/0.078, lawn albedo
+- Grass: `tools/scene_build/grass_geometry.py`, blades 0.185/0.270/0.092 and 0.148/0.224/0.078, lawn albedo
   darkened in Blender by linear (0.85, 0.60, 0.62).
 - Measured match at the end: sky top (62,151,211) vs (63,150,200); lit duvet (229,236,241) vs
   (228,231,237); shaded duvet (111,181,210) vs (67,150,186) (still lighter than theirs).
@@ -330,7 +330,7 @@ Full history and every failed attempt: memory file `/areas/liminal-bed-scene.md`
 - Judge only through Nori's ACES curve; a Blender Standard-view preview lies about highlights.
 - The envmap azimuth is 180 degrees off between Blender and Nori; Mapping Rotation Z = pi.
 - A finite ground shows the panorama below the horizon; either a crest occludes the edge or the
-  HDR continues the sky below its horizon (`_sky_build.py` does the latter).
+  HDR continues the sky below its horizon (`tools/scene_build/sky_build.py` does the latter).
 - Sun direction comes from the reference's shadow by ray-cast fitting; blue shadows come from a
   dim, blue fill with a warm sun, not from more fill.
 - Compute the texture LOD before authoring detail; put detail finer than ~2 cm into geometry.
