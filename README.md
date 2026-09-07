@@ -1,5 +1,5 @@
 # DirectX12 Physically-Based Renderer Running on My Sad Ass RTX A3000
-A physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell, the first-ever offering of the class ([more on PBR here](https://pbrt.org/)). More accurately, I primarily wrote the math-heavy logic (hair, volumetrics, etc.) on CPU during the school semester, then in my free time during my summer internship as a systems software engineering intern at [LinkedIn](https://www.linkedin.com/blog/engineering), I extended this project to run primarily on GPU.
+A physics-based GPU path tracer I built for CS5630 (Physically-Based Rendering) at Cornell, the first-ever offering of the class ([more on PBR here](https://pbrt.org/)). More accurately, I primarily wrote the math-heavy logic (hair, subsurface scattering, etc.) on CPU during the school semester, then in my free time during my summer internship as a systems software engineering intern at [LinkedIn](https://www.linkedin.com/blog/engineering), I extended this project to run primarily on GPU.
 
 Every ray bounce, material evaluation, and light sample runs entirely on the GPU via DirectX Raytracing (DXR) with hardware-accelerated ray-triangle intersection. With the techniques implemented here (hair/fiber rendering, skin, the Disney BSDF, and more) you can build a diverse, complicated, beautiful scene with physically-accurate lighting.
 
@@ -20,7 +20,6 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
 - [Rendering Techniques](#rendering-techniques)
   - [Hair (Chiang et al. 2016 BCSDF)](#hair-chiang-et-al-2016-bcsdf)
   - [Disney "Principled" BRDF](#disney-principled-brdf)
-  - [Volumetric Participating Media](#volumetric-participating-media)
   - [Subsurface Scattering: Random-Walk BSSRDF](#subsurface-scattering-random-walk-bssrdf)
   - [More Boring and but Fundamental Stuff: Textures](#more-boring-and-but-fundamental-stuff-textures)
   - [Normal Mapping](#normal-mapping)
@@ -168,35 +167,11 @@ The combined BRDF is $f = (1-\text{metallic})\,f_\text{diffuse} + f_\text{specul
 
 ---
 
-### Volumetric Participating Media
-
-![cool image](images/bunny_cloud.png)
-
-Volumetrics are objects that are not solid, and they are another rendering challenge mathematically, accurately, performance-wise, whatever. Fog, smoke, and clouds scatter or absorb light as rays travel through them, not just at surfaces. A homogeneous medium has three parameters: absorption $\sigma_a$, scattering $\sigma_s$, and an asymmetry parameter $g$ that controls how directional the scattering is.
-
-The probability that a ray makes it distance $d$ without interacting follows Beer's law:
-
-$$T(d) = \exp(-\sigma_t\, d), \quad \sigma_t = \sigma_a + \sigma_s$$
-
-When a scatter event does happen, the new direction is drawn from the **Henyey-Greenstein phase function**:
-
-$$f_p(\cos\theta) = \frac{1-g^2}{4\pi\,(1 + g^2 - 2g\cos\theta)^{3/2}}$$
-
-$g=0$ is isotropic (scatter equally in all directions); $g \to 1$ concentrates light forward, like thin aerosols or clouds in sunlight. This function is analytically invertible, so importance sampling is exact.
-
-Free-flight distances are sampled via **Woodcock (null-collision) tracking**: propose a step under an overestimate of the density, then randomly decide if it's a real collision or a null one. This also extends cleanly to heterogeneous media since you only need an upper bound on the density, not the exact value everywhere.
-
-| g = 0 (isotropic) | g = 0.3 | g = 0.8 (forward) |
-|---|---|---|
-| ![vol g0](images/vol_g0_ours.png) | ![vol g03](images/vol_g03_ours.png) | ![vol g08](images/vol_g08_ours.png) |
-
----
-
 ### Subsurface Scattering: Random-Walk BSSRDF
 
 A BRDF assumes light leaves where it entered, so for general opaque materials this holds. However this does not hold for skin, where ight sinks into the skin, scatters, and surfaces from some other angle. This is the reason why why ears and fingers glow red when backlit.
 
-So I simulate the photon directly, reusing the [participating media](#volumetric-participating-media) transport with the medium bounded by the mesh:
+So I simulate the photon directly, reusing the renderer's participating-media transport with the medium bounded by the mesh:
 
 1. Refract in at the hit point and Fresnel decides reflect vs. transmit.
 2. Sample a free-flight distance under the medium.
@@ -298,7 +273,7 @@ The renderer is a **megakernel path tracer**: the whole bounce loop, every BSDF 
 
 The alternative to a megakernel is a **wavefront** tracer that splits the work into separate generation, intersection, shading, and shadow passes and sorts rays by material between bounces. That's the design "Megakernels Considered Harmful" (Laine, Karras, Aila 2013) argues for, and it's what PBRT's GPU backend uses; it gets higher throughput on big scenes because sorting restores coherence and each small pass hits higher occupancy.
 
-The tradeoff is that a wavefront tracer spills path state to global memory between passes and turns every new material into a scheduling problem. The megakernel keeps path state in registers across bounces and keeps the whole renderer in one shader, which made adding hair, then Disney, then volumes, then subsurface scattering cheap. For my renderer that outputs an accumulated, denoised final (not a 1-spp real-time frame), this iterative design choice was ok. 
+The tradeoff is that a wavefront tracer spills path state to global memory between passes and turns every new material into a scheduling problem. The megakernel keeps path state in registers across bounces and keeps the whole renderer in one shader, which made adding hair, then Disney, then subsurface scattering cheap. For my renderer that outputs an accumulated, denoised final (not a 1-spp real-time frame), this iterative design choice was ok. 
 
 ### Measurement setup
 
