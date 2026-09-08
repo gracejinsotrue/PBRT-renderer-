@@ -75,6 +75,7 @@ void DXRApp::OnInit()
     CreatePostPipelines();
     CreateOutputResource();
     CreateShaderTable();
+    ReportMemory("after-scene-setup");
     SetupCamera();
     printf("[init] DX12 + DXR initialization complete\n");
 }

@@ -77,6 +77,7 @@ void DXRApp::CreateDevice()
         }
 
         m_device = candidateDevice;
+        adapter.As(&m_adapter); // IDXGIAdapter3 for QueryVideoMemoryInfo
         printf("[init] Adapter: %ls\n", d.Description);
         printf("[init] DXR tier: %s\n", options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1 ? "1.1" : "1.0");
         break;
@@ -252,7 +253,35 @@ ComPtr<ID3D12Resource> DXRApp::CreateBuffer(UINT64 size, D3D12_RESOURCE_FLAGS fl
     ThrowIfFailed(m_device->CreateCommittedResource(&hp, D3D12_HEAP_FLAG_NONE, &rd, state,
                                                     nullptr, IID_PPV_ARGS(&b)),
                   "CreateBuffer");
+    if (heap >= D3D12_HEAP_TYPE_DEFAULT && heap <= D3D12_HEAP_TYPE_READBACK)
+    {
+        m_heapTally.bytes[heap] += size;
+        m_heapTally.count[heap]++;
+    }
     return b;
+}
+
+void DXRApp::ReportMemory(const char *phase)
+{
+    auto mb = [](UINT64 b) { return (double)b / (1024.0 * 1024.0); };
+    printf("[mem:%s] cumulative CreateBuffer allocations (transient staging already freed):\n", phase);
+    printf("[mem:%s]   UPLOAD   %8.1f MB in %u buffers (system memory, CPU-visible)\n", phase, mb(m_heapTally.bytes[D3D12_HEAP_TYPE_UPLOAD]), m_heapTally.count[D3D12_HEAP_TYPE_UPLOAD]);
+    printf("[mem:%s]   DEFAULT  %8.1f MB in %u buffers (device-local)\n", phase, mb(m_heapTally.bytes[D3D12_HEAP_TYPE_DEFAULT]), m_heapTally.count[D3D12_HEAP_TYPE_DEFAULT]);
+    printf("[mem:%s]   READBACK %8.1f MB in %u buffers\n", phase, mb(m_heapTally.bytes[D3D12_HEAP_TYPE_READBACK]), m_heapTally.count[D3D12_HEAP_TYPE_READBACK]);
+
+    printf("[mem:%s] live process footprint (adds textures and acceleration structures):\n", phase);
+
+    // DXGI's view covers everything the process has resident - textures and
+    // acceleration structures included - not just what CreateBuffer made.
+    if (m_adapter)
+    {
+        DXGI_QUERY_VIDEO_MEMORY_INFO local{}, nonLocal{};
+        if (SUCCEEDED(m_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &local)))
+        printf("[mem:%s]   DXGI local     CurrentUsage %8.1f MB (budget %.1f MB)\n", phase, mb(local.CurrentUsage), mb(local.Budget));
+        if (SUCCEEDED(m_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &nonLocal)))
+        printf("[mem:%s]   DXGI non-local CurrentUsage %8.1f MB (budget %.1f MB)\n", phase, mb(nonLocal.CurrentUsage), mb(nonLocal.Budget));
+    }
+    fflush(stdout);
 }
 
 void DXRApp::FlushCommandQueue()

@@ -172,6 +172,10 @@ public:
     // Mean samples/pixel and converged fraction, read back from the
     // accumulator's .w channel. Only meaningful with adaptive sampling on.
     void ReportAdaptiveStats();
+    // Where the scene's bytes physically live. Every buffer goes through
+    // CreateBuffer, so tallying there catches all of them; the DXGI figures
+    // additionally cover textures and the acceleration structures.
+    void ReportMemory(const char *phase);
 
     // ReSTIR DI spatial reuse (--restir R[,K]). Only has an effect on a shader
     // built with -D USE_RIS=1; radius 0 leaves plain RIS untouched.
@@ -222,6 +226,13 @@ private:
 
     // Pipeline objects
     ComPtr<IDXGIFactory6> m_factory;
+    ComPtr<IDXGIAdapter3> m_adapter; // retained for QueryVideoMemoryInfo
+    struct HeapTally
+    {
+        UINT64 bytes[4] = {0, 0, 0, 0}; // indexed by D3D12_HEAP_TYPE (1..3)
+        uint32_t count[4] = {0, 0, 0, 0};
+    };
+    HeapTally m_heapTally;
     ComPtr<ID3D12Device5> m_device;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<IDXGISwapChain3> m_swapChain;
