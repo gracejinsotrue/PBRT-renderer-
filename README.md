@@ -279,11 +279,10 @@ The tradeoff is that a wavefront tracer spills path state to global memory betwe
 
 ## Validation & Correctness
 
-Each feature was checked against something other than "it looks right": white-furnace
+Each feature was checked against something other than "looks good to me, i guess". In general I wrote white-furnace
 energy checks, analytic ground truth where a closed form exists, and pixel comparisons
 against Mitsuba 3 on identical geometry and lighting. The per-feature writeup, with the
-numbers, is the [CS5630 final report](final_report/report.html) — GitHub renders `.html`
-as source, so open it locally.
+numbers, is the [CS5630 final report](final_report/report.html).
 
 Separately, [`tools/validation/verify.sh`](tools/validation/verify.sh) renders four scenes
 and compares each output EXR against a known-good SHA-256, so a change meant to be
