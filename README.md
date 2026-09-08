@@ -27,7 +27,6 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
   - [Image-Based Lighting (IBL)](#image-based-lighting-ibl)
 - [Performance & Optimization](#performance--optimization)
   - [Megakernel vs wavefront](#megakernel-vs-wavefront)
-  - [Measurement setup](#measurement-setup)
 - [Validation & Correctness](#validation--correctness)
 
 ---
@@ -36,7 +35,7 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
 
 The scene was assembled in Blender (about 100 hours in a piece of software I did not know going in), exported mesh by mesh with all world-space transforms baked in, and post-processed with Intel's open-source denoiser.
 
-In terms of the Blender scene assembly, I had some help scanning my face and reconstructing it as a mesh with clean geometry. It looks good, right? And then, I modelled so many small objects in Blender, or took them off of SketchFab and moved them to their respective coordinates in Blender. Consider this a glorified art project. See if you can spot any references (e.g., how many Miku's can you spot?)
+In terms of the Blender scene assembly, I had some help scanning my face and reconstructing it as a mesh with clean geometry. It looks good, right? And then, I modelled so many small objects in Blender, or took them off of SketchFab and moved them to their respective coordinates in Blender. Consider this a glorified art project. See if you can spot any references (e.g., how many Mikus can you spot?)
 
 ![Final Denoised Scene](images/snapshot_68_denoised.png)
 
@@ -44,9 +43,9 @@ In terms of the Blender scene assembly, I had some help scanning my face and rec
 |---|---|
 | ![Blender Scene Layout](images/blender_ss.png) | ![Blender Wireframe](images/blender_wireframe.png) |
 
-# San Miguel Renders
+## San Miguel Renders
 
-This is a popular computer graphics scene to render. The scene is about 10M triangles so it is a nice way to stres-test performance as well as just get a generally very diverse and pretty scene to render. Credits to McGuire Computer Graphics Archive for all the geometry and textures! 
+This is a popular computer graphics scene to render. The scene is about 10M triangles so it is a nice way to stress-test performance as well as just get a generally very diverse and pretty scene to render. Credits to McGuire Computer Graphics Archive for all the geometry and textures! 
 
 <!-- ![Cool Render 1](images/san_miguel_1.png) -->
 
@@ -66,9 +65,9 @@ This is a popular computer graphics scene to render. The scene is about 10M tria
 
 
 
-# BMW M6
+## BMW M6
 
-The model and texture is from  [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes) collection. The car itself is "BMW M6 2006" by tyrant monkey, released CC0 on BlendSwap.
+The model and textures are from the [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes) collection. The car itself is "BMW M6 2006" by tyrant monkey, released CC0 on BlendSwap.
 
 | | |
 |---|---|
@@ -76,13 +75,13 @@ The model and texture is from  [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-s
 
 This one not only looks cool but serves as a material stress test. It leans on [Disney BRDF](#disney-principled-brdf) primarily, where nearly every knob on it gets used somewhere on the car. There are about 26 different materials resolved to a few different categories:
 
-- dieletric coat over diffuse base: body paint, tires, leather, brake discs, studio floor
+- dielectric coat over diffuse base: body paint, tires, leather, brake discs, studio floor
 - bare metal: chrome trim, kidney grille, silver in roundel
 - metal under clearcoat: wheel rims
 - specular glass for glass objects
 - flat lambertian 
 
-# Sportscar
+## Sportscar
 
 Also from the [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes) collection. 
 
@@ -138,7 +137,7 @@ ap[3] = ap[2] * f*T / (1 - f*T);   // residual: geometric series for p>=3
 
 The full scattering function factors into longitudinal ($M_p$), attenuation ($A_p$), and azimuthal ($N_p$) terms. Importance sampling picks a path by luminance weight, draws a longitude direction from the $M_p$ distribution, and an azimuth from a trimmed logistic distribution.
 
-**Hair cards** are supported!: flat quad meshes textured with a grayscale strand atlas, made transparent via the alpha any-hit shader described above.
+**Hair cards** are supported: flat quad meshes textured with a grayscale strand atlas, made transparent via the alpha any-hit shader described above.
 
 | Hair View 1 | Hair View 2 |
 |---|---|
@@ -170,7 +169,7 @@ The combined BRDF is $f = (1-\text{metallic})\,f_\text{diffuse} + f_\text{specul
 
 ### Subsurface Scattering: Random-Walk BSSRDF
 
-A BRDF assumes light leaves where it entered, so for general opaque materials this holds. However this does not hold for skin, where ight sinks into the skin, scatters, and surfaces from some other angle. This is the reason why why ears and fingers glow red when backlit.
+A BRDF assumes light leaves where it entered, so for general opaque materials this holds. However this does not hold for skin, where light sinks into the skin, scatters, and surfaces from some other angle. This is the reason why ears and fingers glow red when backlit.
 
 So I simulate the photon directly, reusing the renderer's participating-media transport with the medium bounded by the mesh:
 
@@ -190,9 +189,9 @@ You hand it a color, not physical coefficients, which is how both columns below 
 
 $$\alpha = 1 - \exp\left(-5.09406A + 2.61188A^2 - 4.31805A^3\right)$$
 
-with $\sigma_t = 1/\text{radius}$ and $\sigma_s = \alpha\,\sigma_t$. It runs per channel, wehre red survives the most collisions (therefore light that leaks into shadow soemtimes has a red tint!)
+with $\sigma_t = 1/\text{radius}$ and $\sigma_s = \alpha\,\sigma_t$. It runs per channel, where red survives the most collisions (therefore light that leaks into shadow sometimes has a red tint!)
 
-Head from [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes/tree/master/head). Generally, Disney BRDF can render a lot of materials, including cartoon character skin. but for more realistic skin, you can see where it falls short. Both columns share geometry, albedo, camera, light, 1024 spp, etcv etc and only the diffuse model changes:
+Head from [pbrt-v4-scenes](https://github.com/mmp/pbrt-v4-scenes/tree/master/head). Generally, Disney BRDF can render a lot of materials, including cartoon character skin. But for more realistic skin, you can see where it falls short. Both columns share geometry, albedo, camera, light, 1024 spp, etc. and only the diffuse model changes:
 
 | Sky HDRI, Disney | Sky HDRI, random walk |
 |---|---|
@@ -276,32 +275,17 @@ The alternative to a megakernel is a **wavefront** tracer that splits the work i
 
 The tradeoff is that a wavefront tracer spills path state to global memory between passes and turns every new material into a scheduling problem. The megakernel keeps path state in registers across bounces and keeps the whole renderer in one shader, which made adding hair, then Disney, then subsurface scattering cheap. For my renderer that outputs an accumulated, denoised final (not a 1-spp real-time frame), this iterative design choice was ok. 
 
-### Measurement setup
-
-to come
-
 ---
 
 ## Validation & Correctness
 
-Every feature above was checked against something other than "it looks right".
+Each feature was checked against something other than "it looks right": white-furnace
+energy checks, analytic ground truth where a closed form exists, and pixel comparisons
+against Mitsuba 3 on identical geometry and lighting. The per-feature writeup, with the
+numbers, is the [CS5630 final report](final_report/report.html) — GitHub renders `.html`
+as source, so open it locally.
 
-**[Full quantitative validation report](final_report/report.html)** — the CS5630
-final report, written in Markdeep. Each feature gets an *Implementation*, a
-*Quantitative Validation* and a *Visual Results* section: white-furnace energy
-checks, absolute-difference and false-colour comparisons against reference
-renders, and analytic ground truth where a closed form exists. GitHub shows
-`.html` as source, so download it and open it locally, or enable GitHub Pages on
-this repository to read it in place.
-
-**Regression harness** — [`tools/validation/verify.sh`](tools/validation/verify.sh)
-compiles the shader library and renders four scenes headless (Cornell box, mixed
-materials, hair, heterogeneous volume), comparing each output EXR against a
-known-good SHA-256. This is what makes a performance claim safe to make: an
-optimisation that is supposed to be render-identical has to come out
-bit-identical.
-
-The rest of the harnesses live in [`tools/validation/`](tools/validation/) and
-[`tools/analysis/`](tools/analysis/) — furnace tests, analytic volumetric
-transport checks, and the GPU-time-vs-path-length sweep. See
-[`tools/README.md`](tools/README.md).
+Separately, [`tools/validation/verify.sh`](tools/validation/verify.sh) renders four scenes
+and compares each output EXR against a known-good SHA-256, so a change meant to be
+render-identical has to come out bit-identical. Reproduction steps for everything are in
+[`validation_tests/`](validation_tests/) and [`tools/`](tools/).
