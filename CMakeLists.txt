@@ -9,8 +9,33 @@ add_definitions(-DUNICODE -D_UNICODE)
 
 set(NORI_EXT ${CMAKE_SOURCE_DIR}/ext)
 
-# Intel Open Image Denoise (OIDN) SDK, prebuilt v2.4.1
+# Intel Open Image Denoise (OIDN) SDK, prebuilt v2.4.1. Optional: the SDK is a
+# local unzip rather than a submodule, so a machine that lacks it (CI, a fresh
+# clone) still builds the renderer. Without it Denoiser::Init reports the
+# denoiser unavailable and the N/M keys and --denoise print a message instead
+# of the build failing on a missing header.
 set(OIDN_ROOT "C:/oidn/oidn-2.4.1.x64.windows" CACHE PATH "OIDN SDK root")
+set(NORI_ENABLE_OIDN "AUTO" CACHE STRING
+    "Denoiser support: ON (require the SDK), OFF (omit it), AUTO (use it if OIDN_ROOT has it)")
+set_property(CACHE NORI_ENABLE_OIDN PROPERTY STRINGS AUTO ON OFF)
+
+set(NORI_HAS_OIDN FALSE)
+if(NORI_ENABLE_OIDN)  # both ON and AUTO are truthy here; only OFF is not
+    find_path(OIDN_INCLUDE_DIR OpenImageDenoise/oidn.hpp HINTS ${OIDN_ROOT}/include)
+    find_library(OIDN_LIBRARY OpenImageDenoise HINTS ${OIDN_ROOT}/lib)
+    if(OIDN_INCLUDE_DIR AND OIDN_LIBRARY)
+        set(NORI_HAS_OIDN TRUE)
+        message(STATUS "Found OIDN: ${OIDN_LIBRARY}")
+    elseif(NORI_ENABLE_OIDN STREQUAL "AUTO")
+        message(STATUS "OIDN not found under OIDN_ROOT=${OIDN_ROOT} - building without the denoiser")
+    else()
+        message(FATAL_ERROR "NORI_ENABLE_OIDN=${NORI_ENABLE_OIDN} but no OIDN SDK under "
+                            "OIDN_ROOT=${OIDN_ROOT}. Pass -DOIDN_ROOT=<sdk root>, or "
+                            "-DNORI_ENABLE_OIDN=OFF to build without the denoiser.")
+    endif()
+else()
+    message(STATUS "OIDN denoiser disabled (NORI_ENABLE_OIDN=OFF)")
+endif()
 
 # build dependencies
 
@@ -140,7 +165,7 @@ add_executable(nori-dxr
 )
 add_dependencies(nori-dxr compile_shaders)
 
-target_include_directories(nori-dxr PRIVATE ${NORI_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src/gpu ${OIDN_ROOT}/include)
+target_include_directories(nori-dxr PRIVATE ${NORI_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/src/gpu)
 
 if(MSVC)
     target_compile_definitions(nori-dxr PRIVATE
@@ -160,8 +185,16 @@ endif()
 target_link_libraries(nori-dxr PRIVATE
     d3d12 dxgi dxguid d3dcompiler
     pugixml tbb_static
-    ${OIDN_ROOT}/lib/OpenImageDenoise.lib
 )
+
+# Denoiser.cpp is always compiled; NORI_HAS_OIDN decides whether its bodies are
+# the real OIDN calls or the stubs that report the denoiser unavailable, so the
+# call sites in DXRApp_Camera.cpp link either way.
+if(NORI_HAS_OIDN)
+    target_compile_definitions(nori-dxr PRIVATE NORI_HAS_OIDN=1)
+    target_include_directories(nori-dxr PRIVATE ${OIDN_INCLUDE_DIR})
+    target_link_libraries(nori-dxr PRIVATE ${OIDN_LIBRARY})
+endif()
 
 add_custom_command(TARGET nori-dxr POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SHADER_CSO} $<TARGET_FILE_DIR:nori-dxr>/Shaders.cso
@@ -171,12 +204,14 @@ foreach(cs_cso IN LISTS COMPUTE_CSOS)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${cs_cso} $<TARGET_FILE_DIR:nori-dxr>
     )
 endforeach()
-add_custom_command(TARGET nori-dxr POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${OIDN_ROOT}/bin/OpenImageDenoise.dll
-        ${OIDN_ROOT}/bin/OpenImageDenoise_core.dll
-        ${OIDN_ROOT}/bin/OpenImageDenoise_device_cuda.dll
-        ${OIDN_ROOT}/bin/OpenImageDenoise_device_cpu.dll
-        ${OIDN_ROOT}/bin/tbb12.dll
-        $<TARGET_FILE_DIR:nori-dxr>
-)
+if(NORI_HAS_OIDN)
+    add_custom_command(TARGET nori-dxr POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${OIDN_ROOT}/bin/OpenImageDenoise.dll
+            ${OIDN_ROOT}/bin/OpenImageDenoise_core.dll
+            ${OIDN_ROOT}/bin/OpenImageDenoise_device_cuda.dll
+            ${OIDN_ROOT}/bin/OpenImageDenoise_device_cpu.dll
+            ${OIDN_ROOT}/bin/tbb12.dll
+            $<TARGET_FILE_DIR:nori-dxr>
+    )
+endif()

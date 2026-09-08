@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+#if NORI_HAS_OIDN
+
 bool Denoiser::Init(unsigned width, unsigned height)
 {
     m_w = width;
@@ -72,3 +74,23 @@ bool Denoiser::Denoise(const float *beauty, const float *albedo, const float *no
     m_bOutput.read(0, n, out.data());
     return true;
 }
+
+#else // !NORI_HAS_OIDN
+
+// Built without the OIDN SDK. Init() failing is the same path a machine with no
+// OIDN device takes at runtime, so the callers need no #ifdef of their own.
+bool Denoiser::Init(unsigned width, unsigned height)
+{
+    m_w = width;
+    m_h = height;
+    printf("[oidn] built without the OIDN SDK - denoise unavailable\n");
+    return false;
+}
+
+bool Denoiser::Denoise(const float *, const float *, const float *,
+                       std::vector<float> &)
+{
+    return false;
+}
+
+#endif // NORI_HAS_OIDN

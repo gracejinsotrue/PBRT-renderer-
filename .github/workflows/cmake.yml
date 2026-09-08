@@ -1,5 +1,9 @@
 name: Build
 
+# nori-dxr is a D3D12/DXR renderer: it links d3d12/dxgi/dxguid and compiles its
+# shaders with dxc, so there is nothing for Linux or macOS to build. The 3-OS
+# matrix inherited from upstream nori failed at the CMake configure step on
+# every push since the port, so this builds the one platform that can.
 on: [push]
 
 env:
@@ -7,59 +11,24 @@ env:
 
 jobs:
   build:
-    name: ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}    
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - {
-              name: "Windows Latest - MSVC",
-              os: windows-latest,
-              cc: "cl",
-              cxx: "cl",
-            }
-          - {
-              name: "Ubuntu Latest - GCC",
-              os: ubuntu-latest,
-              cc: "gcc",
-              cxx: "g++",
-            }
-          - {
-              name: "MacOS Latest - Clang",
-              os: macos-latest,
-              cc: "clang",
-              cxx: "clang++",
-            }
+    name: Windows Latest - MSVC
+    runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
-
-    # Setup caching on of build artifacts to reduce total build time (only Linux and MacOS)
-    - name: ccache
-      if: runner.os != 'Windows'
-      uses: hendrikmuhs/ccache-action@v1
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{github.workspace}}/build
 
-    - name: Install dependencies (Linux)
-      if: runner.os == 'Linux'
-      run: sudo apt-get update && sudo apt-get install -yq libglu1-mesa-dev libxxf86vm-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libx11-dev
-
+    # The OIDN SDK is a local unzip rather than a submodule, so CI builds
+    # without the denoiser. Everything else, the DXR shaders included, still
+    # gets compiled.
     - name: Configure CMake
       shell: bash
       working-directory: ${{github.workspace}}/build
-      if: runner.os != 'Windows'
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-
-    - name: Configure CMake (Windows)
-      shell: bash
-      working-directory: ${{github.workspace}}/build
-      if: runner.os == 'Windows'
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DNORI_ENABLE_OIDN=OFF
 
     - name: Build
       working-directory: ${{github.workspace}}/build
