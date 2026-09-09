@@ -67,9 +67,12 @@ void DXRApp::OnInit()
     CreateCommandAllocatorsAndList();
     CreateFence();
     CreateProfiler();
-    CreateAccelerationStructure();
+    // Order matters: SetupVolumes only reads the nori scene, CreateSceneBuffers
+    // needs its m_volumes output and uploads the global geometry buffers, and the
+    // acceleration structure builds its BLASes directly out of those buffers.
     SetupVolumes();
     CreateSceneBuffers();
+    CreateAccelerationStructure();
     CreateTextures();
     CreateRaytracingPipeline();
     CreatePostPipelines();

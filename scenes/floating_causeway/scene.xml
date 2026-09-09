@@ -1,0 +1,1775 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<scene>
+	<string name="envmap" value="sky.hdr"/>
+	<float name="envmapScale" value="1.000000"/>
+	<float name="evCompensation" value="-1.95"/>
+	<float name="bloomIntensity" value="0.004"/>
+	<float name="bloomThreshold" value="3.5"/>
+	<float name="bloomKnee" value="0.6"/>
+
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/sun_disk.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="183515.1771 177092.1459 164246.0835"/>
+		</emitter>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/water.obj"/>
+		<bsdf type="dielectric">
+			<float name="intIOR" value="1.333"/>
+			<color name="tintColor" value="0.35 0.55 0.62"/>
+		</bsdf>
+	</mesh>
+
+	<camera type="perspective">
+		<float name="fov" value="60.000002"/>
+		<transform name="toWorld">
+			<lookat target="0.000000, 1.665385, -0.997860" origin="0.000000, 1.600000, -0.000000" up="0.000000, 0.997860, 0.065385"/>
+		</transform>
+		<integer name="width" value="1920"/>
+		<integer name="height" value="818"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="64"/>
+	</sampler>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/LakeBed.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.020000 0.030000 0.030000"/>
+			<float name="roughness" value="0.900000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.350000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/Causeway.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.280000 0.270000 0.250000"/>
+			<float name="roughness" value="0.850000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.350000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Oak_Bark_1_Mat1_0.017.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Oak_Bark_1_Mat1_0.016.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Oak_Bark_1_Mat1_0.015.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Oak_Bark_1_Mat1_0.014.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Oak_Bark_1_Mat1_0.012.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Leavs_Mat_0.008.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Leavs_Mat_0.007.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Leavs_Mat_0.006.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Leavs_Mat_0.005_c1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Leavs_Mat_0.004_c1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T0_Oak_Leavs_Mat_0.003_c1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Oak_Bark_1_Mat1_0.017.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Oak_Bark_1_Mat1_0.016.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Oak_Bark_1_Mat1_0.015.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Oak_Bark_1_Mat1_0.014.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Oak_Bark_1_Mat1_0.012.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<string name="albedoTexture" value="textures/oak_Oak_Bark_1_Mat_diffuse.png"/>
+			<string name="normalTexture" value="textures/oak_Oak_Bark_1_Mat_normal.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Leavs_Mat_0.008.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Leavs_Mat_0.007.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Leavs_Mat_0.006.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Leavs_Mat_0.005_c1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Leavs_Mat_0.004_c1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/T1_Oak_Leavs_Mat_0.003_c1.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F00.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F01.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F02.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F03.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F04.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F05.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F06.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F07.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F08.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F09.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F10.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F11.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F12.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F13.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F14.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F15.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F16.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F17.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F18.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F19.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F20.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F21.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F22.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F23.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F24.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F25.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F26.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F27.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F28.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F29.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F30.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F31.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F32.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F33.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F34.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F35.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F36.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F37.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F38.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F39.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F40.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F41.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F42.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F43.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F44.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F45.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F46.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F47.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F48.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F49.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F50.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F51.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F52.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F53.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F54.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F55.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F56.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F57.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F58.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F59.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F60.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F61.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F62.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F63.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F64.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F65.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F66.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F67.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F68.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F69.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F70.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F71.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F72.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/F73.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.800000 0.800000 0.800000"/>
+			<float name="roughness" value="0.500000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.120000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+			<float name="translucency" value="0.350000"/>
+			<string name="albedoTexture" value="textures/oak_leaf_bright.png"/>
+			<string name="normalTexture" value="textures/oak_leaf_normal.png"/>
+			<string name="alphaTexture" value="textures/oak_leaf_diffuse.png"/>
+		</bsdf>
+	</mesh>
+</scene>

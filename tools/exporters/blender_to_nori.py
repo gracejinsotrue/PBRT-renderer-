@@ -14,6 +14,9 @@
 #   NORI_NORMALS               write vn from Blender corner normals (default True) so shade_smooth/
 #                              shade_flat/sharp edges survive export. False = old behaviour.
 #   NORI_SKIP                  iterable of object names to NOT export as meshes (e.g. a volume domain)
+#   Principled Alpha -> <string name="alphaTexture">, the cutout mask for foliage cards.
+#   The renderer reads the PNG's ALPHA channel (AlphaTexture / RayQueryTrace.hlsli), so the
+#   exported PNG must keep its 4th channel.
 import bpy, os, math, shutil, mathutils
 
 _YUP = False
@@ -49,6 +52,13 @@ def base_color_image(mat):
     n = principled(mat); return _img_through(n.inputs.get('Base Color')) if n else None
 def normal_image(mat):
     n = principled(mat); return _img_through(n.inputs.get('Normal')) if n else None
+def alpha_image(mat):
+    n = principled(mat); return _img_through(n.inputs.get('Alpha')) if n else None
+
+def needs_uv(mat):
+    # UVs are written for any material that samples a texture, not just a base-colour
+    # one: leaf cards are typically a flat colour plus an alpha mask.
+    return base_color_image(mat) is not None or alpha_image(mat) is not None
 
 def export_image(img, texdir):
     if img is None: return None
@@ -140,11 +150,19 @@ def disney_xml(mat, texdir):
        '\t\t\t<float name="clearcoat" value="%s"/>'%_f(coat),
        '\t\t\t<float name="anisotropic" value="%s"/>'%_f(aniso),
        '\t\t\t<float name="subsurface" value="%s"/>'%_f(sss)]
-    afn = export_image(base_color_image(mat), texdir)
-    if afn:
-        L.append('\t\t\t<string name="albedoTexture" value="textures/%s"/>' % afn)
+    try:
+        _tr = float(mat.get("nori_translucency", 0.0)) if mat else 0.0
+    except Exception:
+        _tr = 0.0
+    if _tr > 0.0:
+        L.append('\t\t\t<float name="translucency" value="%s"/>' % _f(_tr))
+    if needs_uv(mat):
+        afn = export_image(base_color_image(mat), texdir)
+        if afn: L.append('\t\t\t<string name="albedoTexture" value="textures/%s"/>' % afn)
         nfn = export_image(normal_image(mat), texdir)
         if nfn: L.append('\t\t\t<string name="normalTexture" value="textures/%s"/>' % nfn)
+        xfn = export_image(alpha_image(mat), texdir)
+        if xfn: L.append('\t\t\t<string name="alphaTexture" value="textures/%s"/>' % xfn)
     L.append('\t\t</bsdf>'); return "\n".join(L)
 
 def emission_of(mat):
@@ -209,7 +227,7 @@ def export_scene(repo, out_name, samples=64, W=800, H=800,
     mesh_objs=[o for o in scene.objects if o.type=='MESH' and o.visible_get() and o.name not in skip]
     stats,blocks,allco=[],[],[]
     for o in mesh_objs:
-        mat=o.active_material; with_uv=base_color_image(mat) is not None
+        mat=o.active_material; with_uv=needs_uv(mat)
         fn=o.name.replace(" ","_")+".obj"
         nv,nt=write_obj(o,os.path.join(mesh_dir,fn),dg,with_uv,normals); stats.append((o.name,nv,nt))
         for corner in o.bound_box:

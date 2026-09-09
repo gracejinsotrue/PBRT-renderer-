@@ -40,7 +40,8 @@ void DXRApp::CreateAccelerationStructure()
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "CmdList");
 
     const auto &meshes = m_noriScene->getMeshes();
-    m_meshGPU.resize(meshes.size());
+    // m_meshGPU was sized and its geometry offsets filled by CreateSceneBuffers,
+    // which now runs first so the global buffers exist to build BLASes from.
 
     // Scratch buffers must stay alive until FlushCommandQueue completes.
     std::vector<ComPtr<ID3D12Resource>> tempBuffers;
@@ -48,39 +49,26 @@ void DXRApp::CreateAccelerationStructure()
     // Build one BLAS per mesh.
     for (size_t mi = 0; mi < meshes.size(); mi++)
     {
-        const Mesh *mesh = meshes[mi];
-        const auto &V = mesh->getVertexPositions();
-        const auto &F = mesh->getIndices();
-
-        UINT64 vbSize = V.size() * sizeof(float);
-        UINT64 ibSize = F.size() * sizeof(uint32_t);
-
-        m_meshGPU[mi].vertexBuffer = CreateBuffer(vbSize, D3D12_RESOURCE_FLAG_NONE,
-                                                  D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-        void *mapped;
-        m_meshGPU[mi].vertexBuffer->Map(0, nullptr, &mapped);
-        memcpy(mapped, V.data(), vbSize);
-        m_meshGPU[mi].vertexBuffer->Unmap(0, nullptr);
-
-        m_meshGPU[mi].indexBuffer = CreateBuffer(ibSize, D3D12_RESOURCE_FLAG_NONE,
-                                                 D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_HEAP_TYPE_UPLOAD);
-        m_meshGPU[mi].indexBuffer->Map(0, nullptr, &mapped);
-        memcpy(mapped, F.data(), ibSize);
-        m_meshGPU[mi].indexBuffer->Unmap(0, nullptr);
-        m_meshGPU[mi].indexCount = (uint32_t)F.size();
+        // Geometry comes from the global buffers CreateSceneBuffers already
+        // uploaded. DXR wants the vertex address aligned to the component size
+        // and the index address to the index format - both 4 bytes here - and
+        // the offsets below are multiples of 12 and 4, so both hold.
+        const MeshGPUData &m = m_meshGPU[mi];
 
         printf("[accel] Mesh %zu: %u verts, %u tris\n",
-               mi, (unsigned)V.cols(), (unsigned)F.cols());
+               mi, m.vertexCount, m.indexCount / 3);
 
         D3D12_RAYTRACING_GEOMETRY_DESC geomDesc{};
         geomDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
         geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-        geomDesc.Triangles.VertexBuffer.StartAddress = m_meshGPU[mi].vertexBuffer->GetGPUVirtualAddress();
+        geomDesc.Triangles.VertexBuffer.StartAddress =
+            m_globalVertexBuffer->GetGPUVirtualAddress() + (UINT64)m.vertexOffset * 3 * sizeof(float);
         geomDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(float) * 3;
         geomDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-        geomDesc.Triangles.VertexCount = (UINT)V.cols();
-        geomDesc.Triangles.IndexBuffer = m_meshGPU[mi].indexBuffer->GetGPUVirtualAddress();
-        geomDesc.Triangles.IndexCount = (UINT)F.size();
+        geomDesc.Triangles.VertexCount = m.vertexCount;
+        geomDesc.Triangles.IndexBuffer =
+            m_globalIndexBuffer->GetGPUVirtualAddress() + (UINT64)m.indexOffset * sizeof(uint32_t);
+        geomDesc.Triangles.IndexCount = m.indexCount;
         geomDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs{};
@@ -171,12 +159,19 @@ void DXRApp::CreateAccelerationStructure()
 
 void DXRApp::CreateSceneBuffers()
 {
+    // Scene buffers live in DEFAULT (device-local) heaps and are filled by
+    // copies recorded here, so this needs its own open command list.
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset(), "Alloc");
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr), "CmdList");
+
     printf("[scene] sizeof(GPUMaterial) on CPU = %zu bytes\n", sizeof(GPUMaterial));
     const auto &meshes = m_noriScene->getMeshes();
     m_meshCount = (uint32_t)meshes.size();
+    m_meshGPU.resize(m_meshCount);
 
     // Pass 1: fill per-mesh GPUMaterial and accumulate total vertex/index counts.
-    std::vector<GPUMaterial> materials(m_meshCount);
+    m_materialsCpu.assign(m_meshCount, GPUMaterial{});
+    std::vector<GPUMaterial> &materials = m_materialsCpu;
     uint32_t totalVertices = 0;
     uint32_t totalIndices = 0;
 
@@ -232,9 +227,17 @@ void DXRApp::CreateSceneBuffers()
         mat.clearcoatGloss = gd.clearcoatGloss;
         mat.anisotropic = gd.anisotropic;
         mat.betaN = gd.betaN;
+        mat.translucency = gd.translucency;
 
         totalVertices += vc;
         totalIndices += ic;
+
+        // The BLAS build (which runs next) addresses its geometry inside the
+        // global buffers using exactly these offsets.
+        m_meshGPU[i].vertexOffset = mat.vertexOffset;
+        m_meshGPU[i].indexOffset = mat.indexOffset;
+        m_meshGPU[i].vertexCount = vc;
+        m_meshGPU[i].indexCount = ic;
 
         printf("[scene] Mesh %u: type=%u verts=%u tris=%u emitter=%u area=%.4f\n",
                i, mat.type, vc, ic / 3, mat.isEmitter, mat.surfaceArea);
@@ -316,26 +319,15 @@ void DXRApp::CreateSceneBuffers()
         printf("[scene] Power CDF: %u emitters, totalPower=%.4f\n", m_emitterCount, totalPower);
     }
 
-    // Upload material structured buffer.
-    {
-        UINT64 sz = m_meshCount * sizeof(GPUMaterial);
-        m_materialBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                        D3D12_RESOURCE_STATE_GENERIC_READ,
-                                        D3D12_HEAP_TYPE_UPLOAD);
-        void *p;
-        m_materialBuffer->Map(0, nullptr, &p);
-        memcpy(p, materials.data(), sz);
-        m_materialBuffer->Unmap(0, nullptr);
-    }
+    // The material and volume buffers are NOT uploaded here. Both are patched
+    // with texture indices at the end of CreateTextures, which cannot map a
+    // device-local buffer, so both are created there once their contents are
+    // final.
 
     // Concatenate per-mesh vertex normals.
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
-        m_globalNormalBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                            D3D12_RESOURCE_STATE_GENERIC_READ,
-                                            D3D12_HEAP_TYPE_UPLOAD);
-        uint8_t *dst;
-        m_globalNormalBuffer->Map(0, nullptr, (void **)&dst);
+        m_globalNormalBuffer = CreateBufferFilled(sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, [&](uint8_t *dst) {
         memset(dst, 0, sz);
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
@@ -345,17 +337,13 @@ void DXRApp::CreateSceneBuffers()
                 memcpy(dst, N.data(), N.size() * sizeof(float));
             dst += vc * 3 * sizeof(float);
         }
-        m_globalNormalBuffer->Unmap(0, nullptr);
+        });
     }
 
     // Concatenate triangle indices (local per mesh; shader applies vertexOffset).
     {
         UINT64 sz = totalIndices * sizeof(uint32_t);
-        m_globalIndexBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                           D3D12_RESOURCE_STATE_GENERIC_READ,
-                                           D3D12_HEAP_TYPE_UPLOAD);
-        uint8_t *dst;
-        m_globalIndexBuffer->Map(0, nullptr, (void **)&dst);
+        m_globalIndexBuffer = CreateBufferFilled(sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, [&](uint8_t *dst) {
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
             const auto &F = meshes[i]->getIndices();
@@ -363,17 +351,13 @@ void DXRApp::CreateSceneBuffers()
             memcpy(dst, F.data(), bytes);
             dst += bytes;
         }
-        m_globalIndexBuffer->Unmap(0, nullptr);
+        });
     }
 
     // Concatenate vertex positions (needed for emitter sampling in shaders).
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
-        m_globalVertexBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                            D3D12_RESOURCE_STATE_GENERIC_READ,
-                                            D3D12_HEAP_TYPE_UPLOAD);
-        uint8_t *dst;
-        m_globalVertexBuffer->Map(0, nullptr, (void **)&dst);
+        m_globalVertexBuffer = CreateBufferFilled(sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, [&](uint8_t *dst) {
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
             const auto &V = meshes[i]->getVertexPositions();
@@ -381,20 +365,14 @@ void DXRApp::CreateSceneBuffers()
             memcpy(dst, V.data(), bytes);
             dst += bytes;
         }
-        m_globalVertexBuffer->Unmap(0, nullptr);
+        });
     }
 
     // Emitter CDF buffer.
     if (!allCdfData.empty())
     {
         UINT64 sz = allCdfData.size() * sizeof(float);
-        m_emitterCdfBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                          D3D12_RESOURCE_STATE_GENERIC_READ,
-                                          D3D12_HEAP_TYPE_UPLOAD);
-        void *p;
-        m_emitterCdfBuffer->Map(0, nullptr, &p);
-        memcpy(p, allCdfData.data(), sz);
-        m_emitterCdfBuffer->Unmap(0, nullptr);
+        m_emitterCdfBuffer = CreateBufferWithData(allCdfData.data(), sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
     }
 
     printf("[scene] Buffers uploaded: %u materials, %u verts, %u indices, %zu CDF entries\n",
@@ -403,11 +381,7 @@ void DXRApp::CreateSceneBuffers()
     // Concatenate UV coordinates (float2 per vertex, interleaved).
     {
         UINT64 sz = totalVertices * 2 * sizeof(float);
-        m_globalTexCoordBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                              D3D12_RESOURCE_STATE_GENERIC_READ,
-                                              D3D12_HEAP_TYPE_UPLOAD);
-        uint8_t *dst;
-        m_globalTexCoordBuffer->Map(0, nullptr, (void **)&dst);
+        m_globalTexCoordBuffer = CreateBufferFilled(sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, [&](uint8_t *dst) {
         memset(dst, 0, sz);
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
@@ -427,17 +401,13 @@ void DXRApp::CreateSceneBuffers()
             }
             dst += vc * 2 * sizeof(float);
         }
-        m_globalTexCoordBuffer->Unmap(0, nullptr);
+        });
     }
 
     // Concatenate per-vertex fiber tangents (float3 per vertex; zero for non-hair meshes).
     {
         UINT64 sz = totalVertices * 3 * sizeof(float);
-        m_globalTangentBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                             D3D12_RESOURCE_STATE_GENERIC_READ,
-                                             D3D12_HEAP_TYPE_UPLOAD);
-        uint8_t *dst;
-        m_globalTangentBuffer->Map(0, nullptr, (void **)&dst);
+        m_globalTangentBuffer = CreateBufferFilled(sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, [&](uint8_t *dst) {
         memset(dst, 0, sz);
         for (uint32_t i = 0; i < m_meshCount; i++)
         {
@@ -447,25 +417,13 @@ void DXRApp::CreateSceneBuffers()
                 memcpy(dst, T.data(), T.size() * sizeof(float));
             dst += vc * 3 * sizeof(float);
         }
-        m_globalTangentBuffer->Unmap(0, nullptr);
+        });
     }
 
-    // Volume structured buffer. Always allocate at least one entry so the
-    // descriptor table has a valid SRV target even when no volumes are present.
-    {
-        size_t numEntries = std::max<size_t>(1, m_volumes.size());
-        UINT64 sz = numEntries * sizeof(GPUVolume);
-        m_volumeBuffer = CreateBuffer(sz, D3D12_RESOURCE_FLAG_NONE,
-                                      D3D12_RESOURCE_STATE_GENERIC_READ,
-                                      D3D12_HEAP_TYPE_UPLOAD);
-        void *p = nullptr;
-        m_volumeBuffer->Map(0, nullptr, &p);
-        memset(p, 0, sz);
-        if (!m_volumes.empty())
-            memcpy(p, m_volumes.data(), m_volumes.size() * sizeof(GPUVolume));
-        m_volumeBuffer->Unmap(0, nullptr);
-        printf("[scene] Volume buffer uploaded: %zu entries\n", m_volumes.size());
-    }
+    // Run the copies, then release the staging buffers: the GPU is idle after
+    // FlushCommandQueue, so nothing still references them.
+    FlushCommandQueue();
+    ReleaseSceneUploadStaging();
 }
 
 void DXRApp::SetupVolumes()

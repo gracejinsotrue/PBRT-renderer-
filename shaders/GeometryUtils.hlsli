@@ -182,6 +182,20 @@ float3 OffsetRayOrigin(float3 hitPos, float3 Ng, float3 N)
     return p;
 }
 
+// TMax for a shadow ray whose origin OffsetRayOrigin pushed 2 mm off the surface.
+// `dist` is measured from the un-offset hit point, so along the ray the light actually
+// sits at dist - dot(origin - hitPos, dir). Backing a flat 1 mm off `dist` is not enough:
+// once the light is within 60 deg of the normal the 2 mm normal offset eats more than
+// 1 mm of range, the ray reaches the light's own geometry, and every next-event sample
+// comes back occluded. Envmap shadow rays use TMax = 1e20 and were never affected,
+// which is why image-based lighting looked right while mesh area lights contributed
+// nothing but their BSDF-sampled share.
+float ShadowTMax(float3 hitPos, float3 origin, float3 dir, float dist)
+{
+    float d = dist - dot(origin - hitPos, dir);
+    return d - max(1e-3, d * 1e-4);
+}
+
 // ============================================================================
 // Sampling primitives
 // ============================================================================

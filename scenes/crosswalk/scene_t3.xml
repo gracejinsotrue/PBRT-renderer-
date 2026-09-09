@@ -1,0 +1,147 @@
+<?xml version='1.0' encoding='utf-8'?>
+
+<scene>
+	<string name="envmap" value="sky.hdr"/>
+	<float name="envmapScale" value="1.000000"/>
+	<float name="evCompensation" value="0.0"/>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/sun_square.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="122821.6725 118522.9140 109925.3969"/>
+		</emitter>
+	</mesh>
+
+	<camera type="perspective">
+		<float name="fov" value="33.999999"/>
+		<transform name="toWorld">
+			<lookat target="0.779267, 1.645890, 16.004824" origin="0.800000, 1.550000, 17.000000" up="0.001997, 0.995392, 0.095869"/>
+		</transform>
+		<integer name="width" value="900"/>
+		<integer name="height" value="1200"/>
+	</camera>
+
+	<sampler type="independent">
+		<integer name="sampleCount" value="24"/>
+	</sampler>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/Road.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.052000 0.052000 0.055000"/>
+			<float name="roughness" value="0.720000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/CrosswalkStripes.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.520000 0.520000 0.500000"/>
+			<float name="roughness" value="0.620000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/Curb.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.300000 0.290000 0.270000"/>
+			<float name="roughness" value="0.820000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/Sidewalk.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.260000 0.245000 0.225000"/>
+			<float name="roughness" value="0.850000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/Hedge.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.030000 0.045000 0.018000"/>
+			<float name="roughness" value="0.900000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/Trunk.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.240000 0.225000 0.205000"/>
+			<float name="roughness" value="0.880000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/SignalPole.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.200000 0.200000 0.200000"/>
+			<float name="roughness" value="0.450000"/>
+			<float name="metallic" value="0.550000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/SignalHousing.obj"/>
+		<bsdf type="disney">
+			<color name="baseColor" value="0.045000 0.045000 0.048000"/>
+			<float name="roughness" value="0.550000"/>
+			<float name="metallic" value="0.000000"/>
+			<float name="specular" value="0.500000"/>
+			<float name="sheen" value="0.000000"/>
+			<float name="clearcoat" value="0.000000"/>
+			<float name="anisotropic" value="0.000000"/>
+			<float name="subsurface" value="0.000000"/>
+		</bsdf>
+	</mesh>
+
+	<mesh type="obj">
+		<string name="filename" value="meshes/SignalRedLens.obj"/>
+		<emitter type="area">
+			<color name="radiance" value="14.000000 1.400000 0.700000"/>
+		</emitter>
+	</mesh>
+
+</scene>

@@ -136,6 +136,7 @@ struct GPUMaterial
     float anisotropic;
     float betaN;                // azimuthal roughness for hair
     float emitterSelectionProb; // power-weighted probability of selecting this emitter (0 for non-emitters)
+    float translucency;         // thin-surface diffuse transmission, 0 = opaque reflector
 };
 
 float3 MatAlbedo(GPUMaterial m) { return float3(m.albedoR, m.albedoG, m.albedoB); }

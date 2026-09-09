@@ -504,39 +504,51 @@ void DXRApp::CreateTextures()
         }
     }
 
-    FlushCommandQueue();
-    m_texUploads.clear();
-    m_envmapUpload.Reset();
-    m_volumeUploads.clear();
-
-    // Patch the medium's volume entry with the uploaded Texture3D indices,
-    // then re-upload the volume buffer so the shader sees the real indices.
+    // Finish the material and volume records on the host, then create both
+    // device-local buffers from the final data. These deliberately are not
+    // uploaded in CreateSceneBuffers: the texture indices below are not known
+    // until now, and a DEFAULT-heap buffer cannot be mapped to patch in place.
     if (!m_volumes.empty() && (m_volumes[0].flags & VOLUME_FLAG_HETEROGENEOUS))
     {
         m_volumes[0].densityTexIndex = mediumIdx.densityIndex;
         m_volumes[0].majorantTexIndex = mediumIdx.majorantIndex;
-        void *p = nullptr;
-        m_volumeBuffer->Map(0, nullptr, &p);
-        memcpy(p, m_volumes.data(), m_volumes.size() * sizeof(GPUVolume));
-        m_volumeBuffer->Unmap(0, nullptr);
     }
 
-    // Patch texture indices into the material buffer.
+    for (uint32_t i = 0; i < (uint32_t)meshes.size(); i++)
     {
-        GPUMaterial *mats = nullptr;
-        m_materialBuffer->Map(0, nullptr, (void **)&mats);
-        for (uint32_t i = 0; i < (uint32_t)meshes.size(); i++)
-        {
-            mats[i].albedoTexIndex = meshTexIndices[i].albedo;
-            mats[i].normalTexIndex = meshTexIndices[i].normal;
-            mats[i].roughnessTexIndex = meshTexIndices[i].roughness;
-            mats[i].metallicTexIndex = meshTexIndices[i].metallic;
-            mats[i].specularTexIndex = meshTexIndices[i].specular;
-            mats[i].subsurfaceTexIndex = meshTexIndices[i].subsurface;
-            mats[i].alphaTexIndex = meshTexIndices[i].alpha;
-        }
-        m_materialBuffer->Unmap(0, nullptr);
+        GPUMaterial &mat = m_materialsCpu[i];
+        mat.albedoTexIndex = meshTexIndices[i].albedo;
+        mat.normalTexIndex = meshTexIndices[i].normal;
+        mat.roughnessTexIndex = meshTexIndices[i].roughness;
+        mat.metallicTexIndex = meshTexIndices[i].metallic;
+        mat.specularTexIndex = meshTexIndices[i].specular;
+        mat.subsurfaceTexIndex = meshTexIndices[i].subsurface;
+        mat.alphaTexIndex = meshTexIndices[i].alpha;
     }
+
+    m_materialBuffer = CreateBufferWithData(m_materialsCpu.data(),
+                                           m_materialsCpu.size() * sizeof(GPUMaterial),
+                                           D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+    // Always at least one entry, so the descriptor table has a valid SRV target
+    // even in a scene with no volumes.
+    {
+        size_t numEntries = std::max<size_t>(1, m_volumes.size());
+        UINT64 sz = numEntries * sizeof(GPUVolume);
+        m_volumeBuffer = CreateBufferFilled(sz, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                                           [&](uint8_t *dst) {
+            memset(dst, 0, (size_t)sz);
+            if (!m_volumes.empty())
+                memcpy(dst, m_volumes.data(), m_volumes.size() * sizeof(GPUVolume));
+        });
+        printf("[scene] Volume buffer uploaded: %zu entries\n", m_volumes.size());
+    }
+
+    FlushCommandQueue();
+    m_texUploads.clear();
+    m_envmapUpload.Reset();
+    m_volumeUploads.clear();
+    ReleaseSceneUploadStaging();
 
     printf("[texture] %u textures loaded (%u real + 1 dummy)\n",
            m_textureCount, m_textureCount - 1);

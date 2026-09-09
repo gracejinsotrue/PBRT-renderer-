@@ -120,7 +120,7 @@ float3 MISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wi_world;
     shadowRay.TMin = 0.0;
-    shadowRay.TMax = dist - 0.001;
+    shadowRay.TMax = ShadowTMax(hitPos, shadowOrigin, wi_world, dist);
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
@@ -282,7 +282,7 @@ float3 RISDirectIllumination(float3 hitPos, float3 N, float3 Ng, float3 T, float
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wiw;
     shadowRay.TMin = 0.0;
-    shadowRay.TMax = dist - 0.001;
+    shadowRay.TMax = ShadowTMax(hitPos, shadowOrigin, wiw, dist);
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
@@ -527,7 +527,7 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
             sr.Origin = shadowOrigin;
             sr.Direction = wiw;
             sr.TMin = 0.0;
-            sr.TMax = dist - 0.001;
+            sr.TMax = ShadowTMax(hitPos, shadowOrigin, wiw, dist);
             ShadowPayload sp;
             sp.shadowed = 1;
             sp.transmission = float3(1, 1, 1);
@@ -725,7 +725,7 @@ float3 ReSTIRDirectIllumination(uint2 pixel, uint2 dims,
     shadowRay.Origin = shadowOrigin;
     shadowRay.Direction = wiw;
     shadowRay.TMin = 0.0;
-    shadowRay.TMax = dist - 0.001;
+    shadowRay.TMax = ShadowTMax(hitPos, shadowOrigin, wiw, dist);
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);
@@ -835,7 +835,7 @@ float3 VolumeNEEAreaLight(float3 scatterPos, float3 wo, uint volumeIndex, inout 
     shadowRay.Origin = scatterPos;
     shadowRay.Direction = wi;
     shadowRay.TMin = 0.001;
-    shadowRay.TMax = dist - 0.001;
+    shadowRay.TMax = ShadowTMax(scatterPos, scatterPos, wi, dist);
     ShadowPayload shadow;
     shadow.shadowed = 1;
     shadow.transmission = float3(1, 1, 1);

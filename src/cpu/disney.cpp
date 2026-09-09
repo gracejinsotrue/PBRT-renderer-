@@ -41,6 +41,7 @@ public:
         m_clearcoat = propList.getFloat("clearcoat", 0.0f);
         m_clearcoatGloss = propList.getFloat("clearcoatGloss", 1.0f);
         m_anisotropic = propList.getFloat("anisotropic", 0.0f);
+        m_translucency = propList.getFloat("translucency", 0.0f);
 
         // Shared texture plumbing with the other BSDFs
         m_albedoTexture = propList.getString("albedoTexture", "");
@@ -104,6 +105,7 @@ public:
         d.clearcoat = m_clearcoat;
         d.clearcoatGloss = m_clearcoatGloss;
         d.anisotropic = m_anisotropic;
+        d.translucency = m_translucency;
 
         d.albedoTexture = m_albedoTexture;
         d.normalTexture = m_normalTexture;
@@ -151,6 +153,7 @@ private:
     float m_clearcoat;
     float m_clearcoatGloss;
     float m_anisotropic;
+    float m_translucency;
 
     std::string m_albedoTexture;
     std::string m_normalTexture;

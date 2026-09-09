@@ -84,6 +84,11 @@ struct BSDFGPUData
     float clearcoatGloss = 1.0f; // 0=rough clearcoat, 1=glossy clearcoat
     float anisotropic = 0.0f;    // isotropic for now; implemented in later step
 
+    // Thin-surface translucency: fraction of light that passes through the surface and
+    // leaves diffusely on the far side. 0 keeps the pure reflection BRDF. Meant for
+    // foliage, paper, fabric, anything thin enough to glow when backlit.
+    float translucency = 0.0f;
+
     // Hair BCSDF (Chiang 2016). Read only when type == HAIR (5).
     float betaN = 0.3f; // azimuthal roughness β_N
 };

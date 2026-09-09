@@ -10,6 +10,7 @@
 #include <vector>
 #include <stdexcept>
 #include <cstdio>
+#include <cstring>
 #include <cmath>
 #include <chrono>
 #include <memory>
@@ -121,6 +122,7 @@ struct GPUMaterial
     float anisotropic;
     float betaN;                // azimuthal roughness β_N (hair only, Chiang Eq. 8)
     float emitterSelectionProb; // power-weighted probability of selecting this emitter (0 for non-emitters)
+    float translucency;         // thin-surface diffuse transmission, 0 = opaque reflector
 };
 
 static_assert(sizeof(GPUMaterial) % 4 == 0,
@@ -128,10 +130,16 @@ static_assert(sizeof(GPUMaterial) % 4 == 0,
 
 struct MeshGPUData
 {
-    ComPtr<ID3D12Resource> vertexBuffer;
-    ComPtr<ID3D12Resource> indexBuffer;
+    // The BLAS is the only per-mesh GPU resource. Its geometry is read
+    // straight out of the global vertex/index buffers at these offsets,
+    // rather than from a per-mesh copy: the global index buffer stores
+    // mesh-local indices, so a vertex base plus an index base addresses
+    // the mesh exactly.
     ComPtr<ID3D12Resource> blas;
-    uint32_t indexCount;
+    uint32_t vertexOffset = 0; // in vertices, into the global vertex buffer
+    uint32_t indexOffset = 0;  // in indices, into the global index buffer
+    uint32_t vertexCount = 0;
+    uint32_t indexCount = 0;
 };
 
 class DXRApp
@@ -233,6 +241,13 @@ private:
         uint32_t count[4] = {0, 0, 0, 0};
     };
     HeapTally m_heapTally;
+    // Upload buffers backing in-flight scene copies. Cleared once the
+    // command list that consumes them has been flushed.
+    std::vector<ComPtr<ID3D12Resource>> m_sceneUploadStaging;
+    // Material records are finished in two phases: geometry and BSDF data in
+    // CreateSceneBuffers, then texture indices once CreateTextures knows them.
+    // The array stays on the host until then, so the GPU buffer is written once.
+    std::vector<GPUMaterial> m_materialsCpu;
     ComPtr<ID3D12Device5> m_device;
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<IDXGISwapChain3> m_swapChain;
@@ -538,6 +553,52 @@ private:
     void UploadHDR(ID3D12Resource *res, const std::vector<float> &rgb);
 
     // Resource helpers
+    // Creates a device-local (DEFAULT heap) buffer and stages its contents
+    // through a temporary UPLOAD buffer, recording the copy and the transition
+    // on the currently open command list. `fill` is handed the mapped staging
+    // pointer, so callers that build their data by concatenating per-mesh
+    // arrays write straight into it - no intermediate host copy.
+    //
+    // The staging buffers are held in m_sceneUploadStaging and must outlive the
+    // command list; ReleaseSceneUploadStaging() drops them after the flush.
+    template <typename Fn>
+    ComPtr<ID3D12Resource> CreateBufferFilled(UINT64 size, D3D12_RESOURCE_STATES finalState, Fn &&fill)
+    {
+        ComPtr<ID3D12Resource> dst = CreateBuffer(size, D3D12_RESOURCE_FLAG_NONE,
+                                                  D3D12_RESOURCE_STATE_COPY_DEST,
+                                                  D3D12_HEAP_TYPE_DEFAULT);
+        ComPtr<ID3D12Resource> staging = CreateBuffer(size, D3D12_RESOURCE_FLAG_NONE,
+                                                      D3D12_RESOURCE_STATE_GENERIC_READ,
+                                                      D3D12_HEAP_TYPE_UPLOAD);
+        void *mapped = nullptr;
+        ThrowIfFailed(staging->Map(0, nullptr, &mapped), "Map scene staging buffer");
+        fill(static_cast<uint8_t *>(mapped));
+        staging->Unmap(0, nullptr);
+
+        m_commandList->CopyBufferRegion(dst.Get(), 0, staging.Get(), 0, size);
+
+        D3D12_RESOURCE_BARRIER barrier{};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource = dst.Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        barrier.Transition.StateAfter = finalState;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        m_commandList->ResourceBarrier(1, &barrier);
+
+        m_sceneUploadStaging.push_back(staging);
+        return dst;
+    }
+
+    // Convenience wrapper for data that is already contiguous on the host.
+    ComPtr<ID3D12Resource> CreateBufferWithData(const void *data, UINT64 size,
+                                                D3D12_RESOURCE_STATES finalState)
+    {
+        return CreateBufferFilled(size, finalState,
+                                  [&](uint8_t *dst) { memcpy(dst, data, (size_t)size); });
+    }
+
+    void ReleaseSceneUploadStaging() { m_sceneUploadStaging.clear(); }
+
     ComPtr<ID3D12Resource> CreateBuffer(
         UINT64 size, D3D12_RESOURCE_FLAGS flags,
         D3D12_RESOURCE_STATES initialState, D3D12_HEAP_TYPE heapType);

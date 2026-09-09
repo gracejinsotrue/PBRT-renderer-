@@ -30,13 +30,22 @@ float3 MaterialEval(float3 wi, float3 wo, GPUMaterial mat, float h)
 #if HAS_DISNEY
     else if (mat.type == 4) // Disney
     {
-        if (wi.z <= 0.0 || wo.z <= 0.0)
+        if (wi.z <= 0.0)
+            return float3(0, 0, 0);
+        // Thin-surface translucency. A backlit leaf glows because part of the light
+        // passes through the blade and leaves diffusely on the viewer's side. The
+        // reflection lobe lives on wo.z > 0 and this one on wo.z < 0, so the two have
+        // disjoint support and MIS against the light-sampling pdf stays valid.
+        if (wo.z < 0.0)
+            return mat.translucency * MatAlbedo(mat) * M_INV_PI;
+        if (wo.z <= 0.0)
             return float3(0, 0, 0);
         float3 fDiffuse = DisneyDiffuseLobe(wi, wo, mat);
         float3 fSpec = DisneySpecularEval(wi, wo, mat);
         float3 fSheen = DisneySheenEval(wi, wo, mat);
         float fCC = DisneyClearcoatEval(wi, wo, mat);
-        return (1.0 - mat.metallic) * (fDiffuse + fSheen) + fSpec + fCC;
+        return (1.0 - mat.translucency) *
+               ((1.0 - mat.metallic) * (fDiffuse + fSheen) + fSpec + fCC);
     }
 #endif
 #if HAS_HAIR
@@ -74,13 +83,18 @@ float MaterialPdf(float3 wi, float3 wo, GPUMaterial mat, float h)
 #if HAS_DISNEY
     else if (mat.type == 4) // Disney
     {
-        if (wi.z <= 0.0 || wo.z <= 0.0)
+        if (wi.z <= 0.0)
+            return 0.0;
+        if (wo.z < 0.0)
+            return mat.translucency * (-wo.z) * M_INV_PI;
+        if (wo.z <= 0.0)
             return 0.0;
         DisneyLobeProbs p = DisneyComputeLobeProbs(mat);
         float pdfDiff = wo.z * M_INV_PI;
         float pdfSpec = DisneySpecularPdf(wi, wo, mat);
         float pdfCC = DisneyClearcoatPdf(wi, wo, mat);
-        return p.pDiffuse * pdfDiff + p.pSpecular * pdfSpec + p.pClearcoat * pdfCC;
+        return (1.0 - mat.translucency) *
+               (p.pDiffuse * pdfDiff + p.pSpecular * pdfSpec + p.pClearcoat * pdfCC);
     }
 #endif
 #if HAS_HAIR
@@ -133,6 +147,20 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
             return float3(0, 0, 0);
         }
 
+        // Transmission lobe, picked with probability `translucency`. The short-circuit
+        // means an opaque material never draws this number, so its RNG stream and
+        // therefore its image stay bit-identical to before.
+        if (mat.translucency > 0.0 && NextFloat(rng) < mat.translucency)
+        {
+            float2 ut = float2(NextFloat(rng), NextFloat(rng));
+            float3 dT = CosineSampleHemisphere(ut);
+            wo = float3(dT.x, dT.y, -dT.z);
+            pdf = mat.translucency * (-wo.z) * M_INV_PI;
+            if (pdf <= 0.0)
+                return float3(0, 0, 0);
+            return MatAlbedo(mat); // (T * albedo / pi) * |cos| / pdf
+        }
+
         DisneyLobeProbs p = DisneyComputeLobeProbs(mat);
         float u0 = NextFloat(rng);
         float2 u12 = float2(NextFloat(rng), NextFloat(rng));
@@ -168,9 +196,12 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
         float pdfDiff = wo.z * M_INV_PI;
         float pdfSpec = DisneySpecularPdf(wi, wo, mat);
         float pdfCC = DisneyClearcoatPdf(wi, wo, mat);
-        pdf = p.pDiffuse * pdfDiff + p.pSpecular * pdfSpec + p.pClearcoat * pdfCC;
-        if (pdf <= 0.0)
+        float pdfMix = p.pDiffuse * pdfDiff + p.pSpecular * pdfSpec + p.pClearcoat * pdfCC;
+        if (pdfMix <= 0.0)
+        {
+            pdf = 0.0;
             return float3(0, 0, 0);
+        }
 
         // Full BSDF at the sampled direction.
         float3 fDiffuse = DisneyDiffuseLobe(wi, wo, mat);
@@ -179,7 +210,11 @@ float3 MaterialSample(float3 wi, inout RNG rng, GPUMaterial mat, float h,
         float fCC = DisneyClearcoatEval(wi, wo, mat);
         float3 fTotal = (1.0 - mat.metallic) * (fDiffuse + fSheen) + fSpec + fCC;
 
-        return fTotal * wo.z / pdf;
+        // f and the pdf both carry the (1 - translucency) reflection weight, so the
+        // throughput ratio is unchanged and only the reported pdf moves, which is
+        // exactly what MIS against the light sampler needs.
+        pdf = (1.0 - mat.translucency) * pdfMix;
+        return fTotal * wo.z / pdfMix;
     }
 #endif
 #if HAS_HAIR
