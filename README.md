@@ -13,6 +13,8 @@ Every ray bounce, material evaluation, and light sample runs entirely on the GPU
 ## Contents
 
 - [Final Render (CS5630 Rendering Competition)](#final-render-that-i-submitted-for-cs5630-rendering-competition)
+- [Some Other Custom Renders](#some-other-custom-renders)
+
 - [San Miguel Renders](#san-miguel-renders)
 - [BMW M6](#bmw-m6)
 - [Sportscar](#sportscar)
@@ -42,6 +44,14 @@ In terms of the Blender scene assembly, I had some help scanning my face and rec
 | Blender Scene Layout | Blender Wireframe |
 |---|---|
 | ![Blender Scene Layout](images/blender_ss.png) | ![Blender Wireframe](images/blender_wireframe.png) |
+
+## Some Other Custom Renders
+Really good animated movie! I recreated pretty scenes from it. I like testing the limits of my renderer while I am interview prepping or something, if I suck at interviewing at least after each interview prep I can work on a pretty picture. 
+The bridge scene had around 30M triangles. 
+
+![Final Denoised Scene](images/the_legend_of_hei.png)
+![Final Denoised Scene](images/the_legend_of_hei2.png)
+
 
 ## San Miguel Renders
 
